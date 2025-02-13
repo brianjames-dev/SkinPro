@@ -164,6 +164,9 @@ class ClientsPage:
                 self.main_app.tabs["Info"].populate_client_info(client_id)
                 self.main_app.tabs["Appointments"].load_client_appointments(client_id)
 
+                # Switch to the Info tab
+                self.main_app.switch_to_tab("Info")
+
     def add_client_button_pressed(self):
         """Switch to the Info Tab, clear data, and populate the full name."""
         full_name = self.name_entry.get()  # Get the name entered in the search field

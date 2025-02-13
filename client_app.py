@@ -11,7 +11,7 @@ class ClientApp(ctk.CTk):
         self.title("SkinPro")
         self.geometry("928x696")
         ctk.set_appearance_mode("Dark")  # Options: "Light", "Dark", or "System"
-        ctk.set_default_color_theme("green")  # Options: "blue", "green", "dark-blue"
+        ctk.set_default_color_theme("blue")  # Options: "blue", "green", "dark-blue"
 
         self.conn = conn  # Save the database connection
         self.selected_client_id = None  # Store selected client ID

@@ -27,9 +27,28 @@ class InfoPage:
         self.conn = conn
         self.cursor = conn.cursor()
         
-        # Header
-        header = ctk.CTkLabel(parent, text="Client Consultation Information", font=("Arial", 20), anchor="w")
-        header.pack(fill="both", padx=15, pady=10)
+        # Create a frame to hold the header and save button
+        header_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        header_frame.pack(fill="x", padx=15, pady=10)
+
+        # Header (placed in the left column)
+        header = ctk.CTkLabel(header_frame, text="Client Consultation Information", font=("Arial", 20), anchor="w")
+        header.grid(row=0, column=0, sticky="w")
+
+        # Save Button (placed in the right column)
+        self.save_button = ctk.CTkButton(
+            header_frame, 
+            text="Save", 
+            # command=self.save_client_data,  # Function to handle save logic
+            font=("Arial", 14)
+        )
+        self.save_button.grid(row=0, column=1, sticky="e", padx=(10, 0))
+
+        # Configure the grid to make the header expand and push the button to the right
+        header_frame.columnconfigure(0, weight=1)  # Make the header take up available space
+        header_frame.columnconfigure(1, weight=0)  # Prevent the button column from expanding
+
+
 
         # Create a frame to hold all input fields
         form_frame = ctk.CTkFrame(parent)
@@ -120,8 +139,10 @@ class InfoPage:
         self.phone_entry.grid(row=4, column=2, sticky="ew")
 
         ctk.CTkLabel(contacts_tri_frame, text="Referred by").grid(row=4, column=3, sticky="w", padx=(20, 5))
-        self.referred_by_entry = ctk.CTkEntry(contacts_tri_frame, border_width=0, placeholder_text="(optional)")
-        self.referred_by_entry.grid(row=4, column=4, sticky="ew")
+        self.referred_by_combobox = ctk.CTkComboBox(contacts_tri_frame, values=[], border_width=0)
+        self.referred_by_combobox.grid(row=4, column=4, sticky="ew")
+        self.referred_by_combobox.set("")
+        self.referred_by_combobox.bind("<KeyRelease>", lambda event: self.update_referred_by_suggestions())
 
         # Separator
         separator = ttk.Separator(form_frame, orient="horizontal")
@@ -280,7 +301,7 @@ class InfoPage:
         self.city_entry.delete(0, "end")
         self.state_entry.set("")
         self.zip_entry.delete(0, "end")
-        self.referred_by_entry.delete(0, "end")
+        self.referred_by_combobox.set("")
         self.allergies_entry.delete(0, "end")
         self.health_conditions_entry.delete(0, "end")
         self.medications_entry.delete(0, "end")
@@ -290,3 +311,102 @@ class InfoPage:
         self.other_notes_entry.delete(0, "end")
         self.desired_improvement_entry.delete(0, "end")
 
+    def update_referred_by_suggestions(self, event=None):
+        """Update the dropdown suggestions in real-time based on user input."""
+        query = self.referred_by_combobox.get().strip()  # Get the current text
+
+        if query:  # Only search if there's input
+            self.cursor.execute(
+                "SELECT full_name FROM clients WHERE full_name LIKE ? LIMIT 10", (f"%{query}%",)
+            )
+            matches = [row[0] for row in self.cursor.fetchall()]
+
+            if matches:
+                self.referred_by_combobox.configure(values=matches)  # Update values dynamically
+            else:
+                self.referred_by_combobox.configure(values=["No matches found"])  # Indicate no matches
+        else:
+            self.referred_by_combobox.configure(values=[])  # Clear suggestions if input is empty
+
+        self.referred_by_combobox.event_generate('<Down>')
+        self.referred_by_combobox.focus()  # Ensure the combo box is focused
+
+    def referred_by_selected(self):
+        """Handle when a user selects an item from the dropdown."""
+        selected_name = self.referred_by_combobox.get()  # Get the selected name
+
+        if selected_name == "No matches found":
+            self.referred_by_combobox.set("")  # Clear the box if "No matches found" is selected
+        else:
+            # Optionally perform further actions with the selected client
+            print(f"Selected: {selected_name}")
+
+    def save_client_data(self):
+        """Save or update client information in the database."""
+        # Collect data from the form
+        full_name = self.full_name_entry.get()
+        gender = self.gender_entry.get()
+        birthdate = self.birthdate_entry.get()
+        phone = self.phone_entry.get()
+        email = self.email_entry.get()
+        address1 = self.address1_entry.get()
+        address2 = self.address2_entry.get()
+        city = self.city_entry.get()
+        state = self.state_entry.get()
+        zip_code = self.zip_entry.get()
+        referred_by = self.referred_by_combobox.get()
+
+        # Health Info
+        allergies = self.allergies_entry.get()
+        health_conditions = self.health_conditions_entry.get()
+        medications = self.medications_entry.get()
+        treatment_areas = self.treatment_areas_entry.get()
+        current_products = self.current_products_entry.get()
+        skin_conditions = self.skin_conditions_entry.get()
+        other_notes = self.other_notes_entry.get()
+        desired_improvement = self.desired_improvement_entry.get()
+
+        if not full_name.strip():  # Ensure a full name is provided
+            print("Error: Full Name is required!")
+            return
+
+        # Check if updating an existing client or creating a new one
+        if self.client_id:  # Update existing client
+            # Update client information
+            self.cursor.execute("""
+                UPDATE clients 
+                SET full_name = ?, gender = ?, birthdate = ?, phone = ?, email = ?, address1 = ?, 
+                    address2 = ?, city = ?, state = ?, zip = ?, referred_by = ? 
+                WHERE id = ?
+            """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip_code, referred_by, self.client_id))
+
+            # Update health information
+            self.cursor.execute("""
+                UPDATE client_health_info 
+                SET allergies = ?, health_conditions = ?, medications = ?, treatment_areas = ?, 
+                    current_products = ?, skin_conditions = ?, other_notes = ?, desired_improvement = ? 
+                WHERE client_id = ?
+            """, (allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement, self.client_id))
+
+            print(f"Client '{full_name}' updated successfully.")
+
+        else:  # Insert a new client
+            # Insert new client into the database
+            self.cursor.execute("""
+                INSERT INTO clients (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip_code, referred_by))
+            self.conn.commit()
+
+            # Get the newly inserted client_id
+            self.client_id = self.cursor.lastrowid
+
+            # Insert health information
+            self.cursor.execute("""
+                INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
+                    current_products, skin_conditions, other_notes, desired_improvement) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
+            self.conn.commit()
+
+            print(f"New client '{full_name}' added successfully.")

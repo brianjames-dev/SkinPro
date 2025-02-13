@@ -60,7 +60,7 @@ class AppointmentsPage:
         treatment_notes_label.pack(anchor="w", padx=10, pady=(5, 5))
 
         # Insert Textbox into Details Frame
-        self.details_textbox = ctk.CTkTextbox(details_frame, font=("Arial", 12), corner_radius=0, wrap="word")
+        self.details_textbox = ctk.CTkTextbox(details_frame, font=("Arial", 12), corner_radius=0, wrap="word", fg_color="#1E1E1E")
         self.details_textbox.pack(fill="both", expand=True)
 
     def set_column_widths(self):
