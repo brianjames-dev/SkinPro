@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from tkinter import ttk
+from class_elements.profile_card import ProfileCard
 
 """
 Form Layout:
@@ -27,27 +28,10 @@ class InfoPage:
         self.conn = conn
         self.cursor = conn.cursor()
         
-        # Create a frame to hold the header and save button
-        header_frame = ctk.CTkFrame(parent, fg_color="transparent")
-        header_frame.pack(fill="x", padx=15, pady=10)
+        # Add the profile display
+        self.profile_display = ProfileCard(parent)
 
-        # Header (placed in the left column)
-        header = ctk.CTkLabel(header_frame, text="Client Consultation Information", font=("Arial", 20), anchor="w")
-        header.grid(row=0, column=0, sticky="w")
-
-        # Save Button (placed in the right column)
-        self.save_button = ctk.CTkButton(
-            header_frame, 
-            text="Save", 
-            # command=self.save_client_data,  # Function to handle save logic
-            font=("Arial", 14)
-        )
-        self.save_button.grid(row=0, column=1, sticky="e", padx=(10, 0))
-
-        # Configure the grid to make the header expand and push the button to the right
-        header_frame.columnconfigure(0, weight=1)  # Make the header take up available space
-        header_frame.columnconfigure(1, weight=0)  # Prevent the button column from expanding
-
+        # Save button goes here ---
 
 
         # Create a frame to hold all input fields

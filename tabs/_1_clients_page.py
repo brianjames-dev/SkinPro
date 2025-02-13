@@ -1,6 +1,7 @@
 from tkinter import ttk
 import customtkinter as ctk
 from PIL import Image
+from class_elements.profile_card import ProfileCard
 
 
 class ClientsPage:
@@ -10,9 +11,8 @@ class ClientsPage:
         self.main_app = main_app
         self.cursor = conn.cursor()
 
-        # Header
-        header = ctk.CTkLabel(parent, text="Client Search", font=("Arial", 20), anchor="w")
-        header.pack(fill="both", padx=15, pady=10)
+        # Add the profile display
+        self.profile_display = ProfileCard(parent)
 
         # Frame for Search and Treeview
         main_frame = ctk.CTkFrame(parent)

@@ -1,14 +1,13 @@
 import customtkinter as ctk
 from tkinter import ttk
-
+from class_elements.profile_card import ProfileCard
 class AppointmentsPage:
     def __init__(self, parent, conn):
         self.conn = conn
         self.cursor = conn.cursor()
 
-        # Header
-        header = ctk.CTkLabel(parent, text="Appointments", font=("Arial", 20), anchor="w")
-        header.pack(fill="both", padx=15, pady=10)
+        # Add the profile display
+        self.profile_display = ProfileCard(parent)
 
         # Create Main frame (holds both Treeview and Details frame)
         main_frame = ctk.CTkFrame(parent)
