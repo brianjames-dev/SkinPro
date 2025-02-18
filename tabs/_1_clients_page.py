@@ -30,9 +30,6 @@ class ClientsPage:
         self.name_entry = ctk.CTkEntry(search_frame, width=300, placeholder_text="Enter client name", border_width=0)
         self.name_entry.grid(row=0, column=1, sticky="ew", padx=0)
 
-        # Bind Enter key to search function
-        self.name_entry.bind("<Return>", lambda event: self.search_client())
-
         # Add Client Button
         add_client_icon = ctk.CTkImage(light_image=Image.open("icons/add_client.png"), size=(24, 24))
         add_client_button = ctk.CTkButton(
@@ -95,14 +92,11 @@ class ClientsPage:
         # Bind the Treeview's parent to a resize event
         self.client_list.bind("<Configure>", lambda event: self.set_column_widths())
 
-        # Bind "Control+Enter" to the button's functionality globally
-        self.main_app.bind("<Control-Return>", lambda event: self.add_client_button_pressed())  # For Windows/Linux
-        self.main_app.bind("<Command-Return>", lambda event: self.add_client_button_pressed())  # For macOS
-        self.client_list.bind("<Double-1>", self.load_selected_client)
-        self.client_list.bind("<Control-Return>", self.add_client_button_pressed)
-
-        # Ensure focus is set to an interactive widget
-        self.name_entry.focus_set()  # This will allow the shortcut to work when typing in the entry
+        # Key "bind" configurations for quick functionality
+        self.name_entry.bind("<Return>", lambda event: (self.search_client(), "break"))  # Prevent default behavior
+        self.client_list.bind("<Return>", self.load_selected_client)  # Pressing Enter in Treeview
+        self.client_list.bind("<Double-1>", self.load_selected_client)  # Double left-click
+        self.client_list.bind("<Control-Return>", lambda event: self.add_client_button_pressed())  # Bind globally for Ctrl+Enter
 
     def set_column_widths(self):
         # Get the current width of the Treeview

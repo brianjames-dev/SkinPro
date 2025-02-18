@@ -23,6 +23,25 @@ Form Layout:
 "Desired Improvement"  -> Entry Box
 """
 
+
+# Placeholder text phrases
+full_name_placeholder           = "Enter full name (e.g., John Doe)"
+birthdate_placeholder           = "MM/DD/YYYY"
+address1_placeholder            = "Enter street address (e.g., 123 Main St.)"
+address2_placeholder            = "(optional)"
+city_placeholder                = "e.g., Santa Rosa"
+zip_placeholder                 = "e.g., 95404"
+email_placeholder               = "john.doe@example.com"
+phone_placeholder               = "e.g., 555-123-4567"
+allergies_placeholder           = "List any known allergies (e.g., nuts, latex)"
+health_conditions_placeholder   = "List known health conditions (e.g., diabetes, asthma)"
+medications_placeholder         = "List current medications (e.g., Ibuprofen)"
+treatment_areas_placeholder     = "List desired treatment area(s) (e.g., face, legs)"
+current_products_placeholder    = "List skincare products used (e.g., cleanser, moisturizer)"
+skin_conditions_placeholder     = "Describe skin conditions (e.g., acne, rosacea)"
+other_notes_placeholder         = "Add any relevant notes (Optional)"
+desired_improvement_placeholder = "What improvement is the client seeking?"
+
 class InfoPage:
     def __init__(self, parent, conn):
         self.conn = conn
@@ -32,7 +51,6 @@ class InfoPage:
         self.profile_display = ProfileCard(parent)
 
         # Save button goes here ---
-
 
         # Create a frame to hold all input fields
         form_frame = ctk.CTkFrame(parent)
@@ -51,25 +69,26 @@ class InfoPage:
 
         # Row 1: Full Name, Gender, Birthdate
         ctk.CTkLabel(form_frame, text="Full Name").grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        self.full_name_entry = ctk.CTkEntry(name_frame, border_width=0, placeholder_text="Enter full name (e.g., John Doe)")
+        self.full_name_entry = ctk.CTkEntry(name_frame, border_width=0, placeholder_text=full_name_placeholder)
         self.full_name_entry.grid(row=0, column=0, sticky="ew")
 
         ctk.CTkLabel(name_frame, text="Gender").grid(row=0, column=1, sticky="w", padx=(20, 5))
         self.gender_entry = ctk.CTkComboBox(name_frame, values=["Female", "Male"], border_width=0)
         self.gender_entry.grid(row=0, column=2, sticky="ew")
+        self.gender_entry.set("Select Gender")  # Assuming it should have a default value
 
         ctk.CTkLabel(name_frame, text="Birthdate").grid(row=0, column=3, sticky="w", padx=(20, 5))
-        self.birthdate_entry = ctk.CTkEntry(name_frame, border_width=0, placeholder_text="MM/DD/YYYY")
+        self.birthdate_entry = ctk.CTkEntry(name_frame, border_width=0, placeholder_text=birthdate_placeholder)
         self.birthdate_entry.grid(row=0, column=4, sticky="ew")
 
         # Row 2: Address 1
         ctk.CTkLabel(form_frame, text="Address 1").grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        self.address1_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text="Enter street address (e.g., 123 Main St.)")
+        self.address1_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=address1_placeholder)
         self.address1_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 3: Address 2
         ctk.CTkLabel(form_frame, text="Address 2").grid(row=2, column=0, sticky="w", padx=5, pady=5)
-        self.address2_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text="(optional)")
+        self.address2_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=address2_placeholder)
         self.address2_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
         # Frame for City, State, Zip
@@ -83,7 +102,7 @@ class InfoPage:
 
         # Row 4: City, State, Zip
         ctk.CTkLabel(form_frame, text="City").grid(row=3, column=0, sticky="w", padx=5, pady=5)
-        self.city_entry = ctk.CTkEntry(address_tri_frame, border_width=0, placeholder_text="e.g., Santa Rosa")
+        self.city_entry = ctk.CTkEntry(address_tri_frame, border_width=0, placeholder_text=city_placeholder)
         self.city_entry.grid(row=3, column=0, sticky="ew")
 
         ctk.CTkLabel(address_tri_frame, text="State").grid(row=3, column=1, sticky="w", padx=(20, 5))
@@ -94,9 +113,10 @@ class InfoPage:
                                            "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", 
                                            "VT", "VA", "WA", "WV", "WI", "WY"])
         self.state_entry.grid(row=3, column=2, sticky="ew")
+        self.state_entry.set("Select State")  # Assuming it should have a default value
 
         ctk.CTkLabel(address_tri_frame, text="Zip").grid(row=3, column=3, sticky="w", padx=(20, 5))
-        self.zip_entry = ctk.CTkEntry(address_tri_frame, border_width=0, placeholder_text="e.g., 95404")
+        self.zip_entry = ctk.CTkEntry(address_tri_frame, border_width=0, placeholder_text=zip_placeholder)
         self.zip_entry.grid(row=3, column=4, sticky="ew")
 
         # Frame for Email, Cell Phone, Referred by
@@ -110,11 +130,11 @@ class InfoPage:
 
         # Row 5: Email, Cell Phone, Referred by
         ctk.CTkLabel(form_frame, text="Email").grid(row=4, column=0, sticky="w", padx=5, pady=5)
-        self.email_entry = ctk.CTkEntry(contacts_tri_frame, border_width=0, placeholder_text="john.doe@example.com")
+        self.email_entry = ctk.CTkEntry(contacts_tri_frame, border_width=0, placeholder_text=email_placeholder)
         self.email_entry.grid(row=4, column=0, sticky="ew")
        
         ctk.CTkLabel(contacts_tri_frame, text="Phone #").grid(row=4, column=1, sticky="w", padx=(20, 5))
-        self.phone_entry = ctk.CTkEntry(contacts_tri_frame, border_width=0, placeholder_text="e.g., 555-123-4567")
+        self.phone_entry = ctk.CTkEntry(contacts_tri_frame, border_width=0, placeholder_text=phone_placeholder)
         self.phone_entry.grid(row=4, column=2, sticky="ew")
 
         ctk.CTkLabel(contacts_tri_frame, text="Referred by").grid(row=4, column=3, sticky="w", padx=(20, 5))
@@ -129,32 +149,32 @@ class InfoPage:
 
         # Row 6: Allergies
         ctk.CTkLabel(form_frame, text="Allergies").grid(row=6, column=0, sticky="w", padx=5, pady=5)
-        self.allergies_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text="List any known allergies (e.g., nuts, latex)")
+        self.allergies_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=allergies_placeholder)
         self.allergies_entry.grid(row=6, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 7: Health Conditions
         ctk.CTkLabel(form_frame, text="Health Conditions").grid(row=7, column=0, sticky="w", padx=5, pady=5)
-        self.health_conditions_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text="List known health conditions (e.g., diabetes, asthma)")
+        self.health_conditions_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=health_conditions_placeholder)
         self.health_conditions_entry.grid(row=7, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 8: Medications
         ctk.CTkLabel(form_frame, text="Medications").grid(row=8, column=0, sticky="w", padx=5, pady=5)
-        self.medications_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text="List current medications (e.g., Ibuprofen)")
+        self.medications_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=medications_placeholder)
         self.medications_entry.grid(row=8, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 9: Area to be Treated
         ctk.CTkLabel(form_frame, text="Area to be Treated").grid(row=9, column=0, sticky="w", padx=5, pady=5)
-        self.treatment_areas_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text="List desired treatment area(s) (e.g., face, legs)")
+        self.treatment_areas_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=treatment_areas_placeholder)
         self.treatment_areas_entry.grid(row=9, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 10: Current Product Use
         ctk.CTkLabel(form_frame, text="Current Product Use").grid(row=10, column=0, sticky="w", padx=5, pady=5)
-        self.current_products_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text="List skincare products used (e.g., cleanser, moisturizer)")
+        self.current_products_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=current_products_placeholder)
         self.current_products_entry.grid(row=10, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 11: Skin Conditions
         ctk.CTkLabel(form_frame, text="Skin Conditions").grid(row=11, column=0, sticky="w", padx=5, pady=5)
-        self.skin_conditions_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text="Describe skin conditions (e.g., acne, rosacea)")
+        self.skin_conditions_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=skin_conditions_placeholder)
         self.skin_conditions_entry.grid(row=11, column=1, padx=5, pady=5, sticky="ew")
 
         # Separator
@@ -163,13 +183,35 @@ class InfoPage:
 
         # Row 12: Other Notes
         ctk.CTkLabel(form_frame, text="Other Notes").grid(row=13, column=0, sticky="w", padx=5, pady=5)
-        self.other_notes_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text="Add any relevant notes (Optional)")
+        self.other_notes_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=other_notes_placeholder)
         self.other_notes_entry.grid(row=13, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 13: Desired Improvement
         ctk.CTkLabel(form_frame, text="Desired Improvement").grid(row=14, column=0, sticky="w", padx=5, pady=5)
-        self.desired_improvement_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text="What improvement is the client seeking?")
+        self.desired_improvement_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=desired_improvement_placeholder)
         self.desired_improvement_entry.grid(row=14, column=1, padx=5, pady=5, sticky="ew")
+
+        self.full_name_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.birthdate_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.address1_entry.           bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.address2_entry.           bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.city_entry.               bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.zip_entry.                bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.phone_entry.              bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.email_entry.              bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.allergies_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.health_conditions_entry.  bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.medications_entry.        bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.treatment_areas_entry.    bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.current_products_entry.   bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.skin_conditions_entry.    bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.other_notes_entry.        bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.desired_improvement_entry.bind("<Return>", lambda event: self.focus_next_widget(event))
+
+    def focus_next_widget(self, event):
+        """Move focus to the next widget (mimic Tab behavior)."""
+        event.widget.tk_focusNext().focus()
+        return "break"  # Prevent default behavior
 
     def populate_full_name(self, full_name):
         """Populate the Full Name entry box with the given text."""
@@ -290,6 +332,29 @@ class InfoPage:
         self.other_notes_entry.delete(0, "end")
         self.desired_improvement_entry.delete(0, "end")
 
+        # Restore placeholder text manually (if needed)
+        self.full_name_entry.configure(placeholder_text=full_name_placeholder)
+        self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
+        self.phone_entry.configure(placeholder_text=phone_placeholder)
+        self.email_entry.configure(placeholder_text=email_placeholder)
+        self.address1_entry.configure(placeholder_text=address1_placeholder)
+        self.address2_entry.configure(placeholder_text=address2_placeholder)
+        self.city_entry.configure(placeholder_text=city_placeholder)
+        self.zip_entry.configure(placeholder_text=zip_placeholder)
+        self.allergies_entry.configure(placeholder_text=allergies_placeholder)
+        self.health_conditions_entry.configure(placeholder_text=health_conditions_placeholder)
+        self.medications_entry.configure(placeholder_text=medications_placeholder)
+        self.treatment_areas_entry.configure(placeholder_text=treatment_areas_placeholder)
+        self.current_products_entry.configure(placeholder_text=current_products_placeholder)
+        self.skin_conditions_entry.configure(placeholder_text=skin_conditions_placeholder)
+        self.other_notes_entry.configure(placeholder_text=other_notes_placeholder)
+        self.desired_improvement_entry.configure(placeholder_text=desired_improvement_placeholder)
+
+        # Reset dropdown menus (ComboBoxes)
+        self.gender_entry.set("Select Gender")  # Assuming it should have a default value
+        self.state_entry.set("Select State")  # Assuming it should have a default value
+        self.referred_by_combobox.set("")  # Reset referred_by search box
+
     def update_referred_by_suggestions(self, event=None):
         """Update the dropdown suggestions in real-time based on user input."""
         query = self.referred_by_combobox.get().strip()  # Get the current text
@@ -389,3 +454,5 @@ class InfoPage:
             self.conn.commit()
 
             print(f"New client '{full_name}' added successfully.")
+
+    
