@@ -2,6 +2,7 @@ from tkinter import ttk
 import customtkinter as ctk
 from PIL import Image
 from class_elements.profile_card import ProfileCard
+from class_elements.treeview_styling import style_treeview  # Import the style function
 
 
 class ClientsPage:
@@ -39,7 +40,7 @@ class ClientsPage:
             width=24,
             height=24,
             fg_color="transparent",
-            hover_color="#444444",
+            hover_color="#555555",
             command=self.add_client_button_pressed
         )
         add_client_button.grid(row=0, column=2, padx=5)
@@ -47,13 +48,16 @@ class ClientsPage:
         # Configure the columns in the search_frame
         search_frame.columnconfigure(1, weight=1)  # Make the entry box expand
 
-        # Frame for Treeview and Scrollbar
+        # Frame for Treeview
         table_frame = ctk.CTkFrame(main_frame)
         table_frame.pack(fill="both", expand=True)
 
+        # Apply Treeview Styling
+        style_treeview("Clients.Treeview")
+
         # Treeview Widget
         columns = ("Name", "Gender", "Birthdate", "Phone #", "Email", "Address")
-        self.client_list = ttk.Treeview(table_frame, columns=columns, show="headings")
+        self.client_list = ttk.Treeview(table_frame, columns=columns, show="headings", style="Clients.Treeview")
 
         # Define column headers
         self.client_list.heading("Name", text="Name")
@@ -70,9 +74,9 @@ class ClientsPage:
         self.client_list.pack(side="left", fill="both", expand=True)
 
         # Add vertical scrollbar
-        scrollbar_y = ttk.Scrollbar(table_frame, orient="vertical", command=self.client_list.yview)
-        scrollbar_y.pack(side="right", fill="y")
-        self.client_list.configure(yscrollcommand=scrollbar_y.set)
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.client_list.yview, style="Vertical.TScrollbar")
+        scrollbar.pack(side="right", fill="y")
+        self.client_list.configure(yscrollcommand=scrollbar.set)
 
         # Load data from the database
         self.load_clients()
