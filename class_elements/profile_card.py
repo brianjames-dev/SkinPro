@@ -5,7 +5,7 @@ class ProfileCard:
     def __init__(self, parent):
         # Frame to hold the profile picture and name
         self.profile_frame = ctk.CTkFrame(parent, fg_color="transparent")
-        self.profile_frame.pack(side="top", anchor="w", padx=15, pady=(10, 0))
+        self.profile_frame.pack(side="top", anchor="w", padx=10, pady=(10, 0))
 
         # Create a canvas for the circular profile picture
         self.canvas = ctk.CTkCanvas(self.profile_frame, width=50, height=50, highlightthickness=1)
