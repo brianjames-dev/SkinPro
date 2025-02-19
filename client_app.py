@@ -18,14 +18,14 @@ class ClientApp(ctk.CTk):
 
         # Main Tab View
         self.tab_view = ctk.CTkTabview(self, anchor="nw")
-        self.tab_view.pack(fill="both", expand=True, padx=20, pady=20)
-        
+        self.tab_view.pack(fill="both", expand=True, padx=(10, 10), pady=(10, 10))
+
         # Add Tabs
         self.tab_view.add("Clients")
         self.tab_view.add("Info")
         self.tab_view.add("Appointments")
         self.tab_view.add("Photos")
-        
+
         # Tabs dictionary to store references
         self.tabs = {}
 
