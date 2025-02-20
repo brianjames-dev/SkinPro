@@ -19,7 +19,7 @@ class ClientApp(ctk.CTk):
         self.selected_client_id = None  # Store selected client ID
 
         # **Create a single ProfileCard instance**
-        self.profile_card = ProfileCard(self)  # Shared across all tabs
+        self.profile_card = ProfileCard(self, self.conn)  # Shared across all tabs
 
         # Main Tab View
         self.tab_view = ctk.CTkTabview(self, anchor="nw")

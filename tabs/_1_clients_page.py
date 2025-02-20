@@ -54,7 +54,7 @@ class ClientsPage:
 
         # Treeview Widget
         columns = ("Name", "Gender", "Birthdate", "Phone #", "Email", "Address")
-        self.client_list = ttk.Treeview(table_frame, columns=columns, show="headings", style="Clients.Treeview")
+        self.client_list = ttk.Treeview(table_frame, selectmode="browse", columns=columns, show="headings", style="Clients.Treeview")
 
         # Define column headers
         self.client_list.heading("Name", text="Name")
@@ -94,10 +94,11 @@ class ClientsPage:
         self.client_list.bind("<Configure>", lambda event: self.set_column_widths())
 
         # Key "bind" configurations for quick functionality
-        self.name_entry.bind("<Return>", lambda event: (self.search_client(), "break"))  # Prevent default behavior
-        self.client_list.bind("<Return>", self.load_selected_client)  # Pressing Enter in Treeview
-        self.client_list.bind("<Double-1>", self.load_selected_client)  # Double left-click
-        self.client_list.bind("<Control-Return>", lambda event: self.add_client_button_pressed())  # Bind globally for Ctrl+Enter
+        self.name_entry.bind("<Return>", lambda event: (self.search_client(), "break"))             # Prevent default behavior
+        self.client_list.bind("<Return>", self.jump_to_info_tab)                                    # Pressing Enter in Treeview
+        self.client_list.bind("<ButtonRelease-1>", self.update_profile_card)                        # Update profile card w/ single-click
+        self.client_list.bind("<Double-1>", self.jump_to_info_tab)                                  # Double left-click
+        self.client_list.bind("<Control-Return>", lambda event: self.add_client_button_pressed())   # Bind globally for Ctrl+Enter
 
     def set_column_widths(self):
         # Get the current width of the Treeview
@@ -116,7 +117,7 @@ class ClientsPage:
         self.client_list.delete(*self.client_list.get_children())  # Clear existing rows
         self.cursor.execute("SELECT full_name, gender, birthdate, phone, email, address1 || ', ' || address2 FROM clients")
         for row in self.cursor.fetchall():
-            self.client_list.insert("", "end", values=row)
+            self.client_list.insert("", "end", values=row, iid=row[0])
 
     def search_client(self):
         """Search for clients based on the name entered in the search box."""
@@ -143,24 +144,54 @@ class ClientsPage:
             self.load_clients()  # Reload all clients if no search query is provided
             self.no_results_label.lower()  # Hide the "No Results" label
 
-    def load_selected_client(self, event):
-        """Load the selected client and update other tabs."""
+    def jump_to_info_tab(self, event):
+        # Switch to the Info tab
+        self.main_app.switch_to_tab("Info")
+
+    def update_profile_card(self, event):
+        """Update the profile card when a client is single-clicked in the treeview."""
         selected_item = self.client_list.selection()
+        
         if not selected_item:
-            return
+            print("⚠ No item selected in the Treeview.")  # Debugging
+            return  # No item selected, do nothing
 
+        # Get selected item's ID
+        selected_item = selected_item[0]  # Extract first selected item
+        print(f"🟢 Selected item: {selected_item}")  # Debugging
+
+        # Fetch client data from Treeview
         client_data = self.client_list.item(selected_item)["values"]
-        if client_data:
-            full_name = client_data[0]  # First column is full_name
-            self.cursor.execute("SELECT id FROM clients WHERE full_name = ?", (full_name,))
-            client_id = self.cursor.fetchone()
-            if client_id:
-                client_id = client_id[0]
-                self.main_app.tabs["Info"].populate_client_info(client_id)
-                self.main_app.tabs["Appointments"].load_client_appointments(client_id)
+        
+        if not client_data:
+            print("⚠ No client data found for the selected item.")  # Debugging
+            return  # No data found, do nothing
 
-                # Switch to the Info tab
-                self.main_app.switch_to_tab("Info")
+        full_name = client_data[0]  # Get full name from first column
+        print(f"🔹 Retrieved Client Name: {full_name}")  # Debugging
+
+        # Fetch Client ID from Database
+        self.cursor.execute("SELECT id FROM clients WHERE full_name = ?", (full_name,))
+        client_id = self.cursor.fetchone()
+
+        if not client_id:
+            print(f"❌ No client found in database for name: {full_name}")  # Debugging
+            return  # No client found in the database, do nothing
+
+        client_id = client_id[0]
+        print(f"✅ Client ID Found: {client_id}")  # Debugging
+
+        
+        # **Update Other Tabs**
+        self.main_app.tabs["Info"].populate_client_info(client_id)
+        self.main_app.tabs["Appointments"].load_client_appointments(client_id)
+
+        # **Update Profile Card**
+        if hasattr(self.main_app, "profile_card"):
+            print("🔄 Updating Profile Card...")
+            self.main_app.profile_card.load_client(client_id)
+        else:
+            print("⚠ ProfileCard instance not found.")
 
     def add_client_button_pressed(self):
         """Switch to the Info Tab, clear data, and populate the full name."""

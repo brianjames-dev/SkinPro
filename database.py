@@ -33,7 +33,8 @@ def create_tables(cursor):
         city TEXT,
         state TEXT,
         zip TEXT,
-        referred_by TEXT
+        referred_by TEXT,
+        profile_picture TEXT
     )
     """)
     cursor.execute("""
@@ -92,8 +93,8 @@ def insert_mock_data(cursor):
                 fake.name() if fake.boolean() else ""
             ))
         cursor.executemany("""
-        INSERT INTO clients (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO clients (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by, profile_picture)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, mock_clients)
 
     # Check if data already exists in the appointments table

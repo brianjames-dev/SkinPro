@@ -1,12 +1,16 @@
 import customtkinter as ctk
-from PIL import Image, ImageTk, ImageOps, ImageDraw
-from tkinter import filedialog, Toplevel
+from PIL import Image, ImageOps, ImageDraw
+from tkinter import filedialog
 
 # Image size
 w, h = 58, 58
 
 class ProfileCard:
-    def __init__(self, parent):
+    def __init__(self, parent, conn):
+        self.conn = conn                            # Store database connection
+        self.client_id = None                       # Selected client ID
+        self.profile_path = "icons/add_photo.png"   # Default placeholder
+
         # Frame to hold the profile picture and name
         self.profile_frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.profile_frame.pack(side="top", anchor="w", padx=(10, 0), pady=(10, 0))
@@ -14,7 +18,6 @@ class ProfileCard:
         # **Initialize zoom & shift**
         self.zoom = 1.8                             # Default zoom level
         self.shift = 1                              # Default shift value
-        self.profile_path = "icons/add_photo.png"   # Default placeholder
 
         # Placeholder image for profile picture
         self.profile_image = ctk.CTkImage(Image.open(self.profile_path), size=(w, h))
@@ -44,6 +47,7 @@ class ProfileCard:
         )
         if file_path:
             self.profile_path = file_path  # Save the new image path
+            print(f"The path to the selected image: {self.profile_path}")
             self.open_settings_popup()  # Open settings window after selecting
 
     def open_settings_popup(self):
@@ -53,7 +57,7 @@ class ProfileCard:
         self.popup.geometry("250x250")
         self.popup.resizable(False, False)
         
-            # **Force focus and keep on top**
+        # **Force focus and keep on top**
         self.popup.transient(self.profile_frame.winfo_toplevel())  # Link to main window
         self.popup.grab_set()  # Prevent interactions with the main app until closed
         self.popup.focus_force()  # Immediately focus the popup window
@@ -63,8 +67,6 @@ class ProfileCard:
         zoom_out_icon = ctk.CTkImage(Image.open("icons/zoom_out.png"), size=(24, 24))
         arrow_up_icon = ctk.CTkImage(Image.open("icons/arrow_up.png"), size=(24, 24))
         arrow_down_icon = ctk.CTkImage(Image.open("icons/arrow_down.png"), size=(24, 24))
-
-        ctk.CTkLabel(self.popup, text="Adjust Zoom & Position", font=("Arial", 14)).pack(pady=5)
 
         # **Live Preview of Circular Image**
         self.preview_label = ctk.CTkLabel(self.popup, text="")  # Placeholder label for preview
@@ -113,10 +115,24 @@ class ProfileCard:
         self.update_preview()
 
     def apply_changes(self):
-        """Step 3: Apply changes and update the main profile picture."""
-        self.profile_image = self.load_circular_image(self.profile_path)
-        self.profile_button.configure(image=self.profile_image)  # Update main UI
-        self.popup.destroy()  # Close settings window
+        """Apply the adjusted profile picture and update the main profile card."""
+        print("✅ Applying picture changes and updating main UI...")  # Debugging log
+
+        # **Step 1: Save the processed image**
+        self.profile_image = self.load_circular_image(self.profile_path)  # Load edited image
+
+        # **Step 2: Update the main profile button's image**
+        self.profile_button.configure(image=self.profile_image)
+
+        # **Step 3: If client ID exists, update the database**
+        if self.client_id:
+            cursor = self.conn.cursor()
+            cursor.execute("UPDATE clients SET profile_picture = ? WHERE id = ?", (self.profile_path, self.client_id))
+            self.conn.commit()
+            print(f"📁 Saved image path to DB for Client ID: {self.client_id}")
+
+        # **Step 4: Close the popup window**
+        self.popup.destroy()
 
     def load_circular_image(self, image_path):
         """Load and convert an image to a circular format."""
@@ -156,3 +172,23 @@ class ProfileCard:
         circular_image.putalpha(mask) 
 
         return circular_image
+    
+    def load_client(self, client_id):
+        """Load client details and update the profile card."""
+        self.client_id = client_id
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT full_name, profile_picture FROM clients WHERE id = ?", (client_id,))
+        client_data = cursor.fetchone()
+
+        if client_data:
+            full_name, profile_picture = client_data
+            self.name_label.configure(text=full_name)  # Update name label
+
+            # Load profile picture or use default
+            self.profile_path = profile_picture if profile_picture else "icons/add_photo.png"
+
+            # ✅ Corrected: Remove extra CTkImage wrapping
+            self.profile_image = ctk.CTkImage(Image.open(self.profile_path), size=(w, h))
+
+            # Update UI
+            self.profile_button.configure(image=self.profile_image)
