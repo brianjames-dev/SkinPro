@@ -12,12 +12,9 @@ class ClientsPage:
         self.main_app = main_app
         self.cursor = conn.cursor()
 
-        # Add the profile display
-        self.profile_display = ProfileCard(parent)
-
         # Frame for Search and Treeview
         main_frame = ctk.CTkFrame(parent)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        main_frame.pack(fill="both", expand=True, padx=10, pady=(0, 0))
 
         # Frame for Search Bar
         search_frame = ctk.CTkFrame(main_frame)

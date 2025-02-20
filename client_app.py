@@ -3,6 +3,8 @@ from tabs._1_clients_page import ClientsPage
 from tabs._2_info_page import InfoPage
 from tabs._3_appointments_page import AppointmentsPage
 from tabs._4_photos_page import PhotosPage
+from class_elements.profile_card import ProfileCard
+
 
 class ClientApp(ctk.CTk):
     def __init__(self, conn):
@@ -16,9 +18,12 @@ class ClientApp(ctk.CTk):
         self.conn = conn  # Save the database connection
         self.selected_client_id = None  # Store selected client ID
 
+        # **Create a single ProfileCard instance**
+        self.profile_card = ProfileCard(self)  # Shared across all tabs
+
         # Main Tab View
         self.tab_view = ctk.CTkTabview(self, anchor="nw")
-        self.tab_view.pack(fill="both", expand=True, padx=(10, 10), pady=(10, 10))
+        self.tab_view.pack(fill="both", expand=True, padx=(10, 10), pady=(0, 10))
 
         # Add Tabs
         self.tab_view.add("Clients")

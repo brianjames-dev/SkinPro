@@ -46,11 +46,6 @@ class InfoPage:
     def __init__(self, parent, conn):
         self.conn = conn
         self.cursor = conn.cursor()
-        
-        # Add the profile display
-        self.profile_display = ProfileCard(parent)
-
-        # Save button goes here ---
 
         # Create a frame to hold all input fields
         form_frame = ctk.CTkFrame(parent)

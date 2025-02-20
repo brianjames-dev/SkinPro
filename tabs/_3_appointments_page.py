@@ -6,9 +6,6 @@ class AppointmentsPage:
         self.conn = conn
         self.cursor = conn.cursor()
 
-        # Add the profile display
-        self.profile_display = ProfileCard(parent)
-
         # Create Main frame (holds both Treeview and Details frame)
         main_frame = ctk.CTkFrame(parent)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
