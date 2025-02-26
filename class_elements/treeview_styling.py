@@ -9,7 +9,7 @@ def style_treeview(style_name="Custom.Treeview"):
     style.configure(f"{style_name}.Heading",
                     background="#444444",   # Header background
                     foreground="white",     # Header text color
-                    font=("Arial", 10),
+                    font=("Arial", 10),     # Font + size
                     relief="flat",          # Flat header (no border)
                     borderwidth=0,          # Remove header border
                     padding=(0, 2))         # Adds some spacing
@@ -22,7 +22,7 @@ def style_treeview(style_name="Custom.Treeview"):
                     background="#1E1E1E",       # Treeview background
                     fieldbackground="#222222",  # Cell background
                     foreground="white",         # Text color
-                    font=("Arial", 10),
+                    font=("Arial", 10),         # Font + size
                     rowheight=22,               # Adjust row height for spacing
                     borderwidth=0,              # Remove outer border
                     relief="flat")              # Remove 3D effect

@@ -1,6 +1,8 @@
 import customtkinter as ctk
 from tkinter import ttk
 from class_elements.profile_card import ProfileCard
+from class_elements.treeview_styling import style_treeview  # Import the style function
+
 class AppointmentsPage:
     def __init__(self, parent, conn):
         self.conn = conn
@@ -19,11 +21,12 @@ class AppointmentsPage:
         treeview_frame = ctk.CTkFrame(main_frame)
         treeview_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
 
+        # Apply treeview styling
+        style_treeview("Appointments.Treeview")
+
         # Treeview widget for appointments
         columns = ("date", "time", "treatment", "price", "photo")
-        self.appointments_table = ttk.Treeview(
-            treeview_frame, columns=columns, show="headings", height=10
-        )
+        self.appointments_table = ttk.Treeview(treeview_frame, selectmode="browse", columns=columns, show="headings", height=10, style="Appointments.Treeview")
         self.appointments_table.pack(side="left", fill="both", expand=True)
 
         # Define column headers
