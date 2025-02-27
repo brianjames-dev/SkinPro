@@ -2,27 +2,6 @@ import customtkinter as ctk
 from tkinter import ttk
 from class_elements.profile_card import ProfileCard
 
-"""
-Form Layout:
-"Client Consultation Information"
--------------------------------------------------------------------------------------------
-"Full Name"            -> Entry Box || "Gender"  -> Combobox  || "Birthdate"   -> Entry Box
-"Address 1"            -> Entry Box
-"Address 2 (optional)" -> Entry Box
-"City"                 -> Entry Box || "State"   -> Combobox  || "Zip"         -> Entry Box
-"Email"                -> Entry Box || "Phone #" -> Entry Box || "Referred by" -> Entry Box
--------------------------------------------------------------------------------------------
-"Allergies"            -> Entry Box
-"Health Conditions"    -> Entry Box
-"Medications"          -> Entry Box
-"Area to be Treated"   -> Entry Box
-"Current Product Use"  -> Entry Box
-"Skin Conditions"      -> Entry Box
------------------------------------
-"Other Notes"          -> Entry Box
-"Desired Improvement"  -> Entry Box
-"""
-
 
 # Placeholder text phrases
 full_name_placeholder           = "Enter full name (e.g., John Doe)"
@@ -46,12 +25,17 @@ class InfoPage:
     def __init__(self, parent, conn):
         self.conn = conn
         self.cursor = conn.cursor()
+        self.client_id = None
 
         # Create a frame to hold all input fields
         form_frame = ctk.CTkFrame(parent)
         form_frame.pack(fill="both", expand=True, padx=10, pady=10)
         form_frame.columnconfigure(0, weight=0)
         form_frame.columnconfigure(1, weight=1)
+
+        # Save button
+        self.save_button = ctk.CTkButton(form_frame, text="Save", command=self.save_client_data)
+        self.save_button.grid(row=15, column=0, columnspan=2, sticky="ne", padx=5, pady=5)
 
         # Frame for Full Name (entry), Gender, Birthdate
         name_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
@@ -102,7 +86,7 @@ class InfoPage:
 
         ctk.CTkLabel(address_tri_frame, text="State").grid(row=3, column=1, sticky="w", padx=(20, 5))
         self.state_entry = ctk.CTkComboBox(address_tri_frame, border_width=0,
-                                   values=["CA", "AL", "AK", "AZ", "AR", "CO", "CT", "DE", "FL", "GA", "HI", 
+                                   values=["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", 
                                            "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", 
                                            "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", 
                                            "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", 
@@ -241,7 +225,7 @@ class InfoPage:
             (
                 full_name, gender, birthdate, 
                 address1, address2, city, 
-                state, zip_code, phone, email
+                state, zip, phone, email
             ) = client_result
 
             # Populate general client fields
@@ -265,7 +249,7 @@ class InfoPage:
             self.state_entry.set(state)
 
             self.zip_entry.delete(0, "end")
-            self.zip_entry.insert(0, zip_code)
+            self.zip_entry.insert(0, zip)
 
             self.phone_entry.delete(0, "end")
             self.phone_entry.insert(0, phone)
@@ -370,84 +354,85 @@ class InfoPage:
         self.referred_by_combobox.event_generate('<Down>')
         self.referred_by_combobox.focus()  # Ensure the combo box is focused
 
-    def referred_by_selected(self):
-        """Handle when a user selects an item from the dropdown."""
-        selected_name = self.referred_by_combobox.get()  # Get the selected name
-
-        if selected_name == "No matches found":
-            self.referred_by_combobox.set("")  # Clear the box if "No matches found" is selected
-        else:
-            # Optionally perform further actions with the selected client
-            print(f"Selected: {selected_name}")
-
     def save_client_data(self):
         """Save or update client information in the database."""
         # Collect data from the form
-        full_name = self.full_name_entry.get()
-        gender = self.gender_entry.get()
-        birthdate = self.birthdate_entry.get()
-        phone = self.phone_entry.get()
-        email = self.email_entry.get()
-        address1 = self.address1_entry.get()
-        address2 = self.address2_entry.get()
-        city = self.city_entry.get()
-        state = self.state_entry.get()
-        zip_code = self.zip_entry.get()
-        referred_by = self.referred_by_combobox.get()
+        full_name = self.full_name_entry.get().strip()
+        gender = self.gender_entry.get().strip()
+        birthdate = self.birthdate_entry.get().strip()
+        phone = self.phone_entry.get().strip()
+        email = self.email_entry.get().strip()
+        address1 = self.address1_entry.get().strip()
+        address2 = self.address2_entry.get().strip()
+        city = self.city_entry.get().strip()
+        state = self.state_entry.get().strip()
+        zip = self.zip_entry.get().strip()
+        referred_by = self.referred_by_combobox.get().strip()
 
         # Health Info
-        allergies = self.allergies_entry.get()
-        health_conditions = self.health_conditions_entry.get()
-        medications = self.medications_entry.get()
-        treatment_areas = self.treatment_areas_entry.get()
-        current_products = self.current_products_entry.get()
-        skin_conditions = self.skin_conditions_entry.get()
-        other_notes = self.other_notes_entry.get()
-        desired_improvement = self.desired_improvement_entry.get()
+        allergies = self.allergies_entry.get().strip()
+        health_conditions = self.health_conditions_entry.get().strip()
+        medications = self.medications_entry.get().strip()
+        treatment_areas = self.treatment_areas_entry.get().strip()
+        current_products = self.current_products_entry.get().strip()
+        skin_conditions = self.skin_conditions_entry.get().strip()
+        other_notes = self.other_notes_entry.get().strip()
+        desired_improvement = self.desired_improvement_entry.get().strip()
 
-        if not full_name.strip():  # Ensure a full name is provided
+        # Ensure a full name is provided
+        if not full_name.strip():  
             print("Error: Full Name is required!")
             return
 
-        # Check if updating an existing client or creating a new one
-        if self.client_id:  # Update existing client
-            # Update client information
-            self.cursor.execute("""
-                UPDATE clients 
-                SET full_name = ?, gender = ?, birthdate = ?, phone = ?, email = ?, address1 = ?, 
-                    address2 = ?, city = ?, state = ?, zip = ?, referred_by = ? 
-                WHERE id = ?
-            """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip_code, referred_by, self.client_id))
+        try:
+            if self.client_id:  # Update existing client
+                self.cursor.execute("""
+                    UPDATE clients 
+                    SET full_name = ?, gender = ?, birthdate = ?, phone = ?, email = ?, 
+                        address1 = ?, address2 = ?, city = ?, state = ?, zip = ?, referred_by = ? 
+                    WHERE id = ?
+                """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by, self.client_id))
 
-            # Update health information
-            self.cursor.execute("""
-                UPDATE client_health_info 
-                SET allergies = ?, health_conditions = ?, medications = ?, treatment_areas = ?, 
-                    current_products = ?, skin_conditions = ?, other_notes = ?, desired_improvement = ? 
-                WHERE client_id = ?
-            """, (allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement, self.client_id))
+                # Check if health info already exists
+                self.cursor.execute("SELECT COUNT(*) FROM client_health_info WHERE client_id = ?", (self.client_id,))
+                health_info_exists = self.cursor.fetchone()[0]
 
-            print(f"Client '{full_name}' updated successfully.")
+                if health_info_exists:
+                    self.cursor.execute("""
+                        UPDATE client_health_info 
+                        SET allergies = ?, health_conditions = ?, medications = ?, treatment_areas = ?, 
+                            current_products = ?, skin_conditions = ?, other_notes = ?, desired_improvement = ? 
+                        WHERE client_id = ?
+                    """, (allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement, self.client_id))
+                else:
+                    self.cursor.execute("""
+                        INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
+                            current_products, skin_conditions, other_notes, desired_improvement) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
 
-        else:  # Insert a new client
-            # Insert new client into the database
-            self.cursor.execute("""
-                INSERT INTO clients (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip_code, referred_by))
+                print(f"Client '{full_name}' updated successfully.")
+
+            else:  # Insert a new client
+                self.cursor.execute("""
+                    INSERT INTO clients (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by))
+                
+                # Get the newly inserted client_id
+                self.client_id = self.cursor.lastrowid
+
+                # Insert health information
+                self.cursor.execute("""
+                    INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
+                        current_products, skin_conditions, other_notes, desired_improvement) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
+
+                print(f"New client '{full_name}' added successfully.")
+
+            # Commit all changes after updates or inserts
             self.conn.commit()
 
-            # Get the newly inserted client_id
-            self.client_id = self.cursor.lastrowid
-
-            # Insert health information
-            self.cursor.execute("""
-                INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
-                    current_products, skin_conditions, other_notes, desired_improvement) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
-            self.conn.commit()
-
-            print(f"New client '{full_name}' added successfully.")
-
-    
+        except Exception as e:
+            print(f"Database error: {e}")

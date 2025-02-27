@@ -19,13 +19,12 @@ def init_database(db_name="client_database.db"):
     return conn
 
 def create_tables(cursor):
-    """Create necessary tables for the app."""
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS clients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         full_name TEXT NOT NULL,
         gender TEXT,
-        birthdate TEXT,
+        birthdate DATE,
         phone TEXT,
         email TEXT,
         address1 TEXT,
@@ -41,13 +40,13 @@ def create_tables(cursor):
     CREATE TABLE IF NOT EXISTS appointments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
-        date TEXT,
-        time TEXT,
+        date DATE NOT NULL,
+        time TIME,
         treatment TEXT,
         price TEXT,
-        photo_taken TEXT,
+        photo_taken INTEGER DEFAULT 0,
         treatment_notes TEXT,
-        FOREIGN KEY (client_id) REFERENCES clients (id)
+        FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
     )
     """)
     cursor.execute("""
@@ -62,7 +61,17 @@ def create_tables(cursor):
         skin_conditions TEXT,
         other_notes TEXT,
         desired_improvement TEXT,
-        FOREIGN KEY (client_id) REFERENCES clients (id)
+        FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS client_images (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL,
+        shift INTEGER DEFAULT NULL,
+        zoom INTEGER DEFAULT NULL,
+        FOREIGN KEY(client_id) REFERENCES clients (id) ON DELETE CASCADE
     )
     """)
 
@@ -90,7 +99,8 @@ def insert_mock_data(cursor):
                 fake.city(),
                 fake.state(),
                 fake.zipcode(),
-                fake.name() if fake.boolean() else ""
+                fake.name() if fake.boolean() else "",
+                fake.name()
             ))
         cursor.executemany("""
         INSERT INTO clients (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by, profile_picture)
@@ -108,11 +118,11 @@ def insert_mock_data(cursor):
                 fake.time(pattern="%I:%M %p"),  # Random time in 12-hour format
                 fake.sentence(nb_words=5),  # Random treatment description
                 f"${fake.random_int(min=30, max=500)}.00",  # Random price
-                fake.random_element(["Yes", "No"]),  # Photo taken
+                fake.random_element(["0", "1"]),  # Photo taken
                 fake.sentence(nb_words=10)  # Random treatment notes
 
             )
-            for _ in range(100)
+            for _ in range(1000)
         ]
         cursor.executemany("""
         INSERT INTO appointments (client_id, date, time, treatment, price, photo_taken, treatment_notes)
@@ -125,15 +135,15 @@ def insert_mock_data(cursor):
         # Generate 100 mock health records
         mock_health_info = [
             (
-                fake.random_int(min=1, max=100),  # client_id
-                ", ".join(fake.words(nb=3)),  # Allergies as a comma-separated string
-                fake.sentence(nb_words=4),  # Health conditions
-                ", ".join(fake.words(nb=2)),  # Medications as a comma-separated string
-                ", ".join(fake.words(nb=3)),  # Treatment areas as a comma-separated string
-                ", ".join(fake.words(nb=2)),  # Current products as a comma-separated string
-                ", ".join(fake.words(nb=3)),  # Skin conditions as a comma-separated string
-                fake.sentence(nb_words=6),  # Other notes
-                fake.sentence(nb_words=4)  # Desired improvement
+                fake.random_int(min=1, max=100),    # client_id
+                ", ".join(fake.words(nb=3)),        # Allergies as a comma-separated string
+                fake.sentence(nb_words=4),          # Health conditions
+                ", ".join(fake.words(nb=2)),        # Medications as a comma-separated string
+                ", ".join(fake.words(nb=3)),        # Treatment areas as a comma-separated string
+                ", ".join(fake.words(nb=2)),        # Current products as a comma-separated string
+                ", ".join(fake.words(nb=3)),        # Skin conditions as a comma-separated string
+                fake.sentence(nb_words=6),          # Other notes
+                fake.sentence(nb_words=4)           # Desired improvement
             )
             for _ in range(100)
         ]

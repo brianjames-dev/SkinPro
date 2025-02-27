@@ -11,16 +11,17 @@ class ClientApp(ctk.CTk):
         super().__init__()
         
         self.title("SkinPro")
-        self.geometry("928x696")
+        self.geometry("992x744")
         ctk.set_appearance_mode("Dark")  # Options: "Light", "Dark", or "System"
         ctk.set_default_color_theme("blue")  # Options: "blue", "green", "dark-blue"
 
         self.conn = conn  # Save the database connection
+        self.cursor = self.conn.cursor()
         self.selected_client_id = None  # Store selected client ID
 
-        # **Create a single ProfileCard instance**
-        self.profile_card = ProfileCard(self, self.conn)  # Shared across all tabs
-
+        # Add profile card
+        self.profile_card = ProfileCard(self, self.conn, self.cursor)  # Shared across all tabs
+ 
         # Main Tab View
         self.tab_view = ctk.CTkTabview(self, anchor="nw")
         self.tab_view.pack(fill="both", expand=True, padx=(10, 10), pady=(0, 10))

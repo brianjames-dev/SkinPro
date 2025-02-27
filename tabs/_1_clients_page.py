@@ -38,7 +38,7 @@ class ClientsPage:
             height=24,
             fg_color="transparent",
             hover_color="#555555",
-            command=self.add_client_button_pressed
+            command=self.add_client_button
         )
         add_client_button.grid(row=0, column=2, padx=5)
 
@@ -98,7 +98,7 @@ class ClientsPage:
         self.client_list.bind("<Return>", self.jump_to_info_tab)                                    # Pressing Enter in Treeview
         self.client_list.bind("<ButtonRelease-1>", self.update_profile_card)                        # Update profile card w/ single-click
         self.client_list.bind("<Double-1>", self.jump_to_info_tab)                                  # Double left-click
-        self.client_list.bind("<Control-Return>", lambda event: self.add_client_button_pressed())   # Bind globally for Ctrl+Enter
+        self.client_list.bind("<Control-Return>", lambda event: self.add_client_button())           # Bind globally for Ctrl+Enter
 
     def set_column_widths(self):
         # Get the current width of the Treeview
@@ -115,9 +115,12 @@ class ClientsPage:
     def load_clients(self):
         """Load all clients from the database and insert them into the Treeview."""
         self.client_list.delete(*self.client_list.get_children())  # Clear existing rows
-        self.cursor.execute("SELECT full_name, gender, birthdate, phone, email, address1 || ', ' || address2 FROM clients")
+        self.cursor.execute("SELECT id, full_name, gender, birthdate, phone, email, address1 || ', ' || address2 FROM clients")
         for row in self.cursor.fetchall():
-            self.client_list.insert("", "end", values=row, iid=row[0])
+            client_id = row[0]
+            client_values = row[1:]
+
+            self.client_list.insert("", "end", iid=str(client_id), values=client_values)
 
     def search_client(self):
         """Search for clients based on the name entered in the search box."""
@@ -150,50 +153,54 @@ class ClientsPage:
 
     def update_profile_card(self, event):
         """Update the profile card when a client is single-clicked in the treeview."""
-        selected_item = self.client_list.selection()
         
-        if not selected_item:
+        # ✅ 1. Ensure a client is selected
+        selected_client = self.client_list.selection()
+        if not selected_client:
             print("⚠ No item selected in the Treeview.")  # Debugging
-            return  # No item selected, do nothing
+            return  
 
-        # Get selected item's ID
-        selected_item = selected_item[0]  # Extract first selected item
-        print(f"🟢 Selected item: {selected_item}")  # Debugging
+        # ✅ 2. Get selected client's client_id from Treeview
+        client_id = selected_client[0]  # Treeview 'iid' is now the correct client_id
+        self.client_id = int(client_id)  # Store current client_id for future use
+        print(f"\n🟢 Selected Client ID:      {self.client_id}")  # Debugging
 
-        # Fetch client data from Treeview
-        client_data = self.client_list.item(selected_item)["values"]
+        # ✅ 3. Fetch full client data from Treeview
+        item_data = self.client_list.item(client_id)
+        client_data = item_data.get("values", [])
         
         if not client_data:
-            print("⚠ No client data found for the selected item.")  # Debugging
-            return  # No data found, do nothing
+            print("⚠ No client data found in Treeview for ID:", client_id)  # Debugging
+            return  
 
-        full_name = client_data[0]  # Get full name from first column
-        print(f"🔹 Retrieved Client Name: {full_name}")  # Debugging
+        full_name = client_data[0]      # Full name = column 0
+        gender = client_data[1]         # Gender = column 1
+        birthdate = client_data[2]      # Birthdate = column 2
+        phone = client_data[3]          # Phone = column 3
+        email = client_data[4]          # Email = column 4
+        address = client_data[5]        # Address = column 5
 
-        # Fetch Client ID from Database
-        self.cursor.execute("SELECT id FROM clients WHERE full_name = ?", (full_name,))
-        client_id = self.cursor.fetchone()
+        print(f"🔹 Retrieved Client Name:   {full_name}")
+        print(f"🔹 Retrieved Gender:        {gender}") 
+        print(f"🔹 Retrieved Birthdate:     {birthdate}") 
+        print(f"🔹 Retrieved Phone #:       {phone}")
+        print(f"🔹 Retrieved Email:         {email}") 
+        print(f"🔹 Retrieved Address:       {address}")  # Debugging
 
-        if not client_id:
-            print(f"❌ No client found in database for name: {full_name}")  # Debugging
-            return  # No client found in the database, do nothing
+        # ✅ 4. Update Other Tabs
+        print(f"\n🔄 Populating Info & Appointments tabs for Client ID: {self.client_id}")
+        self.main_app.tabs["Info"].populate_client_info(self.client_id)
+        self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
 
-        client_id = client_id[0]
-        print(f"✅ Client ID Found: {client_id}")  # Debugging
-
-        
-        # **Update Other Tabs**
-        self.main_app.tabs["Info"].populate_client_info(client_id)
-        self.main_app.tabs["Appointments"].load_client_appointments(client_id)
-
-        # **Update Profile Card**
+        # ✅ 5. Update Profile Card if it exists
         if hasattr(self.main_app, "profile_card"):
-            print("🔄 Updating Profile Card...")
-            self.main_app.profile_card.load_client(client_id)
+            print("🟢 Updating Profile Card for Client ID:", self.client_id)
+            self.main_app.profile_card.load_client(self.client_id)
         else:
-            print("⚠ ProfileCard instance not found.")
+            print("⚠ ProfileCard instance not found.\n")
 
-    def add_client_button_pressed(self):
+
+    def add_client_button(self):
         """Switch to the Info Tab, clear data, and populate the full name."""
         full_name = self.name_entry.get()  # Get the name entered in the search field
 
