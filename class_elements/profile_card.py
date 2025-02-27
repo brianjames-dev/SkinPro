@@ -45,43 +45,45 @@ class ProfileCard:
         """Load client details and apply saved zoom/shift to profile picture."""
         self.client_id = client_id
 
-        # ✅ Fetch profile data from `clients` table
+        # ✅ Fetch profile_picture, full_name from `clients`, and zoom/shift from `client_images`
         self.cursor.execute("""
-            SELECT c.profile_picture, ci.zoom, ci.shift
+            SELECT c.full_name, c.profile_picture, COALESCE(ci.zoom, 100), COALESCE(ci.shift, 0)
             FROM clients c
             LEFT JOIN client_images ci ON c.id = ci.client_id
             WHERE c.id = ?
         """, (client_id,))
+        
         client_data = self.cursor.fetchone()
 
-        if not client_data:
-            print(f"⚠ No saved image found for Client ID: {client_id}. Using default.")
-            self.profile_path = "images/sample_photo.jpeg"
+        if not client_data:  # No data found
+            print(f"⚠ No saved client found for ID: {client_id}. Using default.")
+            self.full_name = "Unknown Client"  # ✅ Fix: Assign default name
+            self.profile_path = "icons/add_photo.png"
             self.zoom = 100
             self.shift = 0
         else:
-            self.profile_path, self.zoom, self.shift = client_data
-            print(f"🟢 Loaded Image: {self.profile_path} | Zoom: {self.zoom}, Shift: {self.shift}")
+            self.full_name, self.profile_path, self.zoom, self.shift = client_data
+            print(f"🟢 Loaded Client: {self.full_name} | Image: {self.profile_path} | Zoom: {self.zoom}, Shift: {self.shift}")
+
+        # ✅ Update Name Label with Selected Client’s Name
+        self.name_label.configure(text=self.full_name)  # ✅ Now self.full_name is always set
 
         # ✅ Ensure profile image exists, otherwise fallback to default
         if not self.profile_path or not os.path.exists(self.profile_path):
             print(f"⚠ Image path not found: {self.profile_path}. Using default image.")
-            self.profile_path = "images/sample_photo.jpeg"
+            self.profile_path = "icons/add_photo.png"
 
-        # ✅ Handle missing default image
-        if not os.path.exists(self.profile_path):
-            print(f"❌ Default profile image missing! Using a blank placeholder.")
-            self.profile_image = ctk.CTkImage(Image.new("RGB", (w, h), "gray"), size=(w, h))
-            self.profile_button.configure(image=self.profile_image)
-            return
-
-        # ✅ Load and apply circular transformation
+        # ✅ Load and apply circular transformation only for real images
         try:
-            processed_image = self.create_circular_image(Image.open(self.profile_path))
-            self.profile_image = ctk.CTkImage(processed_image, size=(w, h))
+            if self.profile_path == "icons/add_photo.png":
+                print("🟢 Using default profile picture—no circular processing needed.")
+                self.profile_image = ctk.CTkImage(Image.open(self.profile_path), size=(w, h))
+            else:
+                processed_image = self.create_circular_image(Image.open(self.profile_path))
+                self.profile_image = ctk.CTkImage(processed_image, size=(w, h))
         except Exception as e:
             print(f"❌ Error processing image: {e}")
-            self.profile_image = ctk.CTkImage(Image.new("RGB", (w, h), "gray"), size=(w, h))
+            self.profile_image = ctk.CTkImage(Image.open("icons/add_photo.png"), size=(w, h))  # ✅ Fix: Ensure valid image object
 
         # ✅ Update UI
         self.profile_button.configure(image=self.profile_image)

@@ -2,7 +2,7 @@ from tkinter import ttk
 import customtkinter as ctk
 from PIL import Image
 from class_elements.profile_card import ProfileCard
-from class_elements.treeview_styling import style_treeview  # Import the style function
+from class_elements.treeview_styling import style_treeview
 
 
 class ClientsPage:
