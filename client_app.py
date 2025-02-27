@@ -47,7 +47,7 @@ class ClientApp(ctk.CTk):
 
     def init_info_tab(self):
         info_tab = self.tab_view.tab("Info")
-        self.tabs["Info"] = InfoPage(info_tab, self.conn)  # Store reference in tabs dictionary
+        self.tabs["Info"] = InfoPage(info_tab, self.conn, self)  # Store reference in tabs dictionary
 
     def init_appointments_tab(self):
         appointments_tab = self.tab_view.tab("Appointments")

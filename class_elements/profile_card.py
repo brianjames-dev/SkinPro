@@ -168,7 +168,7 @@ class ProfileCard:
         arrow_up_icon = ctk.CTkImage(Image.open("icons/arrow_up.png"), size=(24, 24))
         arrow_down_icon = ctk.CTkImage(Image.open("icons/arrow_down.png"), size=(24, 24))
 
-        # **Live Preview of Circular Image**
+        # Live Preview of Circular Image
         self.preview_label = ctk.CTkLabel(self.popup, text="")  # Placeholder label for preview
         self.preview_label.pack(pady=5)
         self.update_preview()  # Load initial preview

@@ -22,9 +22,10 @@ other_notes_placeholder         = "Add any relevant notes (Optional)"
 desired_improvement_placeholder = "What improvement is the client seeking?"
 
 class InfoPage:
-    def __init__(self, parent, conn):
+    def __init__(self, parent, conn, main_app):
         self.conn = conn
         self.cursor = conn.cursor()
+        self.main_app = main_app
         self.client_id = None
 
         # Create a frame to hold all input fields
@@ -356,7 +357,13 @@ class InfoPage:
 
     def save_client_data(self):
         """Save or update client information in the database."""
-        # Collect data from the form
+        # ✅ Step 1: Get client_id from ProfileCard
+        if hasattr(self.main_app, "profile_card"):
+            self.client_id = self.main_app.profile_card.client_id  # 🔥 Use the stored client_id
+
+        print(f"\n🔎 DEBUG: Checking client_id before saving: {self.client_id}")
+
+        # ✅ Step 2: Collect data from the form
         full_name = self.full_name_entry.get().strip()
         gender = self.gender_entry.get().strip()
         birthdate = self.birthdate_entry.get().strip()
@@ -369,7 +376,7 @@ class InfoPage:
         zip = self.zip_entry.get().strip()
         referred_by = self.referred_by_combobox.get().strip()
 
-        # Health Info
+        # ✅ Health Info
         allergies = self.allergies_entry.get().strip()
         health_conditions = self.health_conditions_entry.get().strip()
         medications = self.medications_entry.get().strip()
@@ -379,13 +386,15 @@ class InfoPage:
         other_notes = self.other_notes_entry.get().strip()
         desired_improvement = self.desired_improvement_entry.get().strip()
 
-        # Ensure a full name is provided
+        # ✅ Ensure a full name is provided
         if not full_name.strip():  
             print("Error: Full Name is required!")
             return
 
         try:
-            if self.client_id:  # Update existing client
+            # ✅ Step 3: Update existing client
+            if self.client_id:
+                print(f"✏️  Updating client ID: {self.client_id} ({full_name}) in the database...")
                 self.cursor.execute("""
                     UPDATE clients 
                     SET full_name = ?, gender = ?, birthdate = ?, phone = ?, email = ?, 
@@ -393,11 +402,13 @@ class InfoPage:
                     WHERE id = ?
                 """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by, self.client_id))
 
-                # Check if health info already exists
+                # ✅ Step 4: Check if health info already exists
                 self.cursor.execute("SELECT COUNT(*) FROM client_health_info WHERE client_id = ?", (self.client_id,))
                 health_info_exists = self.cursor.fetchone()[0]
 
+                # ✅ Step 5: Update or Insert Health Info
                 if health_info_exists:
+                    print(f"✏️  Updating health info for client ID: {self.client_id}")
                     self.cursor.execute("""
                         UPDATE client_health_info 
                         SET allergies = ?, health_conditions = ?, medications = ?, treatment_areas = ?, 
@@ -405,34 +416,31 @@ class InfoPage:
                         WHERE client_id = ?
                     """, (allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement, self.client_id))
                 else:
+                    print(f"➕ Adding new health info for client ID: {self.client_id}")
                     self.cursor.execute("""
                         INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
                             current_products, skin_conditions, other_notes, desired_improvement) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
 
-                print(f"Client '{full_name}' updated successfully.")
+                print(f"✅ Client '{full_name}' updated successfully.")
 
-            else:  # Insert a new client
+            else:
+                # ✅ Step 6: Insert new client if no existing client found
+                print(f"🆕 Inserting new client: {full_name}")
                 self.cursor.execute("""
                     INSERT INTO clients (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by))
                 
-                # Get the newly inserted client_id
+                # ✅ Get the newly inserted client_id
                 self.client_id = self.cursor.lastrowid
+                print(f"🆕 Assigned new client_id: {self.client_id}")
 
-                # Insert health information
-                self.cursor.execute("""
-                    INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
-                        current_products, skin_conditions, other_notes, desired_improvement) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
-
-                print(f"New client '{full_name}' added successfully.")
-
-            # Commit all changes after updates or inserts
+            # ✅ Step 7: Commit changes
             self.conn.commit()
+            print(f"💾 Changes committed to the database.")
 
         except Exception as e:
-            print(f"Database error: {e}")
+            print(f"❌ Database error: {e}")
+        

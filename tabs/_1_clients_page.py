@@ -47,7 +47,7 @@ class ClientsPage:
 
         # Frame for Treeview
         table_frame = ctk.CTkFrame(main_frame)
-        table_frame.pack(fill="both", expand=True)
+        table_frame.pack(fill="both", expand=True, pady=(0, 10))
 
         # Apply Treeview Styling
         style_treeview("Clients.Treeview")
@@ -165,7 +165,12 @@ class ClientsPage:
         self.client_id = int(client_id)  # Store current client_id for future use
         print(f"\n🟢 Selected Client ID:      {self.client_id}")  # Debugging
 
-        # ✅ 3. Fetch full client data from Treeview
+        # ✅ 3. Update ProfileCard's client_id
+        if hasattr(self.main_app, "profile_card"):
+            self.main_app.profile_card.client_id = self.client_id  # 🔥 Store client_id in ProfileCard
+            print(f"✅ ProfileCard client_id updated to: {self.client_id}")
+
+        # ✅ 4. Fetch full client data from Treeview
         item_data = self.client_list.item(client_id)
         client_data = item_data.get("values", [])
         
@@ -187,12 +192,12 @@ class ClientsPage:
         print(f"🔹 Retrieved Email:         {email}") 
         print(f"🔹 Retrieved Address:       {address}")  # Debugging
 
-        # ✅ 4. Update Other Tabs
+        # ✅ 5. Update Other Tabs
         print(f"\n🔄 Populating Info & Appointments tabs for Client ID: {self.client_id}")
         self.main_app.tabs["Info"].populate_client_info(self.client_id)
         self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
 
-        # ✅ 5. Update Profile Card if it exists
+        # ✅ 6. Update Profile Card if it exists
         if hasattr(self.main_app, "profile_card"):
             print("🟢 Updating Profile Card for Client ID:", self.client_id)
             self.main_app.profile_card.load_client(self.client_id)
