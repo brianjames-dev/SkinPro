@@ -45,6 +45,21 @@ class ProfileCard:
         """Load client details and apply saved zoom/shift to profile picture."""
         self.client_id = client_id
 
+        # ✅ If no client ID is given, reset to default state
+        if client_id is None:
+            print("🔄 Resetting Profile Card to default state...")
+            self.client_id = None
+            self.profile_path = "icons/add_photo.png"
+            self.full_name = "No Client Selected"
+
+            # Reset profile image
+            self.profile_image = ctk.CTkImage(Image.open(self.profile_path), size=(w, h))
+            self.profile_button.configure(image=self.profile_image)
+
+            # Reset name label
+            self.name_label.configure(text=self.full_name)
+            return  # ✅ Exit early
+    
         # ✅ Fetch profile_picture, full_name from `clients`, and zoom/shift from `client_images`
         self.cursor.execute("""
             SELECT c.full_name, c.profile_picture, COALESCE(ci.zoom, 100), COALESCE(ci.shift, 0)
@@ -96,13 +111,23 @@ class ProfileCard:
 
         print("✅ Applying picture changes and updating database...")
 
-        # **Step 1: Process and Save Image**
+        # **Step 1: Fetch Client's Full Name for File Naming**
+        self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
+        result = self.cursor.fetchone()
+
+        if result:
+            full_name = result[0].replace(" ", "_")  # ✅ Replace spaces with underscores
+        else:
+            print(f"⚠ ERROR: No full_name found for client_id {self.client_id}. Using default name.")
+            full_name = f"client_{self.client_id}"  # Fallback if full_name is missing
+
+        # **Step 2: Process and Save Image**
         edited_image = self.create_circular_image(Image.open(self.profile_path))
-        save_path = f"images/clients/{self.client_id}.png"  # ✅ Store by Client ID
+        save_path = f"images/clients/{full_name}.png"  # 🔥 Use full_name instead of client_id
         os.makedirs(os.path.dirname(save_path), exist_ok=True)  # Ensure folder exists
         edited_image.save(save_path)  # Save processed image
 
-        # **Step 2: Update profile picture path in `clients` table**
+        # **Step 3: Update profile picture path in `clients` table**
         cursor = self.conn.cursor()
         cursor.execute("""
             UPDATE clients 
@@ -110,7 +135,7 @@ class ProfileCard:
             WHERE id = ?""", 
             (save_path, self.client_id))
 
-        # **Step 3: Update or Insert zoom/shift in `client_images` table**
+        # **Step 4: Update or Insert zoom/shift in `client_images` table**
         cursor.execute("SELECT id FROM client_images WHERE client_id = ?", (self.client_id,))
         existing_entry = cursor.fetchone()
 
@@ -119,7 +144,6 @@ class ProfileCard:
             cursor.execute("""
                 UPDATE client_images 
                 SET zoom = ?, shift = ? 
-                           
                 WHERE client_id = ?""", 
                 (self.zoom, self.shift, self.client_id))
         else:
@@ -129,15 +153,13 @@ class ProfileCard:
                 VALUES (?, ?, ?)""", 
                 (self.client_id, self.zoom, self.shift))
 
+        # ✅ Commit changes to the database
         self.conn.commit()
-        print(f"📁 Saved image & settings for Client ID: {self.client_id}")
+        print(f"💾 Profile picture saved at: {save_path} and database updated successfully.")
 
-        # ✅ Update `self.profile_button` with new image
-        self.profile_image = ctk.CTkImage(edited_image, size=(w, h))
-        self.profile_button.configure(image=self.profile_image)
-
-        self.popup.destroy()  # Close popup
-
+        # Refresh and close the popup window
+        self.load_client(self.client_id)
+        self.popup.destroy()
 
     def change_profile_picture(self):
         """Step 1: Select a new image, then open the settings popup."""

@@ -35,9 +35,9 @@ class InfoPage:
         form_frame.columnconfigure(1, weight=1)
 
         # Save button
-        self.save_button = ctk.CTkButton(form_frame, text="Save", command=self.save_client_data)
+        self.save_button = ctk.CTkButton(form_frame, text="Save", command=self.save_client_data, state="disabled")
         self.save_button.grid(row=15, column=0, columnspan=2, sticky="ne", padx=5, pady=5)
-
+        
         # Frame for Full Name (entry), Gender, Birthdate
         name_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
         name_frame.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
@@ -171,6 +171,7 @@ class InfoPage:
         self.desired_improvement_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=desired_improvement_placeholder)
         self.desired_improvement_entry.grid(row=14, column=1, padx=5, pady=5, sticky="ew")
 
+        # Mimic Tab behavior for all entry fields
         self.full_name_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
         self.birthdate_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
         self.address1_entry.           bind("<Return>", lambda event: self.focus_next_widget(event))
@@ -187,6 +188,27 @@ class InfoPage:
         self.skin_conditions_entry.    bind("<Return>", lambda event: self.focus_next_widget(event))
         self.other_notes_entry.        bind("<Return>", lambda event: self.focus_next_widget(event))
         self.desired_improvement_entry.bind("<Return>", lambda event: self.focus_next_widget(event))
+
+        # Enable Save button when any entry is changed
+        self.full_name_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.gender_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.birthdate_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.phone_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.email_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.address1_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.address2_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.city_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.state_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.zip_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.referred_by_combobox.bind("<<ComboboxSelected>>", self.enable_save_button)
+        self.allergies_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.health_conditions_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.medications_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.treatment_areas_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.current_products_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.skin_conditions_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.other_notes_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.desired_improvement_entry.bind("<KeyRelease>", self.enable_save_button)
 
     def focus_next_widget(self, event):
         """Move focus to the next widget (mimic Tab behavior)."""
@@ -292,6 +314,8 @@ class InfoPage:
 
     def clear_info(self):
         """Clear all fields in the Info tab."""
+        self.client_id = None  # Reset client_id
+        
         self.full_name_entry.delete(0, "end")
         self.gender_entry.set("")
         self.birthdate_entry.delete(0, "end")
@@ -354,6 +378,10 @@ class InfoPage:
 
         self.referred_by_combobox.event_generate('<Down>')
         self.referred_by_combobox.focus()  # Ensure the combo box is focused
+
+    def enable_save_button(self, event=None):
+        """Enable the save button when an entry is changed."""
+        self.save_button.configure(state="normal", text="Save")  # Re-enable
 
     def save_client_data(self):
         """Save or update client information in the database."""
@@ -440,6 +468,19 @@ class InfoPage:
             # ✅ Step 7: Commit changes
             self.conn.commit()
             print(f"💾 Changes committed to the database.")
+
+            # ✅ Step 8: Refresh TreeView in ClientsPage
+            if hasattr(self.main_app, "tabs") and "Clients" in self.main_app.tabs:
+                print("🔄 Refreshing Client List in TreeView...")
+                self.main_app.tabs["Clients"].load_clients()  # 🔥 Reload all clients in TreeView
+
+            # ✅ Step 9: Refresh ProfileCard Full Name
+            if hasattr(self.main_app, "profile_card"):
+                print("🔄 Updating ProfileCard Name...")
+                self.main_app.profile_card.name_label.configure(text=full_name)
+
+            # ✅ Disable save button and change label after successful save
+            self.save_button.configure(state="disabled", text="Saved!")
 
         except Exception as e:
             print(f"❌ Database error: {e}")
