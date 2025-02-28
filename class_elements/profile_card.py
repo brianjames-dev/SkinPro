@@ -4,7 +4,7 @@ from PIL import Image, ImageOps, ImageDraw
 from tkinter import filedialog
 
 # Image size
-w, h = 58, 58
+w, h = 58, 58 
 
 class ProfileCard:
     def __init__(self, parent, conn, cursor):
