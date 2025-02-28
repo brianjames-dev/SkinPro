@@ -1,6 +1,9 @@
 import customtkinter as ctk
 from tkinter import ttk
 from class_elements.profile_card import ProfileCard
+import os
+import re
+from datetime import datetime
 
 
 # Placeholder text phrases
@@ -35,9 +38,15 @@ class InfoPage:
         form_frame.columnconfigure(1, weight=1)
 
         # Save button
-        self.save_button = ctk.CTkButton(form_frame, text="Save", command=self.save_client_data, state="disabled")
+        self.save_button = ctk.CTkButton(
+            form_frame, text="Save", 
+            command=self.save_client_data,
+            fg_color="#696969",
+            text_color="white", 
+            state="disabled"
+        )
         self.save_button.grid(row=15, column=0, columnspan=2, sticky="ne", padx=5, pady=5)
-        
+
         # Frame for Full Name (entry), Gender, Birthdate
         name_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
         name_frame.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
@@ -173,12 +182,13 @@ class InfoPage:
 
         # Mimic Tab behavior for all entry fields
         self.full_name_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
-        self.birthdate_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.birthdate_entry.          bind("<Return>", lambda event: (self.format_birthdate(), self.focus_next_widget(event)))
+        self.birthdate_entry.          bind("<FocusOut>", lambda event: self.format_birthdate())
         self.address1_entry.           bind("<Return>", lambda event: self.focus_next_widget(event))
         self.address2_entry.           bind("<Return>", lambda event: self.focus_next_widget(event))
         self.city_entry.               bind("<Return>", lambda event: self.focus_next_widget(event))
         self.zip_entry.                bind("<Return>", lambda event: self.focus_next_widget(event))
-        self.phone_entry.              bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.phone_entry.              bind("<Return>", self.handle_phone_input)
         self.email_entry.              bind("<Return>", lambda event: self.focus_next_widget(event))
         self.allergies_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
         self.health_conditions_entry.  bind("<Return>", lambda event: self.focus_next_widget(event))
@@ -253,32 +263,56 @@ class InfoPage:
 
             # Populate general client fields
             self.full_name_entry.delete(0, "end")
-            self.full_name_entry.insert(0, full_name)
+            if full_name:
+                self.full_name_entry.insert(0, full_name)
+            else:
+                self.full_name_entry.configure(placeholder_text=full_name_placeholder)
 
-            self.gender_entry.set(gender)
+            self.gender_entry.set(gender if gender else "Select Gender")
 
             self.birthdate_entry.delete(0, "end")
-            self.birthdate_entry.insert(0, birthdate)
+            if birthdate:
+                self.birthdate_entry.insert(0, birthdate)
+            else:
+                self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
 
             self.address1_entry.delete(0, "end")
-            self.address1_entry.insert(0, address1)
+            if address1:
+                self.address1_entry.insert(0, address1)
+            else:
+                self.address1_entry.configure(placeholder_text=address1_placeholder)
 
             self.address2_entry.delete(0, "end")
-            self.address2_entry.insert(0, address2)
+            if address2:
+                self.address2_entry.insert(0, address2)
+            else:
+                self.address2_entry.configure(placeholder_text=address2_placeholder)
 
             self.city_entry.delete(0, "end")
-            self.city_entry.insert(0, city)
+            if city:
+                self.city_entry.insert(0, city)
+            else:
+                self.city_entry.configure(placeholder_text=city_placeholder)
 
-            self.state_entry.set(state)
+            self.state_entry.set(state if state else "Select State")
 
             self.zip_entry.delete(0, "end")
-            self.zip_entry.insert(0, zip)
+            if zip:
+                self.zip_entry.insert(0, zip)
+            else:
+                self.zip_entry.configure(placeholder_text=zip_placeholder)
 
             self.phone_entry.delete(0, "end")
-            self.phone_entry.insert(0, phone)
+            if phone:
+                self.phone_entry.insert(0, phone)
+            else:
+                self.phone_entry.configure(placeholder_text=phone_placeholder)
 
             self.email_entry.delete(0, "end")
-            self.email_entry.insert(0, email)
+            if email:
+                self.email_entry.insert(0, email)
+            else:
+                self.email_entry.configure(placeholder_text=email_placeholder)
 
         if health_result:
             (
@@ -289,28 +323,52 @@ class InfoPage:
 
             # Populate health-related fields
             self.allergies_entry.delete(0, "end")
-            self.allergies_entry.insert(0, allergies)
+            if allergies:
+                self.allergies_entry.insert(0, allergies)
+            else:
+                self.allergies_entry.configure(placeholder_text=allergies_placeholder)
 
             self.health_conditions_entry.delete(0, "end")
-            self.health_conditions_entry.insert(0, health_conditions)
+            if health_conditions:
+                self.health_conditions_entry.insert(0, health_conditions)
+            else:
+                self.health_conditions_entry.configure(placeholder_text=health_conditions_placeholder)
 
             self.medications_entry.delete(0, "end")
-            self.medications_entry.insert(0, medications)
+            if medications:
+                self.medications_entry.insert(0, medications)
+            else:
+                self.medications_entry.configure(placeholder_text=medications_placeholder)
 
             self.treatment_areas_entry.delete(0, "end")
-            self.treatment_areas_entry.insert(0, treatment_areas)
+            if treatment_areas:
+                self.treatment_areas_entry.insert(0, treatment_areas)
+            else:
+                self.treatment_areas_entry.configure(placeholder_text=treatment_areas_placeholder)
 
             self.current_products_entry.delete(0, "end")
-            self.current_products_entry.insert(0, current_products)
+            if current_products:
+                self.current_products_entry.insert(0, current_products)
+            else:
+                self.current_products_entry.configure(placeholder_text=current_products_placeholder)
 
             self.skin_conditions_entry.delete(0, "end")
-            self.skin_conditions_entry.insert(0, skin_conditions)
+            if skin_conditions:
+                self.skin_conditions_entry.insert(0, skin_conditions)
+            else:
+                self.skin_conditions_entry.configure(placeholder_text=skin_conditions_placeholder)
 
             self.other_notes_entry.delete(0, "end")
-            self.other_notes_entry.insert(0, other_notes)
+            if other_notes:
+                self.other_notes_entry.insert(0, other_notes)
+            else:
+                self.other_notes_entry.configure(placeholder_text=other_notes_placeholder)
 
             self.desired_improvement_entry.delete(0, "end")
-            self.desired_improvement_entry.insert(0, desired_improvement)
+            if desired_improvement:
+                self.desired_improvement_entry.insert(0, desired_improvement)
+            else:
+                self.desired_improvement_entry.configure(placeholder_text=desired_improvement_placeholder)
 
     def clear_info(self):
         """Clear all fields in the Info tab."""
@@ -381,7 +439,7 @@ class InfoPage:
 
     def enable_save_button(self, event=None):
         """Enable the save button when an entry is changed."""
-        self.save_button.configure(state="normal", text="Save")  # Re-enable
+        self.save_button.configure(state="normal", text="Save", fg_color="#3B8ED0")  # Re-enable
 
     def save_client_data(self):
         """Save or update client information in the database."""
@@ -420,9 +478,30 @@ class InfoPage:
             return
 
         try:
-            # ✅ Step 3: Update existing client
-            if self.client_id:
-                print(f"✏️  Updating client ID: {self.client_id} ({full_name}) in the database...")
+            if self.client_id == -1:  # ✅ If it's a new client
+                print(f"🆕 Inserting new client: {full_name}")
+
+                # ✅ Insert the new client into the `clients` table
+                self.cursor.execute("""
+                    INSERT INTO clients (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by))
+
+                # ✅ Get the newly inserted client_id
+                self.client_id = self.cursor.lastrowid
+                print(f"🆕 Assigned new client_id: {self.client_id}")
+
+                # ✅ Insert new Health Info
+                self.cursor.execute("""
+                    INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
+                        current_products, skin_conditions, other_notes, desired_improvement) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
+
+            else:  # ✅ If updating an existing client
+                print(f"✏️ Updating client ID: {self.client_id} ({full_name}) in the database...")
+                
+                # ✅ Update client info in the `clients` table
                 self.cursor.execute("""
                     UPDATE clients 
                     SET full_name = ?, gender = ?, birthdate = ?, phone = ?, email = ?, 
@@ -430,13 +509,12 @@ class InfoPage:
                     WHERE id = ?
                 """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by, self.client_id))
 
-                # ✅ Step 4: Check if health info already exists
+                # ✅ Check if health info exists for this client
                 self.cursor.execute("SELECT COUNT(*) FROM client_health_info WHERE client_id = ?", (self.client_id,))
                 health_info_exists = self.cursor.fetchone()[0]
 
-                # ✅ Step 5: Update or Insert Health Info
                 if health_info_exists:
-                    print(f"✏️  Updating health info for client ID: {self.client_id}")
+                    # ✅ Update existing Health Info
                     self.cursor.execute("""
                         UPDATE client_health_info 
                         SET allergies = ?, health_conditions = ?, medications = ?, treatment_areas = ?, 
@@ -444,44 +522,137 @@ class InfoPage:
                         WHERE client_id = ?
                     """, (allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement, self.client_id))
                 else:
-                    print(f"➕ Adding new health info for client ID: {self.client_id}")
+                    # ✅ Insert new Health Info (if missing)
                     self.cursor.execute("""
                         INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
                             current_products, skin_conditions, other_notes, desired_improvement) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
 
-                print(f"✅ Client '{full_name}' updated successfully.")
-
-            else:
-                # ✅ Step 6: Insert new client if no existing client found
-                print(f"🆕 Inserting new client: {full_name}")
-                self.cursor.execute("""
-                    INSERT INTO clients (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by))
-                
-                # ✅ Get the newly inserted client_id
-                self.client_id = self.cursor.lastrowid
-                print(f"🆕 Assigned new client_id: {self.client_id}")
-
-            # ✅ Step 7: Commit changes
+            # ✅ Step 4: Commit changes
             self.conn.commit()
             print(f"💾 Changes committed to the database.")
 
-            # ✅ Step 8: Refresh TreeView in ClientsPage
+            # ✅ Step 5: Refresh TreeView in ClientsPage and select the updated/new client
             if hasattr(self.main_app, "tabs") and "Clients" in self.main_app.tabs:
                 print("🔄 Refreshing Client List in TreeView...")
                 self.main_app.tabs["Clients"].load_clients()  # 🔥 Reload all clients in TreeView
+                self.main_app.tabs["Clients"].client_list.selection_set(str(self.client_id))  # ✅ Select the updated/new client
 
-            # ✅ Step 9: Refresh ProfileCard Full Name
+            # ✅ Step 6: Finalize Temporary Profile Picture
+            temp_profile_path = "images/clients/temp_profile.jpg"
+            final_profile_path = f"images/clients/{full_name.replace(' ', '_')}.jpg"
+
+            if os.path.exists(temp_profile_path):
+                os.rename(temp_profile_path, final_profile_path)
+                print(f"📁 Moved temporary profile picture to {final_profile_path}")
+
+                self.cursor.execute("""
+                    UPDATE clients SET profile_picture = ? WHERE id = ?""",
+                    (final_profile_path, self.client_id))
+                self.conn.commit()
+
+            # ✅ Step 6: Refresh ProfileCard Full Name
             if hasattr(self.main_app, "profile_card"):
                 print("🔄 Updating ProfileCard Name...")
+                self.main_app.profile_card.client_id = self.client_id
+                self.main_app.profile_card.full_name = full_name
                 self.main_app.profile_card.name_label.configure(text=full_name)
 
-            # ✅ Disable save button and change label after successful save
-            self.save_button.configure(state="disabled", text="Saved!")
+            # ✅ Step 7: Disable save button and change label after successful save
+            self.save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
 
         except Exception as e:
             print(f"❌ Database error: {e}")
         
+
+    def format_birthdate(self):
+        """Format the birthdate entry to MM/DD/YYYY when the user presses Enter or clicks away."""
+        raw_date = self.birthdate_entry.get().strip()
+
+        if not raw_date:  # ✅ Keep placeholder if empty
+            self.birthdate_entry.delete(0, "end")
+            self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
+            return
+
+        # ✅ Remove any non-numeric characters (e.g., dashes, dots, spaces)
+        cleaned_date = re.sub(r"\D", "", raw_date)  # Remove non-numeric characters
+
+        # ✅ Convert formats like 12101992 to 12/10/1992
+        if len(cleaned_date) == 8:  
+            formatted_date = f"{cleaned_date[:2]}/{cleaned_date[2:4]}/{cleaned_date[4:]}"
+        
+        # ✅ Attempt to parse standard date formats (12-10-1992, 12.10.1992, etc.)
+        else:
+            try:
+                parsed_date = datetime.strptime(raw_date, "%m-%d-%Y")  # MM-DD-YYYY
+                formatted_date = parsed_date.strftime("%m/%d/%Y")
+            except ValueError:
+                try:
+                    parsed_date = datetime.strptime(raw_date, "%m.%d.%Y")  # MM.DD.YYYY
+                    formatted_date = parsed_date.strftime("%m/%d/%Y")
+                except ValueError:
+                    try:
+                        parsed_date = datetime.strptime(raw_date, "%m/%d/%Y")  # MM/DD/YYYY (valid)
+                        formatted_date = parsed_date.strftime("%m/%d/%Y")
+                    except ValueError:
+                        print("⚠ Invalid date entered. Resetting to placeholder.")
+                        self.birthdate_entry.delete(0, "end")
+                        self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
+                        return
+
+        # ✅ Ensure a valid final format
+        self.birthdate_entry.delete(0, "end")
+        self.birthdate_entry.insert(0, formatted_date)
+        print(f"✅ Formatted Birthdate: {formatted_date}")
+    
+    def handle_phone_input(self, event=None):
+        """Format phone number and move to the next widget."""
+        self.format_phone_number()  # ✅ Format number once
+        self.focus_next_widget(event)  # ✅ Move focus to next field
+
+    def format_phone_number(self, event=None):
+        """Format phone number as (XXX) XXX-XXXX, preserving country code if entered with '+'. 
+        If only 7 digits are entered, format as XXX-XXXX.
+        """
+
+        raw_input = self.phone_entry.get().strip()
+        if not raw_input:
+            return  # Don't format if the input is empty
+
+        country_code = ""
+        phone_number = raw_input
+
+        # ✅ Detect country code only if `+` is present
+        if raw_input.startswith("+"):
+            match = re.match(r"(\+\d+)\s*(\d+)", raw_input)
+            if match:
+                country_code = match.group(1)  # Extract country code (e.g., +1, +44, etc.)
+                phone_number = match.group(2)  # Extract the rest of the number
+
+        # ✅ Remove all non-digit characters (except `+` in the country code)
+        digits = re.sub(r"\D", "", phone_number)
+
+        formatted_number = raw_input  # Default to input if no formatting is applied
+
+        # ✅ If exactly 7 digits, format as XXX-XXXX
+        if len(digits) == 7:
+            formatted_number = f"{digits[:3]}-{digits[3:]}"
+
+        # ✅ If at least 10 digits, format as (XXX) XXX-XXXX
+        elif len(digits) >= 10:
+            formatted_number = f"({digits[:3]}) {digits[3:6]}-{digits[6:10]}"
+
+            # ✅ If extra digits exist (extensions, etc.), append them
+            if len(digits) > 10:
+                formatted_number += f" {digits[10:]}"
+
+            # ✅ Prepend country code if present
+            formatted_number = f"{country_code} {formatted_number}".strip()
+
+        # ✅ Prevent triggering reformat on already formatted text
+        if self.phone_entry.get() != formatted_number:
+            self.phone_entry.delete(0, "end")
+            self.phone_entry.insert(0, formatted_number)
+
+        print(f"📞 Formatted Phone Number: {self.phone_entry.get()}")

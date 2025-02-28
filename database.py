@@ -127,6 +127,7 @@ def insert_mock_data(cursor):
         cursor.executemany("""
         INSERT INTO appointments (client_id, date, time, treatment, price, photo_taken, treatment_notes)
         VALUES (?, ?, ?, ?, ?, ?, ?)
+                           
         """, mock_appointments)
 
     # Check if data already exists in the client_health_info table

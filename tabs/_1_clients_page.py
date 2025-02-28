@@ -76,9 +76,6 @@ class ClientsPage:
         scrollbar.pack(side="right", fill="y")
         self.client_list.configure(yscrollcommand=scrollbar.set)
 
-        # Load data from the database
-        self.load_clients()
-
         # No Results label (initially hidden)
         self.no_results_label = ctk.CTkLabel(
             table_frame,
@@ -91,18 +88,21 @@ class ClientsPage:
         self.no_results_label.place(relx=0.5, rely=0.5, anchor="center")
         self.no_results_label.lower()  # Hide the label by lowering it below the Treeview
 
+        # Load data from the database
+        self.load_clients()
+
         # Bind the Treeview's parent to a resize event
         self.client_list.bind("<Configure>", lambda event: self.set_column_widths())
 
         # Key "bind" configurations for quick functionality
-        self.name_entry.bind("<Return>", lambda event: (self.search_client(), "break"))             # Prevent default behavior
-        self.client_list.bind("<Return>", self.jump_to_info_tab)                                    # Pressing Enter in Treeview
-        self.client_list.bind("<ButtonRelease-1>", self.update_profile_card)                        # Update profile card w/ single-click
-        self.client_list.bind("<Double-1>", self.jump_to_info_tab)                                  # Double left-click
-        self.client_list.bind("<Control-Return>", lambda event: self.add_client_button())           # Bind globally for Ctrl+Enter
-        self.client_list.bind("<Delete>", self.confirm_delete_client)                               # Deletes client
-        self.client_list.bind("<BackSpace>", self.confirm_delete_client)    
-                                # Deletes client
+        self.name_entry. bind("<KeyRelease>", lambda event: (self.search_client(), "break"))    # Prevent default behavior
+        self.client_list.bind("<Return>", self.jump_to_info_tab)                                # Pressing Enter in Treeview
+        self.client_list.bind("<ButtonRelease-1>", self.update_profile_card)                    # Update profile card w/ single-click
+        self.client_list.bind("<Double-1>", self.jump_to_info_tab)                              # Double left-click
+        self.client_list.bind_all("<Control-Return>", lambda event: self.add_client_button())   # Bind globally for Ctrl+Enter
+        self.client_list.bind("<Delete>", self.confirm_delete_client)                           # Deletes client
+        self.client_list.bind("<BackSpace>", self.confirm_delete_client)                        # Deletes client
+            
     def set_column_widths(self):
         # Get the current width of the Treeview
         total_width = self.client_list.winfo_width()
@@ -117,17 +117,33 @@ class ClientsPage:
 
     def load_clients(self):
         """Load all clients from the database and insert them into the Treeview."""
-        self.client_list.delete(*self.client_list.get_children())  # Clear existing rows
-        self.cursor.execute("SELECT id, full_name, gender, birthdate, phone, email, address1 || ' ' || address2 FROM clients")
-        for row in self.cursor.fetchall():
-            client_id = row[0]
-            client_values = row[1:]
+        print("🔄 Reloading all clients...")  # Debugging
 
+        self.client_list.delete(*self.client_list.get_children())  # Clear existing rows
+
+        self.cursor.execute("""
+            SELECT id, full_name, gender, birthdate, phone, email, address1 || ' ' || address2 FROM clients
+        """)
+        results = self.cursor.fetchall()
+
+        if not results:
+            print("⚠ No clients found in the database!")  # Debugging
+            self.no_results_label.configure(text="No clients found in the database.")
+            self.no_results_label.lift()  # Show the label if the DB is empty
+            return
+        
+        for row in results:
+            client_id = row[0]  # ✅ Extract client_id
+            client_values = row[1:]  # ✅ Everything except client_id
             self.client_list.insert("", "end", iid=str(client_id), values=client_values)
+
+        print(f"✅ Loaded {len(results)} clients.")  # Debugging
+        self.no_results_label.lower()  # Hide "No Results" label
 
     def search_client(self):
         """Search for clients based on the name entered in the search box."""
-        query = self.name_entry.get()
+        query = self.name_entry.get().strip()   # Get and trim the search query
+
         if query:
             self.client_list.delete(*self.client_list.get_children())  # Clear existing rows
 
@@ -151,9 +167,7 @@ class ClientsPage:
             
             else:
                 # Show "No Results" label
-                self.no_results_label.configure(
-                    text=f"No results for '{query}'\n\nPress Ctrl + Enter to add."
-                )
+                self.no_results_label.configure(text=f"No results for '{query}'\n\nPress Ctrl + Enter to add.")
                 self.no_results_label.lift()  # Bring the label to the front
 
         else:
@@ -223,7 +237,7 @@ class ClientsPage:
         full_name = self.name_entry.get().strip()  # Get and trim the entered name
 
         if not full_name:
-            print("⚠ ERROR: No name entered.")
+            print("⚠ No name entered. Cannot add new client.")
             return  # Prevent empty input
 
         # ✅ Step 1: Check for duplicate name in the database
@@ -260,6 +274,13 @@ class ClientsPage:
         # ✅ Populate the full name entry in the Info tab
         info_tab = self.main_app.tabs["Info"]
         info_tab.full_name_entry.insert(0, full_name)
+        
+        # ✅ Update the Profile Card with the New Client Name
+        if hasattr(self.main_app, "profile_card"):
+            self.main_app.profile_card.client_id = -1  # Placeholder ID
+            self.main_app.profile_card.full_name = full_name
+            self.main_app.profile_card.name_label.configure(text=full_name)  # Update UI
+            print(f"🆕 New Client Placeholder Set: {full_name} (ID: -1)")
 
         # ✅ Switch to the Info tab
         self.main_app.switch_to_tab("Info")
@@ -322,7 +343,7 @@ class ClientsPage:
 
             # ✅ Refresh UI after deletion
             self.load_clients()
-
+            
             # ✅ Reset ProfileCard (Loads default state)
             if hasattr(self.main_app, "profile_card"):
                 self.main_app.profile_card.load_client(None)  # Reset profile card
