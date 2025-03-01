@@ -197,6 +197,11 @@ class InfoPage:
         )
         self.save_button.grid(row=0, column=2, padx=5, pady=5, sticky="ne")
 
+        # ✅ Add traces after `self.save_button` exists
+        self.gender_var.trace_add("write", lambda *args: self.enable_save_button())
+        self.state_var.trace_add("write", lambda *args: self.enable_save_button())
+        self.referred_var.trace_add("write", lambda *args: self.enable_save_button())
+
         # Mimic Tab behavior for all entry fields
         self.full_name_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
         self.birthdate_entry.          bind("<Return>", lambda event: (self.format_birthdate(), self.focus_next_widget(event)))
@@ -249,12 +254,24 @@ class InfoPage:
 
     def populate_client_info(self, client_id):
         """Fetch client data from the database and populate the fields, including health information."""
+
+        # ✅ Step 1: Remove Existing Traces
+        try:
+            if self.gender_var.trace_info():
+                self.gender_var.trace_remove("write", self.gender_var.trace_info()[0][1])
+            if self.state_var.trace_info():
+                self.state_var.trace_remove("write", self.state_var.trace_info()[0][1])
+            if self.referred_var.trace_info():
+                self.referred_var.trace_remove("write", self.referred_var.trace_info()[0][1])
+        except IndexError:
+            pass  # In case no trace exists yet  
+
         # Fetch general client information
         self.cursor.execute("""
             SELECT 
                 full_name, gender, birthdate, 
                 address1, address2, city, 
-                state, zip, phone, email 
+                state, zip, phone, email
             FROM clients 
             WHERE id = ?
         """, (client_id,))
@@ -331,6 +348,8 @@ class InfoPage:
             else:
                 self.email_entry.configure(placeholder_text=email_placeholder)
 
+            # Must add referred population here
+                
         if health_result:
             (
                 allergies, health_conditions, medications, 
@@ -386,6 +405,19 @@ class InfoPage:
                 self.desired_improvement_entry.insert(0, desired_improvement)
             else:
                 self.desired_improvement_entry.configure(placeholder_text=desired_improvement_placeholder)
+        
+            # ✅ Step 3: Set Combobox Values (Without Triggering Save Button)
+            self.gender_var.set(gender if gender else "Select Gender")
+            self.state_var.set(state if state else "Select State")
+            # self.referred_var.set(referred if referred_by else "Unknown")
+
+        # ✅ Step 4: Manually Reattach Tracing (Fix for Traces Not Triggering)
+        self.gender_var.trace_add("write", lambda *args: self.enable_save_button())
+        self.state_var.trace_add("write", lambda *args: self.enable_save_button())
+        self.referred_var.trace_add("write", lambda *args: self.enable_save_button())
+
+        # ✅ Step 5: Disable Save Button (No edits have been made yet)
+        self.save_button.configure(state="disabled", text="Save", fg_color="#696969")
 
     def clear_info(self):
         """Clear all fields in the Info tab."""
@@ -462,11 +494,12 @@ class InfoPage:
 
     def enable_save_button(self, event=None):
         """Enable the save button when an entry is changed."""
-        if self.save_button.cget("state") == "normal":
-            return  # ✅ Prevent duplicate triggers
+        if hasattr(self, "save_button") and self.save_button:
+            if self.save_button.cget("state") == "normal":
+                return  # ✅ Prevent duplicate triggers
     
-        print(f"🔄 Save button enabled")  # Debugging output
-        self.save_button.configure(state="normal", text="Save", fg_color="#3B8ED0")  # Re-enable
+            print(f"🔄 Save button enabled")  # Debugging output
+            self.save_button.configure(state="normal", text="Save", fg_color="#3B8ED0")  # Re-enable
 
     def save_client_data(self):
         """Save or update client information in the database."""
