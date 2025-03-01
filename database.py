@@ -1,5 +1,6 @@
 import sqlite3
 from faker import Faker  # Import Faker for generating mock data
+import random
 
 def init_database(db_name="client_database.db"):
     """
@@ -75,6 +76,13 @@ def create_tables(cursor):
     )
     """)
 
+def format_fake_phone():
+    """Generate a fake phone number in the format (XXX) XXX-XXXX."""
+    area_code = random.randint(200, 999)  # Avoids 000 or invalid area codes
+    first_three = random.randint(200, 999)  # Avoids 000
+    last_four = random.randint(1000, 9999)
+    return f"({area_code}) {first_three}-{last_four}"
+
 def insert_mock_data(cursor):
     """Insert mock data into the database if it doesn't already exist."""
     fake = Faker()
@@ -92,7 +100,7 @@ def insert_mock_data(cursor):
                 fake.name(),
                 fake.random_element(["Male", "Female"]),
                 fake.date_of_birth(minimum_age=18, maximum_age=80).strftime("%m/%d/%Y"),
-                fake.phone_number(),
+                format_fake_phone(),
                 fake.email(),
                 address1,
                 address2,

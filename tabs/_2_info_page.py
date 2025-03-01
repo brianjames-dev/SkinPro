@@ -37,16 +37,6 @@ class InfoPage:
         form_frame.columnconfigure(0, weight=0)
         form_frame.columnconfigure(1, weight=1)
 
-        # Save button
-        self.save_button = ctk.CTkButton(
-            form_frame, text="Save", 
-            command=self.save_client_data,
-            fg_color="#696969",
-            text_color="white", 
-            state="disabled"
-        )
-        self.save_button.grid(row=15, column=0, columnspan=2, sticky="ne", padx=5, pady=5)
-
         # Frame for Full Name (entry), Gender, Birthdate
         name_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
         name_frame.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
@@ -56,6 +46,14 @@ class InfoPage:
         name_frame.columnconfigure(3, weight=0)  # Birthdate label
         name_frame.columnconfigure(4, weight=1)  # Birthdate entry box
 
+        # Define tracking variables
+        self.gender_var = ctk.StringVar()
+        self.state_var = ctk.StringVar()
+        self.referred_var = ctk.StringVar()
+
+        # Attach tracking function
+        self.setup_combobox_tracking()
+
         # Row 1: Full Name, Gender, Birthdate
         ctk.CTkLabel(form_frame, text="Full Name").grid(row=0, column=0, sticky="w", padx=5, pady=5)
         self.full_name_entry = ctk.CTkEntry(name_frame, border_width=0, placeholder_text=full_name_placeholder)
@@ -64,7 +62,9 @@ class InfoPage:
         ctk.CTkLabel(name_frame, text="Gender").grid(row=0, column=1, sticky="w", padx=(20, 5))
         self.gender_entry = ctk.CTkComboBox(name_frame, values=["Female", "Male"], border_width=0)
         self.gender_entry.grid(row=0, column=2, sticky="ew")
+        self.gender_entry.configure(variable=self.gender_var)
         self.gender_entry.set("Select Gender")  # Assuming it should have a default value
+
 
         ctk.CTkLabel(name_frame, text="Birthdate").grid(row=0, column=3, sticky="w", padx=(20, 5))
         self.birthdate_entry = ctk.CTkEntry(name_frame, border_width=0, placeholder_text=birthdate_placeholder)
@@ -102,6 +102,7 @@ class InfoPage:
                                            "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", 
                                            "VT", "VA", "WA", "WV", "WI", "WY"])
         self.state_entry.grid(row=3, column=2, sticky="ew")
+        self.state_entry.configure(variable=self.state_var)
         self.state_entry.set("Select State")  # Assuming it should have a default value
 
         ctk.CTkLabel(address_tri_frame, text="Zip").grid(row=3, column=3, sticky="w", padx=(20, 5))
@@ -131,6 +132,7 @@ class InfoPage:
         self.referred_by_combobox.grid(row=4, column=4, sticky="ew")
         self.referred_by_combobox.set("")
         self.referred_by_combobox.bind("<KeyRelease>", lambda event: self.update_referred_by_suggestions())
+        self.referred_by_combobox.configure(variable=self.referred_var)
 
         # Separator
         separator = ttk.Separator(form_frame, orient="horizontal")
@@ -175,10 +177,25 @@ class InfoPage:
         self.other_notes_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=other_notes_placeholder)
         self.other_notes_entry.grid(row=13, column=1, padx=5, pady=5, sticky="ew")
 
-        # Row 13: Desired Improvement
-        ctk.CTkLabel(form_frame, text="Desired Improvement").grid(row=14, column=0, sticky="w", padx=5, pady=5)
-        self.desired_improvement_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=desired_improvement_placeholder)
-        self.desired_improvement_entry.grid(row=14, column=1, padx=5, pady=5, sticky="ew")
+        # Row 13: Desired Improvement + Save
+        final_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        final_frame.grid(row=14, column=0, columnspan=2, sticky="ew", pady=5)
+
+        final_frame.columnconfigure(1, weight=1)  # Entry box will now expand
+
+        ctk.CTkLabel(final_frame, text="Desired Improvement").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+
+        self.desired_improvement_entry = ctk.CTkEntry(final_frame, border_width=0, placeholder_text=desired_improvement_placeholder)
+        self.desired_improvement_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")  # ✅ Ensure it expands
+
+        self.save_button = ctk.CTkButton(
+            final_frame, text="Save",
+            command=self.save_client_data,
+            fg_color="#696969",
+            text_color="white",
+            state="disabled"
+        )
+        self.save_button.grid(row=0, column=2, padx=5, pady=5, sticky="ne")
 
         # Mimic Tab behavior for all entry fields
         self.full_name_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
@@ -201,14 +218,14 @@ class InfoPage:
 
         # Enable Save button when any entry is changed
         self.full_name_entry.bind("<KeyRelease>", self.enable_save_button)
-        self.gender_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.gender_entry.bind("<<ComboboxSelected>>", self.enable_save_button)
         self.birthdate_entry.bind("<KeyRelease>", self.enable_save_button)
         self.phone_entry.bind("<KeyRelease>", self.enable_save_button)
         self.email_entry.bind("<KeyRelease>", self.enable_save_button)
         self.address1_entry.bind("<KeyRelease>", self.enable_save_button)
         self.address2_entry.bind("<KeyRelease>", self.enable_save_button)
         self.city_entry.bind("<KeyRelease>", self.enable_save_button)
-        self.state_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.state_entry.bind("<<ComboboxSelected>>", self.enable_save_button)
         self.zip_entry.bind("<KeyRelease>", self.enable_save_button)
         self.referred_by_combobox.bind("<<ComboboxSelected>>", self.enable_save_button)
         self.allergies_entry.bind("<KeyRelease>", self.enable_save_button)
@@ -437,8 +454,18 @@ class InfoPage:
         self.referred_by_combobox.event_generate('<Down>')
         self.referred_by_combobox.focus()  # Ensure the combo box is focused
 
+    def setup_combobox_tracking(self):
+        """Attach variable tracking to enable the save button when combobox changes."""
+        self.gender_var.trace_add("write", lambda *args: self.enable_save_button())
+        self.state_var.trace_add("write", lambda *args: self.enable_save_button())
+        self.referred_var.trace_add("write", lambda *args: self.enable_save_button())
+
     def enable_save_button(self, event=None):
         """Enable the save button when an entry is changed."""
+        if self.save_button.cget("state") == "normal":
+            return  # ✅ Prevent duplicate triggers
+    
+        print(f"🔄 Save button enabled")  # Debugging output
         self.save_button.configure(state="normal", text="Save", fg_color="#3B8ED0")  # Re-enable
 
     def save_client_data(self):
@@ -537,11 +564,14 @@ class InfoPage:
             if hasattr(self.main_app, "tabs") and "Clients" in self.main_app.tabs:
                 print("🔄 Refreshing Client List in TreeView...")
                 self.main_app.tabs["Clients"].load_clients()  # 🔥 Reload all clients in TreeView
-                self.main_app.tabs["Clients"].client_list.selection_set(str(self.client_id))  # ✅ Select the updated/new client
+
+                # ✅ Select and bring the client into view
+                self.main_app.tabs["Clients"].client_list.selection_set(str(self.client_id))
+                self.main_app.tabs["Clients"].client_list.see(str(self.client_id))  # 🔥 Jump to selected client
 
             # ✅ Step 6: Finalize Temporary Profile Picture
-            temp_profile_path = "images/clients/temp_profile.jpg"
-            final_profile_path = f"images/clients/{full_name.replace(' ', '_')}.jpg"
+            temp_profile_path = "images/clients/temp_profile.png"
+            final_profile_path = f"images/clients/{full_name.replace(' ', '_')}.png"
 
             if os.path.exists(temp_profile_path):
                 os.rename(temp_profile_path, final_profile_path)

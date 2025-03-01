@@ -65,6 +65,11 @@ class ClientsPage:
         self.client_list.heading("Email", text="Email")
         self.client_list.heading("Address", text="Address")
 
+        # Bind all column headers to sorting function
+        for col in columns:
+            self.client_list.heading(col, text=col, command=lambda c=col: self.sort_treeview(c, False))
+
+
         # Set initial column widths
         self.set_column_widths()
 
@@ -175,7 +180,21 @@ class ClientsPage:
             self.no_results_label.lower()  # Hide the "No Results" label
 
     def jump_to_info_tab(self, event):
-        # Switch to the Info tab
+        """Switch to the Info tab when a client (row) is double-clicked in the TreeView."""
+    
+        # ✅ Step 1: Check where the click happened
+        region = self.client_list.identify_region(event.x, event.y)
+        if region == "heading":  
+            print("⚠ Double-clicked on a header. Ignoring.")
+            return  # 🔥 Do nothing if it's a column header
+
+        # ✅ Step 2: Ensure a valid row is selected
+        selected_item = self.client_list.selection()
+        if not selected_item:  
+            print("⚠ No client selected. Ignoring.")
+            return  # 🔥 Ignore if no valid row is selected
+
+        print(f"🔄 Switching to Info Tab for Client ID: {selected_item[0]}")
         self.main_app.switch_to_tab("Info")
 
     def update_profile_card(self, event):
@@ -192,6 +211,9 @@ class ClientsPage:
         self.client_id = int(client_id)  # Store current client_id for future use
         print(f"\n🟢 Selected Client ID:      {self.client_id}")  # Debugging
 
+        # ✅ Ensure the selected client is brought into view
+        self.client_list.see(client_id)  # 🔥 Scroll to selected client
+        
         # ✅ 3. Update ProfileCard's client_id
         if hasattr(self.main_app, "profile_card"):
             self.main_app.profile_card.client_id = self.client_id  # 🔥 Store client_id in ProfileCard
@@ -255,6 +277,10 @@ class ClientsPage:
         else:
             # ✅ No duplicate detected, proceed immediately
             self.proceed_with_new_client(full_name)
+
+            # ✅ Jump to newly added client in the Treeview
+            self.main_app.tabs["Clients"].client_list.selection_set(str(self.main_app.current_client_id))
+            self.main_app.tabs["Clients"].client_list.see(str(self.main_app.current_client_id))  # 🔥 Bring into view
 
     def handle_duplicate_response(self, response, full_name):
         """Handles user decision when adding a duplicate client."""
@@ -356,4 +382,23 @@ class ClientsPage:
 
         except Exception as e:
             print(f"❌ Database error during deletion: {e}")
+
+    def sort_treeview(self, column, reverse):
+        """Sort the Treeview column when clicked."""
+        # Get all rows from the treeview
+        data = [(self.client_list.set(item, column), item) for item in self.client_list.get_children("")]
+
+        # Detect if the column contains numbers or text
+        try:
+            data.sort(key=lambda x: float(x[0]) if x[0].isdigit() else x[0].lower(), reverse=reverse)
+        except ValueError:
+            data.sort(key=lambda x: x[0].lower(), reverse=reverse)
+
+        # Rearrange items in sorted order
+        for index, (val, item) in enumerate(data):
+            self.client_list.move(item, "", index)
+
+        # Toggle sorting order on next click
+        self.client_list.heading(column, command=lambda: self.sort_treeview(column, not reverse))
             
+                

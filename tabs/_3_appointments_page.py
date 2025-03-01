@@ -2,11 +2,15 @@ import customtkinter as ctk
 from tkinter import ttk
 from class_elements.profile_card import ProfileCard
 from class_elements.treeview_styling import style_treeview  # Import the style function
+from datetime import datetime
+
 
 class AppointmentsPage:
     def __init__(self, parent, conn):
         self.conn = conn
         self.cursor = conn.cursor()
+        self.sort_orders = {}  # Store sort order (ascending/descending) for each column
+
 
         # Create Main frame (holds both Treeview and Details frame)
         main_frame = ctk.CTkFrame(parent)
@@ -29,12 +33,9 @@ class AppointmentsPage:
         self.appointments_table = ttk.Treeview(treeview_frame, selectmode="browse", columns=columns, show="headings", height=10, style="Appointments.Treeview")
         self.appointments_table.pack(side="left", fill="both", expand=True)
 
-        # Define column headers
-        self.appointments_table.heading("date", text="Date")
-        self.appointments_table.heading("time", text="Time")
-        self.appointments_table.heading("treatment", text="Treatment")
-        self.appointments_table.heading("price", text="Price")
-        self.appointments_table.heading("photo", text="Photo")
+        # Create clickable column headers
+        for col in columns:
+            self.appointments_table.heading(col, text=col.capitalize(), command=lambda c=col: self.sort_appointments_treeview(c))
 
         # Add vertical scrollbar
         scrollbar_y = ttk.Scrollbar(treeview_frame, orient="vertical", command=self.appointments_table.yview)
@@ -84,9 +85,20 @@ class AppointmentsPage:
         # Fetch appointments for the selected client
         self.cursor.execute("""
             SELECT id, date, time, treatment, price, photo_taken, treatment_notes 
-            FROM appointments WHERE client_id = ?
+            FROM appointments 
+            WHERE client_id = ?
         """, (client_id,))
-        for row in self.cursor.fetchall():
+        # Convert fetched rows into a list of tuples
+        appointments = self.cursor.fetchall()
+
+        # **Sort appointments by date (latest first)**
+        try:
+            appointments.sort(key=lambda x: datetime.strptime(x[1], "%m/%d/%Y"), reverse=True)
+        except ValueError:
+            print("⚠ Date formatting issue detected in database. Ensure format is MM/DD/YYYY.")
+
+        # Insert sorted appointments into the TreeView
+        for row in appointments:
             appointment_id, date, time, treatment, price, photo_taken, treatment_notes = row
             self.appointments_table.insert(
                 "", "end", values=(date, time, treatment, price, photo_taken), tags=(treatment_notes,)
@@ -107,3 +119,30 @@ class AppointmentsPage:
         """Clear all rows in the appointments Treeview and treatment notes."""
         self.appointments_table.delete(*self.appointments_table.get_children())
         self.details_textbox.delete("1.0", "end")  # Clear the treatment notes text box
+
+    def sort_appointments_treeview(self, column):
+        """Sort the appointments TreeView by column."""
+        data = [(self.appointments_table.set(item, column), item) for item in self.appointments_table.get_children()]
+
+        # Toggle sort order (ascending/descending)
+        reverse = self.sort_orders.get(column, False)
+        self.sort_orders[column] = not reverse  # Flip the sorting order for next click
+
+        try:
+            if column == "date":
+                data.sort(key=lambda x: datetime.strptime(x[0], "%m/%d/%Y"), reverse=reverse)
+            elif column == "time":
+                data.sort(key=lambda x: datetime.strptime(x[0], "%I:%M %p"), reverse=reverse)
+            elif column == "price":
+                data.sort(key=lambda x: float(x[0].replace("$", "")), reverse=reverse)
+            else:
+                data.sort(key=lambda x: x[0].lower(), reverse=reverse)  # Alphabetical sorting
+        except ValueError:
+            data.sort(key=lambda x: x[0], reverse=reverse)
+
+        # Rearrange items in sorted order
+        for index, (val, item) in enumerate(data):
+            self.appointments_table.move(item, "", index)
+
+        # Update the column heading to trigger sorting when clicked again
+        self.appointments_table.heading(column, command=lambda c=column: self.sort_appointments_treeview(c))

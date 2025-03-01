@@ -4,7 +4,7 @@ from PIL import Image, ImageOps, ImageDraw
 from tkinter import filedialog
 
 # Image size
-w, h = 58, 58 
+w, h = 58, 58
 
 class ProfileCard:
     def __init__(self, parent, conn, cursor):
@@ -234,12 +234,12 @@ class ProfileCard:
 
     def zoom_in(self):
         """Increase zoom and update preview."""
-        self.zoom += 150
+        self.zoom += 200
         self.update_preview()
 
     def zoom_out(self):
         """Decrease zoom and update preview."""
-        self.zoom -= 150
+        self.zoom -= 200
         self.update_preview()
 
     def shift_up(self):

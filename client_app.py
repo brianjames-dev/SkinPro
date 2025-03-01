@@ -11,7 +11,7 @@ class ClientApp(ctk.CTk):
         super().__init__()
         
         self.title("SkinPro")
-        self.geometry("992x744")
+        self.geometry("936x702")
         ctk.set_appearance_mode("Dark")  # Options: "Light", "Dark", or "System"
         ctk.set_default_color_theme("blue")  # Options: "blue", "green", "dark-blue"
 
