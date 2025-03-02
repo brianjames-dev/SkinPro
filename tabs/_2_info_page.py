@@ -271,7 +271,7 @@ class InfoPage:
             SELECT 
                 full_name, gender, birthdate, 
                 address1, address2, city, 
-                state, zip, phone, email
+                state, zip, phone, email, referred_by
             FROM clients 
             WHERE id = ?
         """, (client_id,))
@@ -292,7 +292,7 @@ class InfoPage:
             (
                 full_name, gender, birthdate, 
                 address1, address2, city, 
-                state, zip, phone, email
+                state, zip, phone, email, referred_by
             ) = client_result
 
             # Populate general client fields
@@ -348,7 +348,7 @@ class InfoPage:
             else:
                 self.email_entry.configure(placeholder_text=email_placeholder)
 
-            # Must add referred population here
+            self.referred_by_combobox.set(referred_by if referred_by else "")
                 
         if health_result:
             (
