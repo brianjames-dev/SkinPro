@@ -51,7 +51,7 @@ class ClientApp(ctk.CTk):
 
     def init_appointments_tab(self):
         appointments_tab = self.tab_view.tab("Appointments")
-        self.tabs["Appointments"] = AppointmentsPage(appointments_tab, self.conn)  # Store reference
+        self.tabs["Appointments"] = AppointmentsPage(appointments_tab, self.conn, self)  # Store reference
 
     def init_photos_tab(self):
         photos_tab = self.tab_view.tab("Photos")

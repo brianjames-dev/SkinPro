@@ -45,7 +45,7 @@ def create_tables(cursor):
         time TIME,
         treatment TEXT,
         price TEXT,
-        photo_taken INTEGER DEFAULT 0,
+        photo_taken TEXT DEFAULT 'No',
         treatment_notes TEXT,
         FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
     )
@@ -126,7 +126,7 @@ def insert_mock_data(cursor):
                 fake.time(pattern="%I:%M %p"),  # Random time in 12-hour format
                 fake.sentence(nb_words=5),  # Random treatment description
                 f"${fake.random_int(min=30, max=500)}.00",  # Random price
-                fake.random_element(["0", "1"]),  # Photo taken
+                fake.random_element(["No", "Yes"]),  # Photo taken
                 fake.sentence(nb_words=10)  # Random treatment notes
 
             )

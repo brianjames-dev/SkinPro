@@ -6,31 +6,49 @@ from datetime import datetime
 
 
 class AppointmentsPage:
-    def __init__(self, parent, conn):
+    def __init__(self, parent, conn, main_app):
         self.conn = conn
         self.cursor = conn.cursor()
+        self.main_app = main_app  # Reference to main app (to update ProfileCard & InfoPage)
+        self.client_id = None  # Store selected client ID
         self.sort_orders = {}  # Store sort order (ascending/descending) for each column
-
 
         # Create Main frame (holds both Treeview and Details frame)
         main_frame = ctk.CTkFrame(parent)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=(0, 0))
 
         # Configure grid columns for proportional sizing
         main_frame.columnconfigure(0, weight=13)  # Treeview frame gets 3x the space
         main_frame.columnconfigure(1, weight=7)  # Details frame gets 1x the space
-        main_frame.rowconfigure(0, weight=1)  # Allow frames to stretch vertically
+        main_frame.rowconfigure(1, weight=1)  # Allow frames to stretch vertically
+
+        # ✅ Step 1: Create a Frame for the search box
+        search_frame = ctk.CTkFrame(main_frame)
+        search_frame.grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 10))
+        search_frame.columnconfigure(1, weight=1)  # Ensure the combobox expands properly
+
+        # ✅ Step 2: Add a Search Label (Matches Info Page Styling)
+        search_label = ctk.CTkLabel(search_frame, text="Select Client:", font=("Arial", 14))
+        search_label.grid(row=0, column=0, sticky="w", padx=10)
+
+        # ✅ Step 3: Update the Combobox to Match Styling
+        self.client_var = ctk.StringVar()
+        self.client_combobox = ctk.CTkComboBox(
+            search_frame, variable=self.client_var, values=[], 
+            command=self.on_client_selected, width=200
+        )
+        self.client_combobox.grid(row=0, column=1, sticky="w", padx=(10, 5))  # Stretch across grid
 
         # Create Treeview Frame
         treeview_frame = ctk.CTkFrame(main_frame)
-        treeview_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+        treeview_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
 
         # Apply treeview styling
         style_treeview("Appointments.Treeview")
 
         # Treeview widget for appointments
         columns = ("date", "time", "treatment", "price", "photo")
-        self.appointments_table = ttk.Treeview(treeview_frame, selectmode="browse", columns=columns, show="headings", height=10, style="Appointments.Treeview")
+        self.appointments_table = ttk.Treeview(treeview_frame, selectmode="extended", columns=columns, show="headings", height=10, style="Appointments.Treeview")
         self.appointments_table.pack(side="left", fill="both", expand=True)
 
         # Create clickable column headers
@@ -53,7 +71,7 @@ class AppointmentsPage:
 
         # Create Details Frame
         details_frame = ctk.CTkFrame(main_frame)
-        details_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+        details_frame.grid(row=0, rowspan=2, column=1, sticky="nsew", padx=(5, 0))
 
         # Insert Label into Details Frame
         treatment_notes_label = ctk.CTkLabel(details_frame, text="Treatment Notes", font=("Arial", 16))
@@ -62,6 +80,42 @@ class AppointmentsPage:
         # Insert Textbox into Details Frame
         self.details_textbox = ctk.CTkTextbox(details_frame, font=("Arial", 12), corner_radius=0, wrap="word", fg_color="#1E1E1E")
         self.details_textbox.pack(fill="both", expand=True)
+
+        # ✅ Load clients into combobox
+        self.load_clients_into_combobox()
+
+    def load_clients_into_combobox(self):
+        """Fetch all clients and add them to the combobox."""
+        self.cursor.execute("SELECT id, full_name FROM clients ORDER BY full_name ASC")
+        clients = self.cursor.fetchall()
+        self.client_mapping = {client[1]: client[0] for client in clients}  # {Name: ID} dictionary
+
+        # ✅ Populate combobox with client names
+        self.client_combobox.configure(values=list(self.client_mapping.keys()))
+
+        # ✅ Pre-select first client if available
+        if clients:
+            first_client = clients[0][1]  # Get first client name
+            self.client_combobox.set(first_client)
+            self.on_client_selected(first_client)
+
+    def on_client_selected(self, selected_client):
+        """Triggered when a client is selected from the combobox."""
+        if selected_client in self.client_mapping:
+            self.client_id = self.client_mapping[selected_client]
+            print(f"🟢 Selected Client: {selected_client} (ID: {self.client_id})")
+
+            # ✅ Step 1: Update Profile Card
+            if hasattr(self.main_app, "profile_card"):
+                self.main_app.profile_card.load_client(self.client_id)
+
+            # ✅ Step 2: Update Info Tab
+            if hasattr(self.main_app, "tabs") and "Info" in self.main_app.tabs:
+                self.main_app.tabs["Info"].populate_client_info(self.client_id)
+
+            # ✅ Step 3: Load Appointments for the Selected Client
+            self.load_client_appointments(self.client_id)
+
 
     def set_column_widths(self):
         """Adjust column widths dynamically based on the current Treeview width."""
@@ -76,8 +130,7 @@ class AppointmentsPage:
 
     def load_client_appointments(self, client_id):
         """Load appointments for the selected client into the Treeview."""
-        # Clear the treatment notes textbox
-        self.details_textbox.delete("1.0", "end")
+        self.client_id = client_id  # Store the current client ID
 
         # Clear existing rows in the Treeview
         self.appointments_table.delete(*self.appointments_table.get_children())
@@ -87,7 +140,9 @@ class AppointmentsPage:
             SELECT id, date, time, treatment, price, photo_taken, treatment_notes 
             FROM appointments 
             WHERE client_id = ?
+            ORDER BY date DESC
         """, (client_id,))
+
         # Convert fetched rows into a list of tuples
         appointments = self.cursor.fetchall()
 
