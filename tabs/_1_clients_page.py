@@ -15,7 +15,7 @@ class ClientsPage:
 
         # Frame for Search and Treeview
         main_frame = ctk.CTkFrame(parent)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=(0, 0))
+        main_frame.pack(fill="both", expand=True, padx=10)
 
         # Frame for Search Bar
         search_frame = ctk.CTkFrame(main_frame)
@@ -27,7 +27,7 @@ class ClientsPage:
 
         # Search Entry
         self.name_entry = ctk.CTkEntry(search_frame, width=300, placeholder_text="Enter client name", border_width=0)
-        self.name_entry.grid(row=0, column=1, sticky="ew", padx=0)
+        self.name_entry.grid(row=0, column=1, sticky="ew")
 
         # Add Client Button
         add_client_icon = ctk.CTkImage(light_image=Image.open("icons/add_client.png"), size=(24, 24))
@@ -278,9 +278,13 @@ class ClientsPage:
             # ✅ No duplicate detected, proceed immediately
             self.proceed_with_new_client(full_name)
 
-            # ✅ Jump to newly added client in the Treeview
-            self.main_app.tabs["Clients"].client_list.selection_set(str(self.main_app.current_client_id))
-            self.main_app.tabs["Clients"].client_list.see(str(self.main_app.current_client_id))  # 🔥 Bring into view
+            # ✅ Ensure a valid client ID before selecting in TreeView
+            if self.main_app.current_client_id != -1:
+                print(f"🔄 Selecting Client ID: {self.main_app.current_client_id} in TreeView...")
+                self.main_app.tabs["Clients"].client_list.selection_set(str(self.main_app.current_client_id))
+                self.main_app.tabs["Clients"].client_list.see(str(self.main_app.current_client_id))  # 🔥 Bring into view
+            else:
+                print("⚠ Skipping TreeView selection: Client ID is -1 (new client).")
 
     def handle_duplicate_response(self, response, full_name):
         """Handles user decision when adding a duplicate client."""

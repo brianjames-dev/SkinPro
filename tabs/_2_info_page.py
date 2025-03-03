@@ -62,9 +62,8 @@ class InfoPage:
         ctk.CTkLabel(name_frame, text="Gender").grid(row=0, column=1, sticky="w", padx=(20, 5))
         self.gender_entry = ctk.CTkComboBox(name_frame, values=["Female", "Male"], border_width=0)
         self.gender_entry.grid(row=0, column=2, sticky="ew")
-        self.gender_entry.configure(variable=self.gender_var)
+        self.gender_entry.configure(variable=self.gender_var, text_color="#9a9a99")
         self.gender_entry.set("Select Gender")  # Assuming it should have a default value
-
 
         ctk.CTkLabel(name_frame, text="Birthdate").grid(row=0, column=3, sticky="w", padx=(20, 5))
         self.birthdate_entry = ctk.CTkEntry(name_frame, border_width=0, placeholder_text=birthdate_placeholder)
@@ -95,14 +94,15 @@ class InfoPage:
         self.city_entry.grid(row=3, column=0, sticky="ew")
 
         ctk.CTkLabel(address_tri_frame, text="State").grid(row=3, column=1, sticky="w", padx=(20, 5))
-        self.state_entry = ctk.CTkComboBox(address_tri_frame, border_width=0,
-                                   values=["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", 
-                                           "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", 
-                                           "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", 
-                                           "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", 
-                                           "VT", "VA", "WA", "WV", "WI", "WY"])
+        self.state_entry = ctk.CTkComboBox(address_tri_frame, 
+                                           border_width=0,
+                                           values=["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", 
+                                                   "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
+                                                   "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
+                                                   "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
+                                                   "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"])
         self.state_entry.grid(row=3, column=2, sticky="ew")
-        self.state_entry.configure(variable=self.state_var)
+        self.state_entry.configure(variable=self.state_var, text_color="#9a9a99")
         self.state_entry.set("Select State")  # Assuming it should have a default value
 
         ctk.CTkLabel(address_tri_frame, text="Zip").grid(row=3, column=3, sticky="w", padx=(20, 5))
@@ -130,9 +130,11 @@ class InfoPage:
         ctk.CTkLabel(contacts_tri_frame, text="Referred by").grid(row=4, column=3, sticky="w", padx=(20, 5))
         self.referred_by_combobox = ctk.CTkComboBox(contacts_tri_frame, values=[], border_width=0)
         self.referred_by_combobox.grid(row=4, column=4, sticky="ew")
-        self.referred_by_combobox.set("")
+        self.referred_by_combobox.configure(text_color="#9a9a99")
+        self.referred_by_combobox.set("Referred by...")
         self.referred_by_combobox.bind("<KeyRelease>", lambda event: self.update_referred_by_suggestions())
-        self.referred_by_combobox.configure(variable=self.referred_var)
+        self.referred_by_combobox.bind("<FocusIn>", self.clear_referred_placeholder)
+        self.referred_by_combobox.bind("<FocusOut>", self.restore_referred_placeholder)
 
         # Separator
         separator = ttk.Separator(form_frame, orient="horizontal")
@@ -197,10 +199,10 @@ class InfoPage:
         )
         self.save_button.grid(row=0, column=2, padx=5, pady=5, sticky="ne")
 
-        # ✅ Add traces after `self.save_button` exists
-        self.gender_var.trace_add("write", lambda *args: self.enable_save_button())
-        self.state_var.trace_add("write", lambda *args: self.enable_save_button())
-        self.referred_var.trace_add("write", lambda *args: self.enable_save_button())
+        # ✅ Bind tracing to handle both save button enabling & text color updates
+        self.gender_var.trace_add("write", lambda *args: self.handle_combobox_change(self.gender_entry))
+        self.state_var.trace_add("write", lambda *args: self.handle_combobox_change(self.state_entry))
+        self.referred_var.trace_add("write", lambda *args: self.handle_combobox_change(self.referred_by_combobox))
 
         # Mimic Tab behavior for all entry fields
         self.full_name_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
@@ -293,7 +295,7 @@ class InfoPage:
                 full_name, gender, birthdate, 
                 address1, address2, city, 
                 state, zip, phone, email, referred_by
-            ) = client_result
+            ) = client_result            
 
             # Populate general client fields
             self.full_name_entry.delete(0, "end")
@@ -303,6 +305,7 @@ class InfoPage:
                 self.full_name_entry.configure(placeholder_text=full_name_placeholder)
 
             self.gender_entry.set(gender if gender else "Select Gender")
+            self.gender_entry.configure(text_color="white" if gender else "#9a9a99")
 
             self.birthdate_entry.delete(0, "end")
             if birthdate:
@@ -329,7 +332,8 @@ class InfoPage:
                 self.city_entry.configure(placeholder_text=city_placeholder)
 
             self.state_entry.set(state if state else "Select State")
-
+            self.state_entry.configure(text_color="white" if state else "#9a9a99")
+            
             self.zip_entry.delete(0, "end")
             if zip:
                 self.zip_entry.insert(0, zip)
@@ -348,7 +352,12 @@ class InfoPage:
             else:
                 self.email_entry.configure(placeholder_text=email_placeholder)
 
-            self.referred_by_combobox.set(referred_by if referred_by else "")
+            if referred_by:
+                self.referred_by_combobox.set(referred_by)
+                self.referred_by_combobox.configure(text_color="white")
+            else:
+                self.referred_by_combobox.set("Referred by...")
+                self.referred_by_combobox.configure(text_color="#9a9a99")
                 
         if health_result:
             (
@@ -412,9 +421,9 @@ class InfoPage:
             # self.referred_var.set(referred if referred_by else "Unknown")
 
         # ✅ Step 4: Manually Reattach Tracing (Fix for Traces Not Triggering)
-        self.gender_var.trace_add("write", lambda *args: self.enable_save_button())
-        self.state_var.trace_add("write", lambda *args: self.enable_save_button())
-        self.referred_var.trace_add("write", lambda *args: self.enable_save_button())
+        self.gender_var.trace_add("write", lambda *args: self.handle_combobox_change(self.gender_entry))
+        self.state_var.trace_add("write", lambda *args: self.handle_combobox_change(self.state_entry))
+        self.referred_var.trace_add("write", lambda *args: self.handle_combobox_change(self.referred_by_combobox))
 
         # ✅ Step 5: Disable Save Button (No edits have been made yet)
         self.save_button.configure(state="disabled", text="Save", fg_color="#696969")
@@ -464,7 +473,7 @@ class InfoPage:
         # Reset dropdown menus (ComboBoxes)
         self.gender_entry.set("Select Gender")  # Assuming it should have a default value
         self.state_entry.set("Select State")  # Assuming it should have a default value
-        self.referred_by_combobox.set("")  # Reset referred_by search box
+        self.referred_by_combobox.set("Referred by...")  # Reset referred_by search box
 
     def update_referred_by_suggestions(self, event=None):
         """Update the dropdown suggestions in real-time based on user input."""
@@ -480,10 +489,10 @@ class InfoPage:
                 self.referred_by_combobox.configure(values=matches)  # Update values dynamically
             else:
                 self.referred_by_combobox.configure(values=["No matches found"])  # Indicate no matches
+
         else:
             self.referred_by_combobox.configure(values=[])  # Clear suggestions if input is empty
 
-        self.referred_by_combobox.event_generate('<Down>')
         self.referred_by_combobox.focus()  # Ensure the combo box is focused
 
     def setup_combobox_tracking(self):
@@ -719,3 +728,30 @@ class InfoPage:
             self.phone_entry.insert(0, formatted_number)
 
         print(f"📞 Formatted Phone Number: {self.phone_entry.get()}")
+
+    def clear_referred_placeholder(self, event=None):
+        """Clear the placeholder text when the user clicks inside the combobox."""
+        if self.referred_by_combobox.get() == "Referred by...":
+            self.referred_by_combobox.set("")  # ✅ Clear placeholder text
+            self.referred_by_combobox.configure(text_color="white")  # ✅ Change to normal text color
+
+    def restore_referred_placeholder(self, event=None):
+        """Restore the 'Referred by...' placeholder if no valid selection is made."""
+        current_text = self.referred_by_combobox.get().strip()
+
+        if not current_text or current_text == "No matches found":
+            self.referred_by_combobox.set("Referred by...")  # ✅ Restore placeholder text
+            self.referred_by_combobox.configure(text_color="#9a9a99")  # ✅ Restore gray color
+
+    def update_combobox_color(self, widget):
+        """Ensure the selected combobox value appears in white text."""
+        selected_value = widget.get().strip()
+
+        # ✅ Ensure white text when an actual selection is made
+        if selected_value and selected_value not in ["Select Gender", "Select State", "Referred by..."]:
+            widget.configure(text_color="white")  # ✅ Make text white
+
+    def handle_combobox_change(self, widget):
+        """Update text color and enable save button when a combobox value is selected."""
+        self.enable_save_button()  # ✅ Enable the save button
+        self.update_combobox_color(widget)  # ✅ Update text color

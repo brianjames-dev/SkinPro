@@ -15,29 +15,36 @@ class AppointmentsPage:
 
         # Create Main frame (holds both Treeview and Details frame)
         main_frame = ctk.CTkFrame(parent)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=(0, 0))
+        main_frame.pack(fill="both", expand=True, padx=10)
 
         # Configure grid columns for proportional sizing
         main_frame.columnconfigure(0, weight=13)  # Treeview frame gets 3x the space
         main_frame.columnconfigure(1, weight=7)  # Details frame gets 1x the space
         main_frame.rowconfigure(1, weight=1)  # Allow frames to stretch vertically
 
-        # ✅ Step 1: Create a Frame for the search box
+        # Create a Frame for the search box
         search_frame = ctk.CTkFrame(main_frame)
-        search_frame.grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 10))
+        search_frame.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
         search_frame.columnconfigure(1, weight=1)  # Ensure the combobox expands properly
 
-        # ✅ Step 2: Add a Search Label (Matches Info Page Styling)
-        search_label = ctk.CTkLabel(search_frame, text="Select Client:", font=("Arial", 14))
-        search_label.grid(row=0, column=0, sticky="w", padx=10)
-
-        # ✅ Step 3: Update the Combobox to Match Styling
-        self.client_var = ctk.StringVar()
+        # Update the Combobox to Match Styling
+        self.client_var = ctk.StringVar(value="Select a client...")
         self.client_combobox = ctk.CTkComboBox(
-            search_frame, variable=self.client_var, values=[], 
-            command=self.on_client_selected, width=200
+            search_frame, 
+            variable=self.client_var, 
+            values=[], 
+            command=self.on_client_selected, 
+            width=200,
+            border_width=0
         )
-        self.client_combobox.grid(row=0, column=1, sticky="w", padx=(10, 5))  # Stretch across grid
+        self.client_combobox.grid(row=0, column=1, sticky="ew", padx=2, pady=2)  # Stretch across grid
+        self.client_combobox.configure(text_color="#9a9a99")
+
+        # Keybinds for combobox functionality
+        self.client_combobox.bind("<KeyRelease>", self.filter_clients)
+        self.client_combobox.bind("<FocusOut>", self.restore_placeholder)
+        self.client_combobox.bind("<Button-1>", self.clear_placeholder)  # Click event
+        self.client_combobox.bind("<FocusIn>", self.clear_placeholder)  # Keyboard focus
 
         # Create Treeview Frame
         treeview_frame = ctk.CTkFrame(main_frame)
@@ -81,39 +88,28 @@ class AppointmentsPage:
         self.details_textbox = ctk.CTkTextbox(details_frame, font=("Arial", 12), corner_radius=0, wrap="word", fg_color="#1E1E1E")
         self.details_textbox.pack(fill="both", expand=True)
 
-        # ✅ Load clients into combobox
-        self.load_clients_into_combobox()
-
-    def load_clients_into_combobox(self):
-        """Fetch all clients and add them to the combobox."""
-        self.cursor.execute("SELECT id, full_name FROM clients ORDER BY full_name ASC")
-        clients = self.cursor.fetchall()
-        self.client_mapping = {client[1]: client[0] for client in clients}  # {Name: ID} dictionary
-
-        # ✅ Populate combobox with client names
-        self.client_combobox.configure(values=list(self.client_mapping.keys()))
-
-        # ✅ Pre-select first client if available
-        if clients:
-            first_client = clients[0][1]  # Get first client name
-            self.client_combobox.set(first_client)
-            self.on_client_selected(first_client)
-
     def on_client_selected(self, selected_client):
         """Triggered when a client is selected from the combobox."""
-        if selected_client in self.client_mapping:
-            self.client_id = self.client_mapping[selected_client]
+        if not selected_client or selected_client == "No matches found":
+            self.client_combobox.set("Select a client...")  # ✅ Restore placeholder
+            return  # 🔥 Exit early, don't process selection
+
+        self.cursor.execute("SELECT id FROM clients WHERE full_name = ?", (selected_client,))
+        result = self.cursor.fetchone()
+
+        if result:
+            self.client_id = result[0]  # Store the client ID
             print(f"🟢 Selected Client: {selected_client} (ID: {self.client_id})")
 
-            # ✅ Step 1: Update Profile Card
+            # ✅ Update Profile Card
             if hasattr(self.main_app, "profile_card"):
                 self.main_app.profile_card.load_client(self.client_id)
 
-            # ✅ Step 2: Update Info Tab
+            # ✅ Update Info Tab
             if hasattr(self.main_app, "tabs") and "Info" in self.main_app.tabs:
                 self.main_app.tabs["Info"].populate_client_info(self.client_id)
 
-            # ✅ Step 3: Load Appointments for the Selected Client
+            # ✅ Load Appointments for the Selected Client
             self.load_client_appointments(self.client_id)
 
 
@@ -127,6 +123,40 @@ class AppointmentsPage:
         self.appointments_table.column("treatment", width=int(total_width * 0.55), minwidth=200)
         self.appointments_table.column("price", width=int(total_width * 0.08), minwidth=70)
         self.appointments_table.column("photo", width=int(total_width * 0.07), minwidth=40)
+
+    def filter_clients(self, event):
+        """Dynamically update the client dropdown based on user input."""
+        query = self.client_combobox.get().strip()  # Get the current text
+
+        if query:  # Only search if there's input
+            self.cursor.execute(
+                "SELECT full_name FROM clients WHERE full_name LIKE ? LIMIT 10", (f"%{query}%",)
+            )
+            matches = [row[0] for row in self.cursor.fetchall()]
+
+            if matches:
+                self.client_combobox.configure(values=matches)  # Update dropdown with results
+            else:
+                self.client_combobox.configure(values=["No matches found"])  # Indicate no matches
+                
+        else:
+            self.client_combobox.configure(values=[])  # Clear suggestions if input is empty
+
+        self.client_combobox.focus()  # Ensure the combobox remains focused
+
+    def restore_placeholder(self, event=None):
+        """Restore the placeholder text if no valid client is selected when focus is lost."""
+        current_text = self.client_var.get().strip()
+
+        if not current_text or current_text == "No matches found":
+            self.client_combobox.set("Select a client...")  # Reset placeholder
+            self.client_combobox.configure(text_color="#9a9a99")
+
+    def clear_placeholder(self, event=None):
+        """Clear the placeholder text when the user clicks or focuses on the combobox."""
+        if self.client_var.get() == "Select a client...":  # ✅ Only clear if it's the placeholder
+            self.client_combobox.set("")  # ✅ Clear text to allow typing
+            self.client_combobox.configure(text_color="white")
 
     def load_client_appointments(self, client_id):
         """Load appointments for the selected client into the Treeview."""
