@@ -5,6 +5,7 @@ from class_elements.treeview_styling import style_treeview  # Import the style f
 from datetime import datetime
 
 
+
 class AppointmentsPage:
     def __init__(self, parent, conn, main_app):
         self.conn = conn
@@ -18,14 +19,14 @@ class AppointmentsPage:
         main_frame.pack(fill="both", expand=True, padx=10)
 
         # Configure grid columns for proportional sizing
-        main_frame.columnconfigure(0, weight=13)  # Treeview frame gets 3x the space
-        main_frame.columnconfigure(1, weight=7)  # Details frame gets 1x the space
+        main_frame.columnconfigure(0, weight=13)  # Treeview frame gets 13/20 the space
+        main_frame.columnconfigure(1, weight=7)  # Details frame gets 7/20 of the space
         main_frame.rowconfigure(1, weight=1)  # Allow frames to stretch vertically
 
-        # Create a Frame for the search box
+        # Create a Frame for the search box + buttons
         search_frame = ctk.CTkFrame(main_frame)
-        search_frame.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
-        search_frame.columnconfigure(1, weight=1)  # Ensure the combobox expands properly
+        search_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=(0, 308), pady=(0, 10))
+        search_frame.columnconfigure(1, weight=0)  # Ensure the combobox expands properly
 
         # Create search label
         search_label = ctk.CTkLabel(search_frame, text="Select Client:", font=("Arial", 14))
@@ -50,9 +51,21 @@ class AppointmentsPage:
         self.client_combobox.bind("<Button-1>", self.clear_placeholder)  # Click event
         self.client_combobox.bind("<FocusIn>", self.clear_placeholder)  # Keyboard focus
 
-        # CREATE ADD APPOINTMENT BUTTON
+        # ✅ Create & Update Buttons (Pinned to Right)
+        button_frame = ctk.CTkFrame(search_frame, fg_color="transparent")  # Small frame to hold buttons
+        button_frame.grid(row=0, column=2, sticky="e", padx=(10, 0))  # Pin to right
 
-        # CREATE EDIT APPOINTMENT BUTTON
+        self.create_button = ctk.CTkButton(button_frame, 
+                                           text="",
+                                           command=self.create_appointment, 
+                                           width=24)
+        self.create_button.pack(side="right", padx=(0, 0))  # ✅ Align right
+
+        self.update_button = ctk.CTkButton(button_frame, 
+                                           text="", 
+                                           command=self.update_appointment, 
+                                           width=24)
+        self.update_button.pack(side="right", padx=(196, 10))  # ✅ Align right
 
         # Create Treeview Frame
         treeview_frame = ctk.CTkFrame(main_frame)
@@ -252,3 +265,11 @@ class AppointmentsPage:
 
         # Update the column heading to trigger sorting when clicked again
         self.appointments_table.heading(column, command=lambda c=column: self.sort_appointments_treeview(c))
+
+    def create_appointment(self):
+        """Open the Create Appointment dialog."""
+        print("🆕 Create Appointment Clicked!")
+
+    def update_appointment(self):
+        """Update the selected appointment."""
+        print("✏️ Update Appointment Clicked!")
