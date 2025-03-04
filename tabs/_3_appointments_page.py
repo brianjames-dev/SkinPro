@@ -27,6 +27,10 @@ class AppointmentsPage:
         search_frame.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
         search_frame.columnconfigure(1, weight=1)  # Ensure the combobox expands properly
 
+        # Create search label
+        search_label = ctk.CTkLabel(search_frame, text="Select Client:", font=("Arial", 14))
+        search_label.grid(row=0, column=0, sticky="w", padx=10)
+
         # Update the Combobox to Match Styling
         self.client_var = ctk.StringVar(value="Select a client...")
         self.client_combobox = ctk.CTkComboBox(
@@ -45,6 +49,10 @@ class AppointmentsPage:
         self.client_combobox.bind("<FocusOut>", self.restore_placeholder)
         self.client_combobox.bind("<Button-1>", self.clear_placeholder)  # Click event
         self.client_combobox.bind("<FocusIn>", self.clear_placeholder)  # Keyboard focus
+
+        # CREATE ADD APPOINTMENT BUTTON
+
+        # CREATE EDIT APPOINTMENT BUTTON
 
         # Create Treeview Frame
         treeview_frame = ctk.CTkFrame(main_frame)
@@ -138,7 +146,7 @@ class AppointmentsPage:
                 self.client_combobox.configure(values=matches)  # Update dropdown with results
             else:
                 self.client_combobox.configure(values=["No matches found"])  # Indicate no matches
-                
+
         else:
             self.client_combobox.configure(values=[])  # Clear suggestions if input is empty
 
@@ -160,11 +168,20 @@ class AppointmentsPage:
 
     def load_client_appointments(self, client_id):
         """Load appointments for the selected client into the Treeview."""
-        self.client_id = client_id  # Store the current client ID
+        # If client_id changed, reset the combobox to placeholder otherwise retain white text color
+        if self.client_id != client_id:
+            self.client_combobox.set("Select a client...")
+            self.client_combobox.configure(text_color="#9a9a99")
+
+        else:
+            self.client_combobox.configure(text_color="white")
+
+        # Store the current client ID
+        self.client_id = client_id  
 
         # Clear existing rows in the Treeview
         self.appointments_table.delete(*self.appointments_table.get_children())
-        
+
         # Fetch appointments for the selected client
         self.cursor.execute("""
             SELECT id, date, time, treatment, price, photo_taken, treatment_notes 
@@ -204,6 +221,10 @@ class AppointmentsPage:
         """Clear all rows in the appointments Treeview and treatment notes."""
         self.appointments_table.delete(*self.appointments_table.get_children())
         self.details_textbox.delete("1.0", "end")  # Clear the treatment notes text box
+
+        # ✅ Reset Appointments ComboBox to Placeholder
+        self.client_combobox.set("Select a client...")
+        self.client_combobox.configure(text_color="gray")  # ✅ Ensure placeholder color
 
     def sort_appointments_treeview(self, column):
         """Sort the appointments TreeView by column."""

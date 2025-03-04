@@ -638,7 +638,7 @@ class InfoPage:
             print(f"❌ Database error: {e}")
         
 
-    def format_birthdate(self):
+    def format_birthdate(self, event=None):
         """Format the birthdate entry to MM/DD/YYYY when the user presses Enter or clicks away."""
         raw_date = self.birthdate_entry.get().strip()
 
@@ -647,33 +647,34 @@ class InfoPage:
             self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
             return
 
+        # ✅ Prevent formatting an already formatted date
+        if re.fullmatch(r"\d{2}/\d{2}/\d{4}", raw_date):  
+            return  # ✅ Exit early if it's already in MM/DD/YYYY format
+
         # ✅ Remove any non-numeric characters (e.g., dashes, dots, spaces)
-        cleaned_date = re.sub(r"\D", "", raw_date)  # Remove non-numeric characters
+        cleaned_date = re.sub(r"\D", "", raw_date)  
 
         # ✅ Convert formats like 12101992 to 12/10/1992
-        if len(cleaned_date) == 8:  
+        if len(cleaned_date) == 8:
             formatted_date = f"{cleaned_date[:2]}/{cleaned_date[2:4]}/{cleaned_date[4:]}"
         
-        # ✅ Attempt to parse standard date formats (12-10-1992, 12.10.1992, etc.)
         else:
-            try:
-                parsed_date = datetime.strptime(raw_date, "%m-%d-%Y")  # MM-DD-YYYY
-                formatted_date = parsed_date.strftime("%m/%d/%Y")
-            except ValueError:
+            # ✅ Try parsing various formats
+            for fmt in ["%m-%d-%Y", "%m.%d.%Y", "%m/%d/%Y"]:
                 try:
-                    parsed_date = datetime.strptime(raw_date, "%m.%d.%Y")  # MM.DD.YYYY
+                    parsed_date = datetime.strptime(raw_date, fmt)
                     formatted_date = parsed_date.strftime("%m/%d/%Y")
+                    break  # ✅ Exit loop on success
                 except ValueError:
-                    try:
-                        parsed_date = datetime.strptime(raw_date, "%m/%d/%Y")  # MM/DD/YYYY (valid)
-                        formatted_date = parsed_date.strftime("%m/%d/%Y")
-                    except ValueError:
-                        print("⚠ Invalid date entered. Resetting to placeholder.")
-                        self.birthdate_entry.delete(0, "end")
-                        self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
-                        return
+                    formatted_date = None  # Keep None if no format matches
 
-        # ✅ Ensure a valid final format
+            if not formatted_date:
+                print("⚠ Invalid date entered. Resetting to placeholder.")
+                self.birthdate_entry.delete(0, "end")
+                self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
+                return
+
+        # ✅ Insert formatted date
         self.birthdate_entry.delete(0, "end")
         self.birthdate_entry.insert(0, formatted_date)
         print(f"✅ Formatted Birthdate: {formatted_date}")
