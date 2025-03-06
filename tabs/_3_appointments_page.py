@@ -6,8 +6,6 @@ from datetime import datetime
 from PIL import Image
 import re
 
-
-
 class AppointmentsPage:
     def __init__(self, parent, conn, main_app):
         self.conn = conn
@@ -22,7 +20,8 @@ class AppointmentsPage:
 
         # Configure grid columns for proportional sizing
         main_frame.columnconfigure(0, weight=13)  # Treeview frame gets 13/20 the space
-        main_frame.columnconfigure(1, weight=7)  # Details frame gets 7/20 of the space
+        main_frame.columnconfigure(1, weight=7
+                                   )  # Details frame gets 7/20 of the space
         main_frame.rowconfigure(1, weight=1)  # Allow frames to stretch vertically
 
         # Create a Frame for the search box + buttons
@@ -115,13 +114,34 @@ class AppointmentsPage:
         details_frame = ctk.CTkFrame(main_frame)
         details_frame.grid(row=0, rowspan=2, column=1, sticky="nsew", padx=(5, 0))
 
-        # Insert Label into Details Frame
-        treatment_notes_label = ctk.CTkLabel(details_frame, text="Treatment Notes", font=("Arial", 16))
-        treatment_notes_label.pack(anchor="w", padx=10, pady=(5, 5))
+        # Configure grid inside details_frame
+        details_frame.columnconfigure(0, weight=1)  # Label on the left
+        details_frame.columnconfigure(1, weight=0)  # Segmented button on the right
+        details_frame.rowconfigure(1, weight=1)  # Allow the textboxes to expand vertically
 
-        # Insert Textbox into Details Frame
-        self.details_textbox = ctk.CTkTextbox(details_frame, font=("Arial", 12), corner_radius=0, wrap="word", fg_color="#1E1E1E")
-        self.details_textbox.pack(fill="both", expand=True)
+        # ✅ Label for Notes Section
+        self.notes_label = ctk.CTkLabel(details_frame, text="Treatment Notes", font=("Arial", 16))
+        self.notes_label.grid(row=0, column=0, sticky="w", padx=5)
+
+        # ✅ Segmented Button (Switch Between Current & All Notes)
+        self.notes_segmented_button = ctk.CTkSegmentedButton(
+            details_frame,
+            values=["Current", "All"],
+            command=self.switch_notes_view  # 🔥 Function to toggle views
+        )
+        self.notes_segmented_button.grid(row=0, column=1, sticky="e", padx=(5, 0))  # Align Right
+        self.notes_segmented_button.set("Current")  # Default view is "Current Notes"
+
+        # Create "Current Appointment" Notes
+        self.current_notes_textbox = ctk.CTkTextbox(details_frame, font=("Arial", 12), wrap="word", fg_color="#1E1E1E")
+        self.current_notes_textbox.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5)
+
+        # Create "All Treatment Notes"
+        self.all_notes_textbox = ctk.CTkTextbox(details_frame, font=("Arial", 12), wrap="word", fg_color="#1E1E1E")
+        self.all_notes_textbox.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5)
+
+        # 🔥 Hide "All Notes" Initially
+        self.all_notes_textbox.grid_remove()
 
     def on_client_selected(self, selected_client):
         """Triggered when a client is selected from the combobox."""
@@ -208,8 +228,9 @@ class AppointmentsPage:
 
         # Clear existing rows in the Treeview
         self.appointments_table.delete(*self.appointments_table.get_children())
-        self.details_textbox.delete("1.0", "end")
-        
+        self.current_notes_textbox.delete("1.0", "end")
+        self.all_notes_textbox.delete("1.0", "end")
+
         try:
             # Fetch appointments for the selected client
             self.cursor.execute("""
@@ -244,10 +265,44 @@ class AppointmentsPage:
         if not selected_item:
             return
 
-        # Get treatment notes from the selected item
+        # ✅ Get treatment notes from the selected item
         treatment_notes = self.appointments_table.item(selected_item)["tags"][0]  # Fetch the stored tag
-        self.details_textbox.delete("1.0", "end")  # Clear existing text
-        self.details_textbox.insert("1.0", treatment_notes)  # Insert the treatment notes
+
+        # ✅ Update the "Current Appointment" Notes
+        self.current_notes_textbox.delete("1.0", "end")  # Clear existing text
+        self.current_notes_textbox.insert("1.0", treatment_notes)  # Insert new notes
+
+        # ✅ Refresh "All Notes" Tab
+        self.load_all_treatment_notes()
+
+    def load_all_treatment_notes(self):
+        """Load all treatment notes for the selected client, sorted by most recent appointment."""
+        
+        if not self.client_id:
+            print("⚠ No client selected. Cannot load notes.")
+            return
+
+        self.cursor.execute("""
+            SELECT date, treatment_notes 
+            FROM appointments 
+            WHERE client_id = ? 
+            AND treatment_notes IS NOT NULL 
+            AND treatment_notes != ''
+            ORDER BY date DESC
+        """, (self.client_id,))
+        
+        all_notes = self.cursor.fetchall()
+
+        # ✅ Clear existing notes
+        self.all_notes_textbox.delete("1.0", "end")
+
+        # ✅ Compile all notes into a single formatted string
+        compiled_notes = ""
+        for date, notes in all_notes:
+            compiled_notes += f"📅 {date}\n{notes}\n\n{'-'*40}\n\n"
+
+        # ✅ Insert compiled notes into the textbox
+        self.all_notes_textbox.insert("1.0", compiled_notes if compiled_notes else "No treatment notes available.")
 
     def clear_appointments(self):
         """Clear all rows in the appointments Treeview and treatment notes."""
@@ -628,3 +683,14 @@ class AppointmentsPage:
 
         # ✅ Call `update_appointment()` to open the edit window
         self.update_appointment()
+
+    def switch_notes_view(self, selected_tab):
+        """Toggle between Current and All Treatment Notes."""
+        if selected_tab == "Current":
+            self.notes_label.configure(text="Treatment Notes")
+            self.current_notes_textbox.grid()
+            self.all_notes_textbox.grid_remove()
+        else:
+            self.notes_label.configure(text="Treatment Notes")
+            self.all_notes_textbox.grid()
+            self.current_notes_textbox.grid_remove()
