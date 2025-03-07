@@ -91,7 +91,6 @@ class ProfileCard:
         # ✅ Load and apply circular transformation only for real images
         try:
             if self.profile_path == "icons/add_photo.png":
-                print("🟢 Using default profile picture—no circular processing needed.")
                 self.profile_image = ctk.CTkImage(Image.open(self.profile_path), size=(w, h))
             else:
                 processed_image = self.create_circular_image(Image.open(self.profile_path))

@@ -5,6 +5,8 @@ from class_elements.treeview_styling import style_treeview
 from datetime import datetime
 from PIL import Image
 import re
+import tkinter.messagebox as messagebox
+
 
 class AppointmentsPage:
     def __init__(self, parent, conn, main_app):
@@ -19,15 +21,16 @@ class AppointmentsPage:
         main_frame.pack(fill="both", expand=True, padx=10)
 
         # Configure grid columns for proportional sizing
-        main_frame.columnconfigure(0, weight=13)  # Treeview frame gets 13/20 the space
-        main_frame.columnconfigure(1, weight=7
-                                   )  # Details frame gets 7/20 of the space
+        main_frame.columnconfigure(0, weight=1) 
+        main_frame.columnconfigure(1, weight=1)
+        main_frame.columnconfigure(2, weight=1)  
+        main_frame.columnconfigure(3, weight=3)  
         main_frame.rowconfigure(1, weight=1)  # Allow frames to stretch vertically
 
-        # Create a Frame for the search box + buttons
+        # Create Frame for search box
         search_frame = ctk.CTkFrame(main_frame)
-        search_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=(0, 308), pady=(0, 10))
-        search_frame.columnconfigure(1, weight=0)  # Ensure the combobox expands properly
+        search_frame.grid(row=0, column=0, sticky="nw", padx=(0, 0), pady=(0, 10))
+        search_frame.columnconfigure(1, weight=1)  # Ensure the combobox expands properly
 
         # Create search label
         search_label = ctk.CTkLabel(search_frame, text="Select Client:", font=("Arial", 14))
@@ -40,10 +43,10 @@ class AppointmentsPage:
             variable=self.client_var, 
             values=[], 
             command=self.on_client_selected, 
-            width=200,
+            width=250,
             border_width=0
         )
-        self.client_combobox.grid(row=0, column=1, sticky="ew", padx=2, pady=2)  # Stretch across grid
+        self.client_combobox.grid(row=0, column=1, sticky="w", padx=2, pady=2)  # Stretch across grid
         self.client_combobox.configure(text_color="#9a9a99")
 
         # Keybinds for combobox functionality
@@ -52,22 +55,26 @@ class AppointmentsPage:
         self.client_combobox.bind("<Button-1>", self.clear_placeholder)  # Click event
         self.client_combobox.bind("<FocusIn>", self.clear_placeholder)  # Keyboard focus
 
-        # ✅ Create & Update Buttons (Pinned to Right)
-        button_frame = ctk.CTkFrame(search_frame, fg_color="transparent")  # Small frame to hold buttons
-        button_frame.grid(row=0, column=2, sticky="e", padx=(10, 0))  # Pin to right
-
         # Load images for buttons
         add_appt = ctk.CTkImage(Image.open("icons/add.png"), size=(24, 24))
         edit_appt = ctk.CTkImage(Image.open("icons/edit_appt.png"), size=(24, 24))
+        delete_appt = ctk.CTkImage(Image.open("icons/delete.png"), size=(24, 24))
 
-        self.create_button = ctk.CTkButton(button_frame, 
+        create_frame = ctk.CTkFrame(main_frame)
+        create_frame.grid(row=0, column=1, sticky="e", padx=(0, 5), pady=(0, 10))
+
+        self.create_button = ctk.CTkButton(create_frame, 
                                            text="",
                                            fg_color="transparent",
                                            hover_color="#555555",
                                            image=add_appt,
                                            command=self.create_appointment, 
                                            width=24)
-        self.create_button.pack(side="right", padx=(0, 0))  # ✅ Align right
+        self.create_button.pack(side="left", padx=(5, 5))  # ✅ Align right
+
+        # ✅ Create & Update Buttons (Pinned to Right)
+        button_frame = ctk.CTkFrame(main_frame)  # Small frame to hold buttons
+        button_frame.grid(row=0, column=2, sticky="e", padx=(5, 5), pady=(0, 10))  # Pin to right
 
         self.update_button = ctk.CTkButton(button_frame, 
                                            text="",
@@ -76,11 +83,20 @@ class AppointmentsPage:
                                            image=edit_appt, 
                                            command=self.update_appointment, 
                                            width=24)
-        self.update_button.pack(side="right", padx=(170, 4))  # ✅ Align right
+        self.update_button.pack(side="left", padx=(5, 5))  # ✅ Align right
+
+        self.delete_button = ctk.CTkButton(button_frame, 
+                                        text="",
+                                        fg_color="transparent",
+                                        hover_color="#FF4444",  # Red hover color for delete
+                                        image=delete_appt, 
+                                        command=self.delete_appointment, 
+                                        width=24)
+        self.delete_button.pack(side="left", padx=(0, 5))  # ✅ Align right
 
         # Create Treeview Frame
         treeview_frame = ctk.CTkFrame(main_frame)
-        treeview_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
+        treeview_frame.grid(row=1, column=0, columnspan=3, sticky="nsew", padx=(0, 5), pady=(0, 10))
 
         # Apply treeview styling
         style_treeview("Appointments.Treeview")
@@ -91,6 +107,8 @@ class AppointmentsPage:
         self.appointments_table.pack(side="left", fill="both", expand=True)
         self.appointments_table.bind("<ButtonRelease-1>", self.on_appointment_select)
         self.appointments_table.bind("<Double-1>", self.on_double_click_edit_appointment)
+        self.appointments_table.bind("<Delete>", self.delete_appointment)
+        self.appointments_table.bind("<BackSpace>", self.delete_appointment)
 
         # Create clickable column headers
         for col in columns:
@@ -111,37 +129,18 @@ class AppointmentsPage:
         self.appointments_table.bind("<ButtonRelease-1>", self.on_appointment_select)
 
         # Create Details Frame
-        details_frame = ctk.CTkFrame(main_frame)
-        details_frame.grid(row=0, rowspan=2, column=1, sticky="nsew", padx=(5, 0))
+        self.details_frame = ctk.CTkFrame(main_frame)
+        self.details_frame.grid(row=0, rowspan=2, column=3, sticky="nsew", padx=(10, 0), pady=(0, 10))
 
         # Configure grid inside details_frame
-        details_frame.columnconfigure(0, weight=1)  # Label on the left
-        details_frame.columnconfigure(1, weight=0)  # Segmented button on the right
-        details_frame.rowconfigure(1, weight=1)  # Allow the textboxes to expand vertically
+        self.details_frame.columnconfigure(0, weight=1)  # Label on the left
+        self.details_frame.rowconfigure(1, weight=1)  # Allow the textboxes to expand vertically
 
-        # ✅ Label for Notes Section
-        self.notes_label = ctk.CTkLabel(details_frame, text="Treatment Notes", font=("Arial", 16))
-        self.notes_label.grid(row=0, column=0, sticky="w", padx=5)
-
-        # ✅ Segmented Button (Switch Between Current & All Notes)
-        self.notes_segmented_button = ctk.CTkSegmentedButton(
-            details_frame,
-            values=["Current", "All"],
-            command=self.switch_notes_view  # 🔥 Function to toggle views
-        )
-        self.notes_segmented_button.grid(row=0, column=1, sticky="e", padx=(5, 0))  # Align Right
-        self.notes_segmented_button.set("Current")  # Default view is "Current Notes"
-
-        # Create "Current Appointment" Notes
-        self.current_notes_textbox = ctk.CTkTextbox(details_frame, font=("Arial", 12), wrap="word", fg_color="#1E1E1E")
-        self.current_notes_textbox.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5)
-
-        # Create "All Treatment Notes"
-        self.all_notes_textbox = ctk.CTkTextbox(details_frame, font=("Arial", 12), wrap="word", fg_color="#1E1E1E")
-        self.all_notes_textbox.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5)
-
-        # 🔥 Hide "All Notes" Initially
-        self.all_notes_textbox.grid_remove()
+        # Create Label/Textbox for "All Appointment Notes"
+        self.notes_label = ctk.CTkLabel(self.details_frame, text="All Treatment Notes", font=("Arial", 16))
+        self.notes_label.grid(row=0, column=0, sticky="w", padx=10, pady=5)
+        self.all_notes_textbox = ctk.CTkTextbox(self.details_frame, font=("Arial", 12), corner_radius=0, wrap="word", fg_color="#1E1E1E")
+        self.all_notes_textbox.grid(row=1, column=0, columnspan=2, sticky="nsew")
 
     def on_client_selected(self, selected_client):
         """Triggered when a client is selected from the combobox."""
@@ -223,16 +222,15 @@ class AppointmentsPage:
         else:
             self.client_combobox.configure(text_color="white")
 
-        # Store the current client ID
+        # STORE CURRENT CLIENT ID
         self.client_id = client_id  
 
-        # Clear existing rows in the Treeview
+        # CLEAR DATA --> Reset Treeview & Textboxes  
         self.appointments_table.delete(*self.appointments_table.get_children())
-        self.current_notes_textbox.delete("1.0", "end")
         self.all_notes_textbox.delete("1.0", "end")
 
         try:
-            # Fetch appointments for the selected client
+            # FETCH APPT DATA --> Load appointments into selected client variable
             self.cursor.execute("""
                 SELECT id, date, time, treatment, price, photo_taken, treatment_notes 
                 FROM appointments 
@@ -243,7 +241,7 @@ class AppointmentsPage:
             # Convert fetched rows into a list of tuples
             appointments = self.cursor.fetchall()
 
-            # **Sort appointments by date (latest first)**
+            # SORT APPTS --> Sort appointments by date (most recent first)
             try:
                 appointments.sort(key=lambda x: datetime.strptime(x[1], "%m/%d/%Y"), reverse=True)
             except ValueError:
@@ -256,24 +254,40 @@ class AppointmentsPage:
                     "", "end", values=(date, time, treatment, price, photo_taken), tags=(treatment_notes,)
                 )
 
+            # LOAD ALL NOTES --> Load compilation of treatment notes in "All Notes" view 
+            self.load_all_treatment_notes()
+                
         except Exception as e:
             print(f"❌ Error loading appointments: {e}")
 
     def on_appointment_select(self, event):
         """Handle selection of an appointment and update the Treatment Notes textbox."""
-        selected_item = self.appointments_table.selection()  # Get the selected Treeview item
+        selected_item = self.appointments_table.selection()
         if not selected_item:
+            print("⚠ No appointment selected.")
             return
 
-        # ✅ Get treatment notes from the selected item
-        treatment_notes = self.appointments_table.item(selected_item)["tags"][0]  # Fetch the stored tag
+        # GET SELECTED APPOINTMENT DATA
+        appointment_data = self.appointments_table.item(selected_item)["values"]
 
-        # ✅ Update the "Current Appointment" Notes
-        self.current_notes_textbox.delete("1.0", "end")  # Clear existing text
-        self.current_notes_textbox.insert("1.0", treatment_notes)  # Insert new notes
+        if not appointment_data:
+            print("⚠ No appointment data found for selected item.")
+            return
+        
+        # Extract fields from the appointment row
+        date = appointment_data[0]          # Date = column 0
+        time = appointment_data[1]          # Time = column 1
+        treatment = appointment_data[2]     # Treatment = column 2
+        price = appointment_data[3]         # Price = column 3
+        photo_taken = appointment_data[4]   # Photo Taken = column 4
 
-        # ✅ Refresh "All Notes" Tab
-        self.load_all_treatment_notes()
+        # Debugging statements
+        print(f"\n🔹 Retrieved Appointment Date:   {date}")
+        print(f"🔹 Retrieved Appointment Time:   {time}") 
+        print(f"🔹 Retrieved Treatment:          {treatment}") 
+        print(f"🔹 Retrieved Price:              {price}")
+        print(f"🔹 Photo Taken?:                 {photo_taken}") 
+
 
     def load_all_treatment_notes(self):
         """Load all treatment notes for the selected client, sorted by most recent appointment."""
@@ -299,7 +313,7 @@ class AppointmentsPage:
         # ✅ Compile all notes into a single formatted string
         compiled_notes = ""
         for date, notes in all_notes:
-            compiled_notes += f"📅 {date}\n{notes}\n\n{'-'*40}\n\n"
+            compiled_notes += f"{date}\n{notes}\n\n{'-'*50}\n\n"
 
         # ✅ Insert compiled notes into the textbox
         self.all_notes_textbox.insert("1.0", compiled_notes if compiled_notes else "No treatment notes available.")
@@ -307,7 +321,7 @@ class AppointmentsPage:
     def clear_appointments(self):
         """Clear all rows in the appointments Treeview and treatment notes."""
         self.appointments_table.delete(*self.appointments_table.get_children())
-        self.details_textbox.delete("1.0", "end")  # Clear the treatment notes text box
+        self.all_notes_textbox.delete("1.0", "end")  # Clear the treatment notes text box
 
         # ✅ Reset Appointments ComboBox to Placeholder
         self.client_combobox.set("Select a client...")
@@ -347,63 +361,119 @@ class AppointmentsPage:
             return
         print("✅ Creating new appointment for Client ID:", self.client_id)
         
+        # CREATE POP-UP WINDOW --> Create Appointment
         self.appointment_window = ctk.CTkToplevel()
         self.appointment_window.title("Create Appointment")
-        self.appointment_window.geometry("350x400")
-        self.appointment_window.resizable(False, False)
+        self.appointment_window.geometry("500x380")
+        self.appointment_window.resizable(True, True)
 
-        # ✅ Labels & Input Fields (Pre-fill with existing data)
-        ctk.CTkLabel(self.appointment_window, text="Date").pack(pady=(10, 2))
-        self.date_entry = ctk.CTkEntry(self.appointment_window)
-        self.date_entry.pack()
+        # FORCE POP-UP AS TOP WINDOW & DISABLE MAIN WINDOW
+        self.appointment_window.transient(self.main_app)  # Make it child of main app
+        self.appointment_window.grab_set()  # Disable main window interaction
+        self.appointment_window.focus_force()  # Force focus on the popup
+
+        # Ensure proper window stretching
+        self.appointment_window.grid_rowconfigure((0, 2), weight=1)
+        self.appointment_window.grid_rowconfigure(1, weight=1)
+        self.appointment_window.grid_columnconfigure(0, weight=1)
+
+        # Row 0 [appt_window]: Create pop-up main frame
+        self.pop_main_frame = ctk.CTkFrame(self.appointment_window)
+        self.pop_main_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
+
+        ###########################################################
+        ### ---------- POP_MAIN_FRAME CONTENTS BELOW ---------- ###
+        ###########################################################
+
+        # Ensure `pop_main_frame` expands properly
+        self.pop_main_frame.columnconfigure((0, 2, 4), weight=1)  # Entry weights
+        self.pop_main_frame.columnconfigure((1, 3, 5), weight=1)  # Label weights
+        self.pop_main_frame.rowconfigure((0, 1, 2), weight=1)
+
+        # Row 0 [pop_main_frame]: DATE Label/Entry
+        ctk.CTkLabel(self.pop_main_frame, text="Date", anchor="w", width=70).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.date_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.date_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         self.date_entry.bind("<Return>", lambda event: (self.format_date(), self.focus_next_widget(event)))
         self.date_entry.bind("<FocusOut>", lambda event: self.format_date())
 
-        ctk.CTkLabel(self.appointment_window, text="Time").pack(pady=(10, 2))
-        self.time_entry = ctk.CTkEntry(self.appointment_window)
-        self.time_entry.pack()
+        # Row 0 [pop_main_frame]: TIME Label/Entry
+        ctk.CTkLabel(self.pop_main_frame, text="Time", anchor="w", width=70).grid(row=0, column=2, padx=5, pady=5, sticky="w")
+        self.time_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.time_entry.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
         self.time_entry.bind("<Return>", lambda event: (self.format_time(), self.focus_next_widget(event)))
         self.time_entry.bind("<FocusOut>", lambda event: self.format_time())
 
-        ctk.CTkLabel(self.appointment_window, text="Treatment").pack(pady=(10, 2))
-        self.treatment_entry = ctk.CTkEntry(self.appointment_window)
-        self.treatment_entry.pack()
-        self.treatment_entry.bind("<Return>", lambda event: (self.focus_next_widget(event)))
-
-        ctk.CTkLabel(self.appointment_window, text="Price").pack(pady=(10, 2))
-        self.price_entry = ctk.CTkEntry(self.appointment_window)
-        self.price_entry.pack()
-        self.price_entry.bind("<Return>", lambda event: self.format_price())
+        # Row 0 [pop_main_frame]: PRICE Label/Entry
+        ctk.CTkLabel(self.pop_main_frame, text="Price", anchor="w", width=70).grid(row=0, column=4, padx=5, pady=5, sticky="w")
+        self.price_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.price_entry.grid(row=0, column=5, padx=5, pady=5, sticky="ew")
+        self.price_entry.bind("<Return>", lambda event: (self.format_price(), self.focus_next_widget(event)))
         self.price_entry.bind("<FocusOut>", lambda event: self.format_price())
 
-        # Save Button
-        ctk.CTkButton(self.appointment_window, text="Save", command=self.save_new_appointment).pack(pady=15)
+        # Row 1 [pop_main_frame]: TREATMENT Label/Entry
+        ctk.CTkLabel(self.pop_main_frame, text="Treatment", anchor="w", width=102).grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.treatment_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.treatment_entry.grid(row=1, column=1, columnspan=5, padx=5, pady=5, sticky="ew")
+
+        ###########################################################
+        ### ---------- POP_MAIN_FRAME CONTENTS ABOVE ---------- ###
+        ###########################################################
+
+        # Row 1 [appt_window]: Create NOTES Frame
+        self.notes_frame = ctk.CTkFrame(self.appointment_window)
+        self.notes_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+
+       # Ensure the notes frame stretches properly
+        self.notes_frame.grid_rowconfigure(0, weight=1)
+        self.notes_frame.grid_columnconfigure(0, weight=1)
+
+        # Row 1 [notes_frame]: NOTES Label/Textbox
+        self.notes_label = ctk.CTkLabel(self.notes_frame, text="Notes").grid(row=0, column=0, sticky="w", padx=5)
+        self.current_notes_textbox = ctk.CTkTextbox(self.notes_frame, corner_radius=0, wrap="word", fg_color="#1E1E1E")
+        self.current_notes_textbox.grid(row=1, column=0, sticky="nsew")
+
+        # Row 2 [appt_window]: Save Button
+        self.save_button = ctk.CTkButton(self.appointment_window, text="Save", command=self.save_new_appointment)
+        self.save_button.grid(row=2, column=0, pady=(5, 10))
+
 
     def save_new_appointment(self):
         """Save the new appointment to the database."""
-        # ✅ Apply formatting to all fields before saving
+        # Apply CORRECT FORMATTING to all entry boxes before saving
         self.format_date()
         self.format_time()
         self.format_price()
 
+        # EXTRACT --> PACK data from entry boxes into variables
         date = self.date_entry.get().strip()
-        time = self.time_entry.get().strip() or "00:00 AM"
+        time = self.time_entry.get().strip()
         treatment = self.treatment_entry.get().strip()
         price = self.price_entry.get().strip()
+        treatment_notes = self.current_notes_textbox.get("1.0", "end").strip()
 
-        # ✅ Validate required fields
-        if not date or not treatment or not price:
-            print("⚠ All fields except time are required. Appointment not saved.")
+        # VALIDATION CHECK --> Date, Treatment, and Price are REQUIRED
+        missing_fields = []
+        if not date:
+            missing_fields.append("- Date")
+        if not treatment:
+            missing_fields.append("- Treatment")
+        if not price:
+            missing_fields.append("- Price")
+
+        if missing_fields:
+            # SHOW WARNING MESSAGE and return to popup window
+            messagebox.showwarning("Missing Fields", f"Please fill out the following required fields:\n\n {chr(10).join(missing_fields)}")
             return
 
-        print(f"🆕 Creating Appointment for Client ID {self.client_id}: {date}, {time}, {treatment}, {price}")
+        print(f"🆕 Creating Appointment for Client ID {self.client_id}: {date}, {time}, {treatment}, {price}, {treatment_notes}")
 
         try:
             # ✅ Insert into database
             self.cursor.execute("""
                 INSERT INTO appointments (client_id, date, time, treatment, price, photo_taken, treatment_notes)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (self.client_id, date, time, treatment, price, "No", "No notes added to this appointment yet."))
+            """, (self.client_id, date, time, treatment, price, "No", treatment_notes if treatment_notes else "<No notes added>"))
             self.conn.commit()
 
             print(f"✅ New appointment created for Client ID {self.client_id} on {date} at {time}.")
@@ -414,7 +484,6 @@ class AppointmentsPage:
 
         except Exception as e:
             print(f"❌ Error saving new appointment: {e}")
-
 
     def update_appointment(self):
         """Open a dialog to update an existing appointment."""
@@ -433,43 +502,91 @@ class AppointmentsPage:
 
         date, time, treatment, price, photo_taken = item_data
 
-        # ✅ Create update window
+        # Fetch treatment notes from the database
+        self.cursor.execute("SELECT treatment_notes FROM appointments WHERE id = ?", (appointment_id,))
+        treatment_notes_result = self.cursor.fetchone()
+        treatment_notes = treatment_notes_result[0] if treatment_notes_result else ""
+
+        # CREATE POP-UP WINDOW --> Update Appointment
         self.appointment_window = ctk.CTkToplevel()
         self.appointment_window.title("Update Appointment")
-        self.appointment_window.geometry("350x400")
-        self.appointment_window.resizable(False, False)
+        self.appointment_window.geometry("500x380")
+        self.appointment_window.resizable(True, True)
 
-        # ✅ Labels & Input Fields (Pre-fill with existing data)
-        ctk.CTkLabel(self.appointment_window, text="Date").pack(pady=(10, 2))
-        self.date_entry = ctk.CTkEntry(self.appointment_window)
+        # FORCE POP-UP AS TOP WINDOW & DISABLE MAIN WINDOW
+        self.appointment_window.transient(self.main_app)  # Make it child of main app
+        self.appointment_window.grab_set()  # Disable main window interaction
+        self.appointment_window.focus_force()  # Force focus on the popup
+
+        # Ensure proper window stretching
+        self.appointment_window.grid_rowconfigure((0, 2), weight=1)
+        self.appointment_window.grid_rowconfigure(1, weight=1)
+        self.appointment_window.grid_columnconfigure(0, weight=1)
+
+        # Row 0 [appt_window]: Create pop-up main frame
+        self.pop_main_frame = ctk.CTkFrame(self.appointment_window)
+        self.pop_main_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
+
+        ###########################################################
+        ### ---------- POP_MAIN_FRAME CONTENTS BELOW ---------- ###
+        ###########################################################
+
+        # Ensure `pop_main_frame` expands properly
+        self.pop_main_frame.columnconfigure((0, 2, 4), weight=1)  # Entry weights
+        self.pop_main_frame.columnconfigure((1, 3, 5), weight=1)  # Label weights
+        self.pop_main_frame.rowconfigure((0, 1, 2), weight=1)
+
+        # Row 0 [pop_main_frame]: DATE Label/Entry
+        ctk.CTkLabel(self.pop_main_frame, text="Date", anchor="w", width=70).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.date_entry = ctk.CTkEntry(self.pop_main_frame)
         self.date_entry.insert(0, date)
-        self.date_entry.pack()
+        self.date_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         self.date_entry.bind("<Return>", lambda event: (self.format_date(), self.focus_next_widget(event)))
         self.date_entry.bind("<FocusOut>", lambda event: self.format_date())
 
-        ctk.CTkLabel(self.appointment_window, text="Time").pack(pady=(10, 2))
-        self.time_entry = ctk.CTkEntry(self.appointment_window)
+        # Row 0 [pop_main_frame]: TIME Label/Entry
+        ctk.CTkLabel(self.pop_main_frame, text="Time", anchor="w", width=70).grid(row=0, column=2, padx=5, pady=5, sticky="w")
+        self.time_entry = ctk.CTkEntry(self.pop_main_frame)
         self.time_entry.insert(0, time)
-        self.time_entry.pack()
+        self.time_entry.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
         self.time_entry.bind("<Return>", lambda event: (self.format_time(), self.focus_next_widget(event)))
         self.time_entry.bind("<FocusOut>", lambda event: self.format_time())
 
-        ctk.CTkLabel(self.appointment_window, text="Treatment").pack(pady=(10, 2))
-        self.treatment_entry = ctk.CTkEntry(self.appointment_window)
-        self.treatment_entry.insert(0, treatment)
-        self.treatment_entry.pack()
-        self.treatment_entry.bind("<Return>", lambda event: (self.focus_next_widget(event)))
-
-
-        ctk.CTkLabel(self.appointment_window, text="Price").pack(pady=(10, 2))
-        self.price_entry = ctk.CTkEntry(self.appointment_window)
+        # Row 0 [pop_main_frame]: PRICE Label/Entry
+        ctk.CTkLabel(self.pop_main_frame, text="Price", anchor="w", width=70).grid(row=0, column=4, padx=5, pady=5, sticky="w")
+        self.price_entry = ctk.CTkEntry(self.pop_main_frame)
         self.price_entry.insert(0, price)
-        self.price_entry.pack()
-        self.price_entry.bind("<Return>", lambda event: self.format_price())
+        self.price_entry.grid(row=0, column=5, padx=5, pady=5, sticky="ew")
+        self.price_entry.bind("<Return>", lambda event: (self.format_price(), self.focus_next_widget(event)))
         self.price_entry.bind("<FocusOut>", lambda event: self.format_price())
 
-        # ✅ Save Button
-        ctk.CTkButton(self.appointment_window, text="Update", command=lambda: self.save_updated_appointment(appointment_id)).pack(pady=15)
+        # Row 1 [pop_main_frame]: TREATMENT Label/Entry
+        ctk.CTkLabel(self.pop_main_frame, text="Treatment", anchor="w", width=102).grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.treatment_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.treatment_entry.insert(0, treatment)
+        self.treatment_entry.grid(row=1, column=1, columnspan=5, padx=5, pady=5, sticky="ew")
+
+        ###########################################################
+        ### ---------- POP_MAIN_FRAME CONTENTS ABOVE ---------- ###
+        ###########################################################
+
+        # Row 1 [appt_window]: Create NOTES Frame
+        self.notes_frame = ctk.CTkFrame(self.appointment_window)
+        self.notes_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+
+       # Ensure the notes frame stretches properly
+        self.notes_frame.grid_rowconfigure(0, weight=1)
+        self.notes_frame.grid_columnconfigure(0, weight=1)
+
+        # Row 1 [notes_frame]: NOTES Label/Textbox
+        self.notes_label = ctk.CTkLabel(self.notes_frame, text="Notes").grid(row=0, column=0, sticky="w", padx=5)
+        self.current_notes_textbox = ctk.CTkTextbox(self.notes_frame, corner_radius=0, wrap="word", fg_color="#1E1E1E")
+        self.current_notes_textbox.insert("1.0", treatment_notes)
+        self.current_notes_textbox.grid(row=1, column=0, sticky="nsew")
+
+        # Row 2 [appt_window]: Save Button
+        self.save_button = ctk.CTkButton(self.appointment_window, text="Update", command=lambda: self.save_updated_appointment(appointment_id))
+        self.save_button.grid(row=2, column=0, pady=(5, 10))
 
     def save_updated_appointment(self, appointment_id):
         """Save the updated appointment details."""
@@ -479,23 +596,34 @@ class AppointmentsPage:
         self.format_price()
 
         date = self.date_entry.get().strip()
-        time = self.time_entry.get().strip() or "00:00 AM"
+        time = self.time_entry.get().strip()
         treatment = self.treatment_entry.get().strip()
         price = self.price_entry.get().strip()
+        treatment_notes = self.current_notes_textbox.get("1.0", "end").strip()
 
-        if not date or not treatment or not price:
-            print("⚠ All fields except time are required. Update aborted.")
+        # ✅ Validation check for required fields
+        missing_fields = []
+        if not date:
+            missing_fields.append("- Date")
+        if not treatment:
+            missing_fields.append("- Treatment Name")
+        if not price:
+            missing_fields.append("- Price")
+
+        if missing_fields:
+            # ✅ Show warning message and return
+            messagebox.showwarning("Missing Fields", f"Please fill out the following required fields:\n\n {chr(10).join(missing_fields)}")
             return
 
-        print(f"✏️ Updating Appointment ID {appointment_id}: {date}, {time}, {treatment}, {price}")
+        print(f"✏️ Updating Appointment ID {appointment_id}: {date}, {time}, {treatment}, {price}, {treatment_notes}")
 
         try:
             # ✅ Update the database
             self.cursor.execute("""
                 UPDATE appointments 
-                SET date = ?, time = ?, treatment = ?, price = ?
+                SET date = ?, time = ?, treatment = ?, price = ?, treatment_notes = ?
                 WHERE id = ?
-            """, (date, time, treatment, price, appointment_id))
+            """, (date, time, treatment, price, treatment_notes if treatment_notes else "<No notes added>", appointment_id))
             self.conn.commit()
             print(f"✅ Appointment {appointment_id} updated successfully.")
 
@@ -505,6 +633,7 @@ class AppointmentsPage:
 
         except Exception as e:
             print(f"❌ Database update failed: {e}")
+
 
     def get_selected_appointment_id(self, treeview_item):
         """Retrieve the appointment ID based on the TreeView selection."""
@@ -524,7 +653,11 @@ class AppointmentsPage:
 
     def get_treatment_notes(self, appointment_id):
         """Fetch treatment notes for an appointment."""
-        self.cursor.execute("SELECT treatment_notes FROM appointments WHERE id = ?", (appointment_id,))
+        self.cursor.execute("""
+                            SELECT treatment_notes 
+                            FROM appointments 
+                            WHERE id = ?
+        """, (appointment_id,))
         result = self.cursor.fetchone()
         return result[0] if result else ""
 
@@ -684,13 +817,51 @@ class AppointmentsPage:
         # ✅ Call `update_appointment()` to open the edit window
         self.update_appointment()
 
-    def switch_notes_view(self, selected_tab):
-        """Toggle between Current and All Treatment Notes."""
-        if selected_tab == "Current":
-            self.notes_label.configure(text="Treatment Notes")
-            self.current_notes_textbox.grid()
-            self.all_notes_textbox.grid_remove()
-        else:
-            self.notes_label.configure(text="Treatment Notes")
-            self.all_notes_textbox.grid()
-            self.current_notes_textbox.grid_remove()
+    def delete_appointment(self, event=None):
+        """Delete the selected appointment from the database."""
+        selected_item = self.appointments_table.selection()
+
+        if not selected_item:
+            print("⚠ No appointment selected for deletion.")
+            return
+
+        # ✅ Fetch appointment ID
+        appointment_id = self.get_selected_appointment_id(selected_item[0])
+
+        if not appointment_id:
+            print("⚠ Unable to determine appointment ID. Deletion aborted.")
+            return
+
+        # ✅ Step 3: Confirm Deletion
+        confirmation = ctk.CTkToplevel()
+        confirmation.title("Confirm Deletion")
+        confirmation.geometry("350x150")
+        confirmation.resizable(False, False)
+
+        ctk.CTkLabel(confirmation, text="Are you sure you want to delete this appointment?", font=("Arial", 14)).pack(pady=10)
+        
+        # ✅ Buttons
+        button_frame = ctk.CTkFrame(confirmation, fg_color="transparent")
+        button_frame.pack(pady=10)
+
+        ctk.CTkButton(button_frame, text="Cancel", command=confirmation.destroy).pack(side="left", padx=5)
+        ctk.CTkButton(button_frame, text="Delete", fg_color="#FF4444", hover_color="#CC0000", 
+                    command=lambda: self.confirm_delete_appointment(appointment_id, confirmation)).pack(side="right", padx=5)
+
+    def confirm_delete_appointment(self, appointment_id, confirmation_window):
+        """Confirm and execute appointment deletion."""
+        try:
+            # ✅ Step 4: Delete the appointment
+            self.cursor.execute("DELETE FROM appointments WHERE id = ?", (appointment_id,))
+            self.conn.commit()
+            print(f"🗑️ Appointment {appointment_id} deleted successfully.")
+
+            # ✅ Refresh appointments list
+            self.load_client_appointments(self.client_id)
+
+        except Exception as e:
+            print(f"❌ Error deleting appointment: {e}")
+
+        finally:
+            confirmation_window.destroy()  # Close confirmation window
+
