@@ -275,6 +275,7 @@ class AppointmentsPage:
             return
         
         # Extract fields from the appointment row
+        appointment_id = self.get_selected_appointment_id(selected_item[0])  # Fetch ID properly
         date = appointment_data[0]          # Date = column 0
         time = appointment_data[1]          # Time = column 1
         treatment = appointment_data[2]     # Treatment = column 2
@@ -282,7 +283,8 @@ class AppointmentsPage:
         photo_taken = appointment_data[4]   # Photo Taken = column 4
 
         # Debugging statements
-        print(f"\n🔹 Retrieved Appointment Date:   {date}")
+        print(f"\n🆔 Retrieved Appointment ID:     {appointment_id}")
+        print(f"🔹 Retrieved Appointment Date:   {date}")
         print(f"🔹 Retrieved Appointment Time:   {time}") 
         print(f"🔹 Retrieved Treatment:          {treatment}") 
         print(f"🔹 Retrieved Price:              {price}")
