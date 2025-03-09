@@ -55,7 +55,7 @@ class ClientApp(ctk.CTk):
 
     def init_photos_tab(self):
         photos_tab = self.tab_view.tab("Photos")
-        self.tabs["Photos"] = PhotosPage(photos_tab, self.conn)  # Store reference
+        self.tabs["Photos"] = PhotosPage(photos_tab, self.conn, self)  # Store reference
 
     def switch_to_tab(self, tab_name, data=None):
         """Switch to the specified tab by name."""

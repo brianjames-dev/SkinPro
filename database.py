@@ -76,6 +76,19 @@ def create_tables(cursor):
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS client_image_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL,
+        appointment_id INTEGER NOT NULL,
+        file_path TEXT NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        description TEXT DEFAULT '',
+        FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE,
+        FOREIGN KEY (appointment_id) REFERENCES appointments (id) ON DELETE CASCADE
+    )
+    """)
+
 def format_fake_phone():
     """Generate a fake phone number in the format (XXX) XXX-XXXX."""
     area_code = random.randint(200, 999)  # Avoids 000 or invalid area codes
