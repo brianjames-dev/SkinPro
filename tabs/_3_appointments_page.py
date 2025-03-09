@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from tkinter import ttk
+import tkinter as tk
 from class_elements.profile_card import ProfileCard
 from class_elements.treeview_styling import style_treeview
 from datetime import datetime
@@ -24,8 +25,8 @@ class AppointmentsPage:
         main_frame.columnconfigure(0, weight=1) 
         main_frame.columnconfigure(1, weight=1)
         main_frame.columnconfigure(2, weight=1)  
-        main_frame.columnconfigure(3, weight=3)  
-        main_frame.rowconfigure(1, weight=1)  # Allow frames to stretch vertically
+        main_frame.columnconfigure(3, weight=5) # Details frame
+        main_frame.rowconfigure(1, weight=1)    # Allow frames to stretch vertically
 
         # Create Frame for search box
         search_frame = ctk.CTkFrame(main_frame)
@@ -131,16 +132,27 @@ class AppointmentsPage:
         # Create Details Frame
         self.details_frame = ctk.CTkFrame(main_frame)
         self.details_frame.grid(row=0, rowspan=2, column=3, sticky="nsew", padx=(10, 0), pady=(0, 10))
+        self.details_frame.grid_propagate(False)  # ✅ Prevent auto-expanding
 
         # Configure grid inside details_frame
-        self.details_frame.columnconfigure(0, weight=1)  # Label on the left
+        self.details_frame.columnconfigure(0, weight=1, minsize=50)  # Minimum width
+        self.details_frame.columnconfigure(1, weight=0)  # No expansion beyond this
         self.details_frame.rowconfigure(1, weight=1)  # Allow the textboxes to expand vertically
 
         # Create Label/Textbox for "All Appointment Notes"
         self.notes_label = ctk.CTkLabel(self.details_frame, text="All Treatment Notes", font=("Arial", 16))
         self.notes_label.grid(row=0, column=0, sticky="w", padx=10, pady=5)
-        self.all_notes_textbox = ctk.CTkTextbox(self.details_frame, font=("Arial", 12), corner_radius=0, wrap="word", fg_color="#1E1E1E")
+        self.all_notes_textbox = tk.Text(self.details_frame,  
+                                         font=("Arial", 10), 
+                                         wrap="word", 
+                                         fg="white", 
+                                         bg="#1E1E1E", 
+                                         bd=0, 
+                                         border=0, 
+                                         borderwidth=0, 
+                                         highlightthickness=0)
         self.all_notes_textbox.grid(row=1, column=0, columnspan=2, sticky="nsew")
+        self.all_notes_textbox.configure(state="disabled")  # Disable editing
 
     def on_client_selected(self, selected_client):
         """Triggered when a client is selected from the combobox."""
@@ -227,7 +239,9 @@ class AppointmentsPage:
 
         # CLEAR DATA --> Reset Treeview & Textboxes  
         self.appointments_table.delete(*self.appointments_table.get_children())
+        self.all_notes_textbox.configure(state="normal")  # Enable Editing
         self.all_notes_textbox.delete("1.0", "end")
+        self.all_notes_textbox.configure(state="disabled")  # Disable Again
 
         try:
             # FETCH APPT DATA --> Load appointments into selected client variable
@@ -261,35 +275,102 @@ class AppointmentsPage:
             print(f"❌ Error loading appointments: {e}")
 
     def on_appointment_select(self, event):
-        """Handle selection of an appointment and update the Treatment Notes textbox."""
-        selected_item = self.appointments_table.selection()
-        if not selected_item:
-            print("⚠ No appointment selected.")
+        """Handle selection of multiple appointments and update the All Notes textbox in real-time."""
+        selected_items = self.appointments_table.selection()  # 🔥 Get ALL selected appointments
+        if not selected_items:
             return
 
-        # GET SELECTED APPOINTMENT DATA
-        appointment_data = self.appointments_table.item(selected_item)["values"]
+        # ✅ Configure Text Styles (Headers: 11px, Notes: 10px)
+        self.all_notes_textbox.tag_configure("header", font=("Arial", 11, "bold"))
+        self.all_notes_textbox.tag_configure("body", font=("Arial", 10))
+        self.all_notes_textbox.tag_configure("divider", font=("Arial", 6))
+        self.all_notes_textbox.tag_configure("highlight", background="#0080ff")  # ✅ Highlighted selection
 
-        if not appointment_data:
-            print("⚠ No appointment data found for selected item.")
-            return
-        
-        # Extract fields from the appointment row
-        appointment_id = self.get_selected_appointment_id(selected_item[0])  # Fetch ID properly
-        date = appointment_data[0]          # Date = column 0
-        time = appointment_data[1]          # Time = column 1
-        treatment = appointment_data[2]     # Treatment = column 2
-        price = appointment_data[3]         # Price = column 3
-        photo_taken = appointment_data[4]   # Photo Taken = column 4
+        # ✅ Enable Editing & Clear Existing Notes
+        self.all_notes_textbox.configure(state="normal")
+        self.all_notes_textbox.delete("1.0", "end")
 
-        # Debugging statements
-        print(f"\n🆔 Retrieved Appointment ID:     {appointment_id}")
-        print(f"🔹 Retrieved Appointment Date:   {date}")
-        print(f"🔹 Retrieved Appointment Time:   {time}") 
-        print(f"🔹 Retrieved Treatment:          {treatment}") 
-        print(f"🔹 Retrieved Price:              {price}")
-        print(f"🔹 Photo Taken?:                 {photo_taken}") 
+        jump_to_index = None  # ✅ Store the first occurrence for scrolling
 
+        if len(selected_items) > 1:  # ✅ Multiple selection: Compile only the selected appointments' notes
+            print("\n🆔 Multiple Appointments Selected:")
+
+            for item in selected_items:
+                appointment_id = self.get_selected_appointment_id(item)  
+                appointment_data = self.appointments_table.item(item)["values"]
+
+                if not appointment_data:
+                    print(f"⚠ Skipping Appointment ID {appointment_id}: No data found.")
+                    continue  
+
+                # ✅ Extract fields
+                date = appointment_data[0]
+                time = appointment_data[1]
+                treatment = appointment_data[2]
+                price = appointment_data[3]
+                photo_taken = appointment_data[4]
+
+                # ✅ Debugging statements
+                print(f"----------------------------")
+                print(f"🆔 Appointment ID:     {appointment_id}")
+                print(f"📅 Date:               {date}")
+                print(f"⏰ Time:               {time}") 
+                print(f"💆 Treatment:          {treatment}") 
+                print(f"💰 Price:              {price}")
+                print(f"📸 Photo Taken?:       {photo_taken}")
+
+                # ✅ Append notes for compilation
+                treatment_notes = self.appointments_table.item(item).get("tags", [""])[0]  # ✅ Safe retrieval
+
+                # 🔥 Dynamic Divider Logic (Match longest text)
+                max_length = max(len(date), len(treatment) - 2)
+                if max_length > 37:
+                    max_length = 37
+                divider_line = "━" * max_length
+
+                # ✅ Insert formatted text with correct tags
+                start_index = self.all_notes_textbox.index("end")  # ✅ Store where this note starts
+                self.all_notes_textbox.insert("end", f"{divider_line}\n", "divider")  # Top Divider
+                self.all_notes_textbox.insert("end", f"{treatment}\n", "header")  # Treatment (Header)
+                self.all_notes_textbox.insert("end", f"{date}\n", "header")  # Date (Header)
+                self.all_notes_textbox.insert("end", f"{divider_line}\n\n", "divider")  # Bottom Divider
+                self.all_notes_textbox.insert("end", f"{treatment_notes}\n\n", "body")  # Notes (Body)
+
+                # ✅ Store first match to jump to
+                if jump_to_index is None:
+                    jump_to_index = start_index
+
+            print(f"----------------------------")
+
+        else:  # ✅ Single selection: Display **ALL** of the client’s compiled appointment notes
+            print("\n🆔 Single Appointment Selected: Loading ALL Notes for Client...")
+            self.load_all_treatment_notes()
+
+            # ✅ Get the selected appointment note to jump to
+            selected_item = selected_items[0]
+            selected_data = self.appointments_table.item(selected_item)["values"]
+            if selected_data:
+                selected_date = selected_data[0]
+                selected_treatment = selected_data[2]
+
+                # ✅ Find the first occurrence of the note
+                search_text = f"{selected_treatment}\n{selected_date}"
+                jump_to_index = self.all_notes_textbox.search(search_text, "1.0", stopindex="end", nocase=True)
+
+                # ✅ Apply highlight **ONLY IF ONE APPOINTMENT IS SELECTED**
+                if jump_to_index:
+                    end_index = f"{jump_to_index.split('.')[0]}.end"
+                    self.all_notes_textbox.tag_add("highlight", jump_to_index, end_index)
+                    print(f"✅ Highlighted note at index: {jump_to_index}")
+
+        # ✅ Scroll to first matching note (if found) & ensure it appears at the **top**
+        if jump_to_index:
+            print(f"{float(jump_to_index.split(".")[0])} / {float(self.all_notes_textbox.index("end").split(".")[0])} = {float(jump_to_index.split('.')[0]) / float(self.all_notes_textbox.index("end").split('.')[0])}")
+            self.all_notes_textbox.yview_moveto((float(jump_to_index.split(".")[0]) - 2) / float(self.all_notes_textbox.index("end").split(".")[0]))
+            print(f"✅ Jumped to note at index: {jump_to_index}")
+
+        # ✅ Disable Editing Again
+        self.all_notes_textbox.configure(state="disabled")
 
     def load_all_treatment_notes(self):
         """Load all treatment notes for the selected client, sorted by most recent appointment."""
@@ -299,7 +380,7 @@ class AppointmentsPage:
             return
 
         self.cursor.execute("""
-            SELECT date, treatment_notes 
+            SELECT date, treatment, treatment_notes 
             FROM appointments 
             WHERE client_id = ? 
             AND treatment_notes IS NOT NULL 
@@ -310,20 +391,39 @@ class AppointmentsPage:
         all_notes = self.cursor.fetchall()
 
         # ✅ Clear existing notes
+        self.all_notes_textbox.configure(state="normal")  # Enable Editing
         self.all_notes_textbox.delete("1.0", "end")
 
-        # ✅ Compile all notes into a single formatted string
-        compiled_notes = ""
-        for date, notes in all_notes:
-            compiled_notes += f"{date}\n{notes}\n\n{'-'*50}\n\n"
+        # ✅ Configure Text Styles (Headers: 14px, Notes: 12px)
+        self.all_notes_textbox.tag_configure("header", font=("Arial", 11, "bold"))
+        self.all_notes_textbox.tag_configure("body", font=("Arial", 10))
+        self.all_notes_textbox.tag_configure("divider", font=("Arial", 6))
 
-        # ✅ Insert compiled notes into the textbox
-        self.all_notes_textbox.insert("1.0", compiled_notes if compiled_notes else "No treatment notes available.")
+        # ✅ Compile formatted notes with dynamic dividers
+        for date, treatment, notes in all_notes:
+            max_length = max(len(date), len(treatment) - 2)  # 🔥 Choose longest text for dividers
+            if max_length > 37:
+                max_length = 37
+            divider_line = "━" * max_length  # 🔥 Create dynamic length divider
 
+            self.all_notes_textbox.insert("end", f"{divider_line}\n", "divider")  # Top Divider
+            self.all_notes_textbox.insert("end", f"{treatment}\n", "header")  # Treatment (Header)
+            self.all_notes_textbox.insert("end", f"{date}\n", "header")  # Date (Header)
+            self.all_notes_textbox.insert("end", f"{divider_line}\n\n", "divider")  # Bottom Divider
+
+            self.all_notes_textbox.insert("end", f"{notes}\n\n", "body")  # Notes (Body)
+
+        if not all_notes:
+            self.all_notes_textbox.insert("1.0", "No treatment notes available.", "body")
+
+        self.all_notes_textbox.configure(state="disabled")  # Disable Again
+        
     def clear_appointments(self):
         """Clear all rows in the appointments Treeview and treatment notes."""
         self.appointments_table.delete(*self.appointments_table.get_children())
-        self.all_notes_textbox.delete("1.0", "end")  # Clear the treatment notes text box
+        self.all_notes_textbox.configure(state="normal")  # Enable Editing
+        self.all_notes_textbox.delete("1.0", "end")
+        self.all_notes_textbox.configure(state="disabled")  # Disable Again
 
         # ✅ Reset Appointments ComboBox to Placeholder
         self.client_combobox.set("Select a client...")
@@ -442,11 +542,6 @@ class AppointmentsPage:
 
     def save_new_appointment(self):
         """Save the new appointment to the database."""
-        # Apply CORRECT FORMATTING to all entry boxes before saving
-        self.format_date()
-        self.format_time()
-        self.format_price()
-
         # EXTRACT --> PACK data from entry boxes into variables
         date = self.date_entry.get().strip()
         time = self.time_entry.get().strip()
@@ -465,8 +560,13 @@ class AppointmentsPage:
 
         if missing_fields:
             # SHOW WARNING MESSAGE and return to popup window
-            messagebox.showwarning("Missing Fields", f"Please fill out the following required fields:\n\n {chr(10).join(missing_fields)}")
+            messagebox.showwarning("Missing Fields", f"Please fill out the following required fields:\n\n{chr(10).join(missing_fields)}")
             return
+
+        # Apply CORRECT FORMATTING to all entry boxes before saving
+        self.format_date()
+        self.format_time()
+        self.format_price()
 
         print(f"🆕 Creating Appointment for Client ID {self.client_id}: {date}, {time}, {treatment}, {price}, {treatment_notes}")
 
@@ -592,11 +692,6 @@ class AppointmentsPage:
 
     def save_updated_appointment(self, appointment_id):
         """Save the updated appointment details."""
-        # ✅ Apply formatting to all fields before saving
-        self.format_date()
-        self.format_time()
-        self.format_price()
-
         date = self.date_entry.get().strip()
         time = self.time_entry.get().strip()
         treatment = self.treatment_entry.get().strip()
@@ -614,8 +709,13 @@ class AppointmentsPage:
 
         if missing_fields:
             # ✅ Show warning message and return
-            messagebox.showwarning("Missing Fields", f"Please fill out the following required fields:\n\n {chr(10).join(missing_fields)}")
+            messagebox.showwarning("Missing Fields", f"Please fill out the following required fields:\n\n{chr(10).join(missing_fields)}")
             return
+
+        # ✅ Apply formatting to all fields before saving
+        self.format_date()
+        self.format_time()
+        self.format_price()
 
         print(f"✏️ Updating Appointment ID {appointment_id}: {date}, {time}, {treatment}, {price}, {treatment_notes}")
 
@@ -820,7 +920,7 @@ class AppointmentsPage:
         self.update_appointment()
 
     def delete_appointment(self, event=None):
-        """Delete the selected appointment from the database."""
+        """Delete the selected appointment from the database after user confirmation."""
         selected_item = self.appointments_table.selection()
 
         if not selected_item:
@@ -834,24 +934,39 @@ class AppointmentsPage:
             print("⚠ Unable to determine appointment ID. Deletion aborted.")
             return
 
-        # ✅ Step 3: Confirm Deletion
+        # ✅ Step 3: Create Confirmation Pop-up
         confirmation = ctk.CTkToplevel()
         confirmation.title("Confirm Deletion")
         confirmation.geometry("350x150")
         confirmation.resizable(False, False)
-
-        ctk.CTkLabel(confirmation, text="Are you sure you want to delete this appointment?", font=("Arial", 14)).pack(pady=10)
         
-        # ✅ Buttons
+        # 🔥 Make pop-up **always on top** and disable main window until closed
+        confirmation.transient(self.main_app)  # Link to main app window
+        confirmation.grab_set()  # Prevent interactions with main app until pop-up is closed
+        confirmation.focus_force()  # Immediately focus the pop-up window
+
+        # ✅ Confirmation Message
+        ctk.CTkLabel(
+            confirmation, 
+            text="Are you sure you want to delete this appointment?",
+            font=("Arial", 14), wraplength=300
+        ).pack(pady=10)
+
+        # ✅ Buttons Frame
         button_frame = ctk.CTkFrame(confirmation, fg_color="transparent")
         button_frame.pack(pady=10)
 
+        # ❌ Cancel Button (Closes Pop-up)
         ctk.CTkButton(button_frame, text="Cancel", command=confirmation.destroy).pack(side="left", padx=5)
-        ctk.CTkButton(button_frame, text="Delete", fg_color="#FF4444", hover_color="#CC0000", 
-                    command=lambda: self.confirm_delete_appointment(appointment_id, confirmation)).pack(side="right", padx=5)
 
-    def confirm_delete_appointment(self, appointment_id, confirmation_window):
-        """Confirm and execute appointment deletion."""
+        # 🗑️ Delete Button (Executes Deletion)
+        ctk.CTkButton(
+            button_frame, text="Delete", fg_color="#FF4444", hover_color="#CC0000",
+            command=lambda: self._execute_delete_appointment(appointment_id, confirmation)
+        ).pack(side="right", padx=5)
+
+    def _execute_delete_appointment(self, appointment_id, confirmation_window):
+        """Executes appointment deletion and closes the confirmation pop-up."""
         try:
             # ✅ Step 4: Delete the appointment
             self.cursor.execute("DELETE FROM appointments WHERE id = ?", (appointment_id,))
@@ -866,4 +981,3 @@ class AppointmentsPage:
 
         finally:
             confirmation_window.destroy()  # Close confirmation window
-
