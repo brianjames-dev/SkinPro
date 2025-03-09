@@ -45,7 +45,7 @@ def create_tables(cursor):
         time TIME,
         treatment TEXT,
         price TEXT,
-        photo_taken TEXT DEFAULT 'No',
+        photos_taken TEXT DEFAULT 'No',
         treatment_notes TEXT,
         FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
     )
@@ -77,7 +77,7 @@ def create_tables(cursor):
     """)
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS client_image_data (
+    CREATE TABLE IF NOT EXISTS photos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
         appointment_id INTEGER NOT NULL,
@@ -139,14 +139,14 @@ def insert_mock_data(cursor):
                 fake.time(pattern="%I:%M %p"),  # Random time in 12-hour format
                 fake.sentence(nb_words=5),  # Random treatment description
                 f"${fake.random_int(min=30, max=500)}.00",  # Random price
-                fake.random_element(["No", "Yes"]),  # Photo taken
+                fake.random_element(["No", "Yes"]),  # Photos taken
                 fake.sentence(nb_words=10)  # Random treatment notes
 
             )
             for _ in range(1000)
         ]
         cursor.executemany("""
-        INSERT INTO appointments (client_id, date, time, treatment, price, photo_taken, treatment_notes)
+        INSERT INTO appointments (client_id, date, time, treatment, price, photos_taken, treatment_notes)
         VALUES (?, ?, ?, ?, ?, ?, ?)
                            
         """, mock_appointments)

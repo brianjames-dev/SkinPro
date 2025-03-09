@@ -103,7 +103,7 @@ class AppointmentsPage:
         style_treeview("Appointments.Treeview")
 
         # Treeview widget for appointments
-        columns = ("date", "time", "treatment", "price", "photo")
+        columns = ("date", "time", "treatment", "price", "photos")
         self.appointments_table = ttk.Treeview(treeview_frame, selectmode="extended", columns=columns, show="headings", height=10, style="Appointments.Treeview")
         self.appointments_table.pack(side="left", fill="both", expand=True)
         self.appointments_table.bind("<ButtonRelease-1>", self.on_appointment_select)
@@ -188,7 +188,7 @@ class AppointmentsPage:
         self.appointments_table.column("time", width=int(total_width * 0.10), minwidth=75)
         self.appointments_table.column("treatment", width=int(total_width * 0.55), minwidth=200)
         self.appointments_table.column("price", width=int(total_width * 0.08), minwidth=70)
-        self.appointments_table.column("photo", width=int(total_width * 0.07), minwidth=40)
+        self.appointments_table.column("photos", width=int(total_width * 0.07), minwidth=40)
 
     def filter_clients(self, event):
         """Dynamically update the client dropdown based on user input."""
@@ -246,7 +246,7 @@ class AppointmentsPage:
         try:
             # FETCH APPT DATA --> Load appointments into selected client variable
             self.cursor.execute("""
-                SELECT id, date, time, treatment, price, photo_taken, treatment_notes 
+                SELECT id, date, time, treatment, price, photos_taken, treatment_notes 
                 FROM appointments 
                 WHERE client_id = ?
                 ORDER BY date DESC
@@ -263,9 +263,9 @@ class AppointmentsPage:
 
             # Insert sorted appointments into the TreeView
             for row in appointments:
-                appointment_id, date, time, treatment, price, photo_taken, treatment_notes = row
+                appointment_id, date, time, treatment, price, photos_taken, treatment_notes = row
                 self.appointments_table.insert(
-                    "", "end", values=(date, time, treatment, price, photo_taken), tags=(treatment_notes,)
+                    "", "end", values=(date, time, treatment, price, photos_taken), tags=(treatment_notes,)
                 )
 
             # LOAD ALL NOTES --> Load compilation of treatment notes in "All Notes" view 
@@ -308,7 +308,7 @@ class AppointmentsPage:
                 time = appointment_data[1]
                 treatment = appointment_data[2]
                 price = appointment_data[3]
-                photo_taken = appointment_data[4]
+                photos_taken = appointment_data[4]
 
                 # ✅ Debugging statements
                 print(f"----------------------------")
@@ -317,7 +317,7 @@ class AppointmentsPage:
                 print(f"⏰ Time:               {time}") 
                 print(f"💆 Treatment:          {treatment}") 
                 print(f"💰 Price:              {price}")
-                print(f"📸 Photo Taken?:       {photo_taken}")
+                print(f"📸 photos Taken?:       {photos_taken}")
 
                 # ✅ Append notes for compilation
                 treatment_notes = self.appointments_table.item(item).get("tags", [""])[0]  # ✅ Safe retrieval
@@ -365,8 +365,8 @@ class AppointmentsPage:
 
         # ✅ Scroll to first matching note (if found) & ensure it appears at the **top**
         if jump_to_index:
-            print(f"{float(jump_to_index.split(".")[0])} / {float(self.all_notes_textbox.index("end").split(".")[0])} = {float(jump_to_index.split('.')[0]) / float(self.all_notes_textbox.index("end").split('.')[0])}")
-            self.all_notes_textbox.yview_moveto((float(jump_to_index.split(".")[0]) - 2) / float(self.all_notes_textbox.index("end").split(".")[0]))
+            print(f"{float(jump_to_index.split('.')[0])} / {float(self.all_notes_textbox.index('end').split('.')[0])} = {float(jump_to_index.split('.')[0]) / float(self.all_notes_textbox.index('end').split('.')[0])}")
+            self.all_notes_textbox.yview_moveto((float(jump_to_index.split('.')[0]) - 2) / float(self.all_notes_textbox.index('end').split('.')[0]))
             print(f"✅ Jumped to note at index: {jump_to_index}")
 
         # ✅ Disable Editing Again
@@ -573,7 +573,7 @@ class AppointmentsPage:
         try:
             # ✅ Insert into database
             self.cursor.execute("""
-                INSERT INTO appointments (client_id, date, time, treatment, price, photo_taken, treatment_notes)
+                INSERT INTO appointments (client_id, date, time, treatment, price, photos_taken, treatment_notes)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (self.client_id, date, time, treatment, price, "No", treatment_notes if treatment_notes else "<No notes added>"))
             self.conn.commit()
@@ -602,7 +602,7 @@ class AppointmentsPage:
             print("⚠ Unable to determine appointment ID.")
             return
 
-        date, time, treatment, price, photo_taken = item_data
+        date, time, treatment, price, photos_taken = item_data
 
         # Fetch treatment notes from the database
         self.cursor.execute("SELECT treatment_notes FROM appointments WHERE id = ?", (appointment_id,))

@@ -47,16 +47,16 @@ class PhotosPage:
         before_frame = ctk.CTkFrame(main_frame)
         before_frame.grid(row=0, column=1, sticky="nsew", padx=5)
 
-        ctk.CTkLabel(before_frame, text="Before Image", font=("Arial", 14)).pack()
-        self.before_label = ctk.CTkLabel(before_frame, text="No Image", width=250, height=445, fg_color="gray")
+        ctk.CTkLabel(before_frame, text="Before", font=("Arial", 14)).pack()
+        self.before_label = ctk.CTkLabel(before_frame, text="No Image Selected", width=250, height=445, fg_color="gray")
         self.before_label.pack(fill="both", expand=True)
 
         # ✅ After Image Preview Pane (Right Column)
         after_frame = ctk.CTkFrame(main_frame)
         after_frame.grid(row=0, column=2, sticky="nsew", padx=5)
 
-        ctk.CTkLabel(after_frame, text="After Image", font=("Arial", 14)).pack()
-        self.after_label = ctk.CTkLabel(after_frame, text="No Image", width=250, height=445, fg_color="gray")
+        ctk.CTkLabel(after_frame, text="After", font=("Arial", 14)).pack()
+        self.after_label = ctk.CTkLabel(after_frame, text="No Image Selected", width=250, height=445, fg_color="gray")
         self.after_label.pack(fill="both", expand=True)
 
         # ✅ Navigation Buttons & Date Label (Before Image)
@@ -66,7 +66,7 @@ class PhotosPage:
         self.before_left_button = ctk.CTkButton(self.before_nav_frame, text="←", width=30, command=lambda: self.navigate_image(-1, "before"))
         self.before_left_button.pack(side="left", padx=10)
 
-        self.before_date_label = ctk.CTkLabel(self.before_nav_frame, text="Select an image", font=("Arial", 12, "bold"))
+        self.before_date_label = ctk.CTkLabel(self.before_nav_frame, text="", font=("Arial", 12, "bold"))
         self.before_date_label.pack(side="left", expand=True)
 
         self.before_right_button = ctk.CTkButton(self.before_nav_frame, text="→", width=30, command=lambda: self.navigate_image(1, "before"))
@@ -79,7 +79,7 @@ class PhotosPage:
         self.after_left_button = ctk.CTkButton(self.after_nav_frame, text="←", width=30, command=lambda: self.navigate_image(-1, "after"))
         self.after_left_button.pack(side="left", padx=10)
 
-        self.after_date_label = ctk.CTkLabel(self.after_nav_frame, text="Select an image", font=("Arial", 12, "bold"))
+        self.after_date_label = ctk.CTkLabel(self.after_nav_frame, text="", font=("Arial", 12, "bold"))
         self.after_date_label.pack(side="left", expand=True)
 
         self.after_right_button = ctk.CTkButton(self.after_nav_frame, text="→", width=30, command=lambda: self.navigate_image(1, "after"))
@@ -145,13 +145,13 @@ class PhotosPage:
             appointment_date, description = result
             self.date_label.configure(text=appointment_date)  # Update Date Label
             self.desc_textbox.delete("1.0", "end")
-            self.desc_textbox.insert("1.0", description if description else "No description available.")
+            self.desc_textbox.insert("1.0", description if description else "<No Description Yet>")
         else:
             self.date_label.configure(text="Unknown Date")
             self.desc_textbox.delete("1.0", "end")
-            self.desc_textbox.insert("1.0", "No description available.")
+            self.desc_textbox.insert("1.0", "<No Description Yet>")
 
-    def navigate_image(self, direction):
+    def navigate_image(self, direction, frame_type):
         """Cycle through images using navigation buttons."""
         if not self.photo_paths:
             return  # No images to navigate
