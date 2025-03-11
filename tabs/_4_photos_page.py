@@ -33,7 +33,7 @@ class PhotosPage:
 
         self.photo_list = ttk.Treeview(treeview_frame, selectmode="browse", show="headings", style="Appointments.Treeview")
         self.photo_list["columns"] = ("photo_path",)
-        self.photo_list.heading("photo_path", text="Photo List")
+        self.photo_list.heading("photo_path", text="Photos (By Date)")
         self.photo_list.column("photo_path", width=200)
         self.photo_list.pack(fill="both", expand=True)
 
