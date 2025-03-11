@@ -25,7 +25,7 @@ class AppointmentsPage:
         main_frame.columnconfigure(0, weight=1) 
         main_frame.columnconfigure(1, weight=1)
         main_frame.columnconfigure(2, weight=1)  
-        main_frame.columnconfigure(3, weight=5) # Details frame
+        main_frame.columnconfigure(3, weight=4) # Details frame
         main_frame.rowconfigure(1, weight=1)    # Allow frames to stretch vertically
 
         # Create Frame for search box
@@ -151,7 +151,7 @@ class AppointmentsPage:
                                          border=0, 
                                          borderwidth=0, 
                                          highlightthickness=0)
-        self.all_notes_textbox.grid(row=1, column=0, columnspan=2, sticky="nsew")
+        self.all_notes_textbox.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=(0, 1))
         self.all_notes_textbox.configure(state="disabled")  # Disable editing
 
     def on_client_selected(self, selected_client):
