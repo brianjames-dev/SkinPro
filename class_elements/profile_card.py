@@ -112,7 +112,7 @@ class ProfileCard:
 
         # **Step 1: Determine Save Path (Temp or Final)**
         if self.client_id == -1:  
-            save_path = "images/clients/temp_profile.png"  # ✅ Temporary location for new clients
+            save_path = "images/client_profile_pics/temp_profile.png"  # ✅ Temporary location for new clients
         else:
             # ✅ Fetch Client's Full Name for File Naming
             self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
@@ -120,10 +120,10 @@ class ProfileCard:
 
             if result:
                 full_name = result[0].replace(" ", "_")  # ✅ Replace spaces with underscores
-                save_path = f"images/clients/{full_name}.png"
+                save_path = f"images/client_profile_pics/{full_name}.png"
             else:
                 print(f"⚠ ERROR: No full_name found for client_id {self.client_id}. Using default name.")
-                save_path = f"images/clients/client_{self.client_id}.png"
+                save_path = f"images/client_profile_pics/client_{self.client_id}.png"
 
         # **Step 2: Process and Save Image**
         edited_image = self.create_circular_image(Image.open(self.profile_path))
