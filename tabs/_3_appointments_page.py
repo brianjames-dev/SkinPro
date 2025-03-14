@@ -58,7 +58,10 @@ class AppointmentsPage:
 
         # Load images for buttons
         add_appt = ctk.CTkImage(Image.open("icons/add.png"), size=(24, 24))
+
         edit_appt = ctk.CTkImage(Image.open("icons/edit_appt.png"), size=(24, 24))
+        add_photos = ctk.CTkImage(Image.open("icons/add_photo_alt.png"), size=(24, 24))
+
         delete_appt = ctk.CTkImage(Image.open("icons/delete.png"), size=(24, 24))
 
         create_frame = ctk.CTkFrame(main_frame)
