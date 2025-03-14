@@ -36,7 +36,7 @@ class PhotosPage:
         main_frame.rowconfigure(1, weight=0)  # Buttons & Labels
         main_frame.rowconfigure(2, weight=1, minsize=100)  # Description Box
 
-        # ✅ Treeview Frame (Left Panel)
+        # Treeview Frame (Left Panel)
         treeview_frame = ctk.CTkFrame(main_frame)
         treeview_frame.grid(row=0, column=0, rowspan=3, sticky="nsew", padx=(0, 10))
 
@@ -49,23 +49,23 @@ class PhotosPage:
         self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)    # Set Before Image
         self.photo_list.bind("<ButtonRelease-3>", self.set_after_image)     # Set After Image
 
-        # ✅ Before Image Preview Pane (Middle Column)
+        # Before Image Preview Pane (Middle Column)
         before_frame = ctk.CTkFrame(main_frame)
         before_frame.grid(row=0, column=1, columnspan=3, sticky="nsew", padx=5)
 
         ctk.CTkLabel(before_frame, text="Before", font=("Arial", 16)).pack()
-        self.before_label = ctk.CTkLabel(before_frame, text="No Image Selected", width=250, height=445, fg_color="gray")
+        self.before_label = ctk.CTkLabel(before_frame, text="<No Image Selected>", width=250, height=445, fg_color="gray")
         self.before_label.pack(fill="both", expand=True)
 
-        # ✅ After Image Preview Pane (Right Column)
+        # After Image Preview Pane (Right Column)
         after_frame = ctk.CTkFrame(main_frame)
         after_frame.grid(row=0, column=4, columnspan=3, sticky="nsew", padx=5)
 
         ctk.CTkLabel(after_frame, text="After", font=("Arial", 16)).pack()
-        self.after_label = ctk.CTkLabel(after_frame, text="No Image Selected", width=250, height=445, fg_color="gray")
+        self.after_label = ctk.CTkLabel(after_frame, text="<No Image Selected>", width=250, height=445, fg_color="gray")
         self.after_label.pack(fill="both", expand=True)
 
-        # ✅ Navigation Buttons & Date Label (Before Image)
+        # Navigation Buttons & Date Label (Before Image)
         self.before_nav_frame = ctk.CTkFrame(main_frame)
         self.before_nav_frame.grid(row=1, column=2, sticky="ew", pady=(5, 10))
 
@@ -78,7 +78,7 @@ class PhotosPage:
         self.before_right_button = ctk.CTkButton(self.before_nav_frame, text="", image=fwd_arrow, width=30, command=lambda: self.navigate_image(1, "before"))
         self.before_right_button.pack(side="right")
 
-        # ✅ Navigation Buttons & Date Label (After Image)
+        # Navigation Buttons & Date Label (After Image)
         self.after_nav_frame = ctk.CTkFrame(main_frame)
         self.after_nav_frame.grid(row=1, column=5, sticky="ew", pady=(5, 10))
 
@@ -91,7 +91,7 @@ class PhotosPage:
         self.after_right_button = ctk.CTkButton(self.after_nav_frame, text="", image=fwd_arrow, width=30, command=lambda: self.navigate_image(1, "after"))
         self.after_right_button.pack(side="right")
 
-        # ✅ Photo Description Box (Before Image)
+        # Photo Description Box (Before Image)
         self.before_desc_frame = ctk.CTkFrame(main_frame)
         self.before_desc_frame.grid(row=2, column=1, columnspan=3, sticky="nsew", padx=5)
 
@@ -99,7 +99,7 @@ class PhotosPage:
         self.before_desc_textbox = ctk.CTkTextbox(self.before_desc_frame, height=60, wrap="word", corner_radius=0, fg_color="#1e1e1e")
         self.before_desc_textbox.pack(fill="both", expand=True)
 
-        # ✅ Photo Description Box (After Image)
+        # Photo Description Box (After Image)
         self.after_desc_frame = ctk.CTkFrame(main_frame)
         self.after_desc_frame.grid(row=2, column=4, columnspan=3, sticky="nsew", padx=5)
 
