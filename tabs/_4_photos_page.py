@@ -15,17 +15,26 @@ class PhotosPage:
         self.after_image_index = 0
         self.photo_paths = []  # Store paths for navigation
 
+        # Load images for buttons
+        back_arrow = ctk.CTkImage(Image.open("icons/arrow_back.png"), size=(24, 24))
+        fwd_arrow = ctk.CTkImage(Image.open("icons/arrow_forward.png"), size=(24, 24))
+
         # Create Main Frame
         main_frame = ctk.CTkFrame(parent)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Configure grid layout
-        main_frame.columnconfigure(0, weight=2)  # Listbox column
-        main_frame.columnconfigure(1, weight=3)  # Before Image
-        main_frame.columnconfigure(2, weight=3)  # After Image
+        main_frame.columnconfigure(0, weight=4)  # Listbox column
+        main_frame.columnconfigure(1, weight=1)  # Before Image
+        main_frame.columnconfigure(2, weight=1)  # Before Image
+        main_frame.columnconfigure(3, weight=1)  # Before Image
+        main_frame.columnconfigure(4, weight=1)  # After Image
+        main_frame.columnconfigure(5, weight=1)  # After Image
+        main_frame.columnconfigure(6, weight=1)  # After Image
+
         main_frame.rowconfigure(0, weight=1)  # Stretch row for previews
         main_frame.rowconfigure(1, weight=0)  # Buttons & Labels
-        main_frame.rowconfigure(2, weight=0)  # Description Box
+        main_frame.rowconfigure(2, weight=1, minsize=100)  # Description Box
 
         # ✅ Treeview Frame (Left Panel)
         treeview_frame = ctk.CTkFrame(main_frame)
@@ -37,69 +46,66 @@ class PhotosPage:
         self.photo_list.column("photo_path", width=200)
         self.photo_list.pack(fill="both", expand=True)
 
-        # Bind left-click to set before image
-        self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)
-
-        # Bind right-click to set after image
-        self.photo_list.bind("<ButtonRelease-3>", self.set_after_image)
+        self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)    # Set Before Image
+        self.photo_list.bind("<ButtonRelease-3>", self.set_after_image)     # Set After Image
 
         # ✅ Before Image Preview Pane (Middle Column)
         before_frame = ctk.CTkFrame(main_frame)
-        before_frame.grid(row=0, column=1, sticky="nsew", padx=5)
+        before_frame.grid(row=0, column=1, columnspan=3, sticky="nsew", padx=5)
 
-        ctk.CTkLabel(before_frame, text="Before", font=("Arial", 14)).pack()
+        ctk.CTkLabel(before_frame, text="Before", font=("Arial", 16)).pack()
         self.before_label = ctk.CTkLabel(before_frame, text="No Image Selected", width=250, height=445, fg_color="gray")
         self.before_label.pack(fill="both", expand=True)
 
         # ✅ After Image Preview Pane (Right Column)
         after_frame = ctk.CTkFrame(main_frame)
-        after_frame.grid(row=0, column=2, sticky="nsew", padx=5)
+        after_frame.grid(row=0, column=4, columnspan=3, sticky="nsew", padx=5)
 
-        ctk.CTkLabel(after_frame, text="After", font=("Arial", 14)).pack()
+        ctk.CTkLabel(after_frame, text="After", font=("Arial", 16)).pack()
         self.after_label = ctk.CTkLabel(after_frame, text="No Image Selected", width=250, height=445, fg_color="gray")
         self.after_label.pack(fill="both", expand=True)
 
         # ✅ Navigation Buttons & Date Label (Before Image)
         self.before_nav_frame = ctk.CTkFrame(main_frame)
-        self.before_nav_frame.grid(row=1, column=1, sticky="ew", pady=(5, 10))
+        self.before_nav_frame.grid(row=1, column=2, sticky="ew", pady=(5, 10))
 
-        self.before_left_button = ctk.CTkButton(self.before_nav_frame, text="←", width=30, command=lambda: self.navigate_image(-1, "before"))
-        self.before_left_button.pack(side="left", padx=10)
+        self.before_left_button = ctk.CTkButton(self.before_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "before"))
+        self.before_left_button.pack(side="left")
 
         self.before_date_label = ctk.CTkLabel(self.before_nav_frame, text="", font=("Arial", 12, "bold"))
         self.before_date_label.pack(side="left", expand=True)
 
-        self.before_right_button = ctk.CTkButton(self.before_nav_frame, text="→", width=30, command=lambda: self.navigate_image(1, "before"))
-        self.before_right_button.pack(side="right", padx=10)
+        self.before_right_button = ctk.CTkButton(self.before_nav_frame, text="", image=fwd_arrow, width=30, command=lambda: self.navigate_image(1, "before"))
+        self.before_right_button.pack(side="right")
 
         # ✅ Navigation Buttons & Date Label (After Image)
         self.after_nav_frame = ctk.CTkFrame(main_frame)
-        self.after_nav_frame.grid(row=1, column=2, sticky="ew", pady=(5, 10))
+        self.after_nav_frame.grid(row=1, column=5, sticky="ew", pady=(5, 10))
 
-        self.after_left_button = ctk.CTkButton(self.after_nav_frame, text="←", width=30, command=lambda: self.navigate_image(-1, "after"))
-        self.after_left_button.pack(side="left", padx=10)
+        self.after_left_button = ctk.CTkButton(self.after_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "after"))
+        self.after_left_button.pack(side="left")
 
         self.after_date_label = ctk.CTkLabel(self.after_nav_frame, text="", font=("Arial", 12, "bold"))
         self.after_date_label.pack(side="left", expand=True)
 
-        self.after_right_button = ctk.CTkButton(self.after_nav_frame, text="→", width=30, command=lambda: self.navigate_image(1, "after"))
-        self.after_right_button.pack(side="right", padx=10)
+        self.after_right_button = ctk.CTkButton(self.after_nav_frame, text="", image=fwd_arrow, width=30, command=lambda: self.navigate_image(1, "after"))
+        self.after_right_button.pack(side="right")
 
         # ✅ Photo Description Box (Before Image)
         self.before_desc_frame = ctk.CTkFrame(main_frame)
-        self.before_desc_frame.grid(row=2, column=1, sticky="nsew", padx=5, pady=(5, 10))
+        self.before_desc_frame.grid(row=2, column=1, columnspan=3, sticky="nsew", padx=5)
 
-        ctk.CTkLabel(self.before_desc_frame, text="Before Image Description", font=("Arial", 12)).pack(anchor="w", padx=5)
-        self.before_desc_textbox = ctk.CTkTextbox(self.before_desc_frame, height=60, wrap="word")
-        self.before_desc_textbox.pack(fill="both", expand=True, padx=5, pady=5)
+        ctk.CTkLabel(self.before_desc_frame, text="Before Image Description", font=("Arial", 14)).pack(anchor="w", padx=5)
+        self.before_desc_textbox = ctk.CTkTextbox(self.before_desc_frame, height=60, wrap="word", corner_radius=0, fg_color="#1e1e1e")
+        self.before_desc_textbox.pack(fill="both", expand=True)
 
         # ✅ Photo Description Box (After Image)
         self.after_desc_frame = ctk.CTkFrame(main_frame)
-        self.after_desc_frame.grid(row=2, column=2, sticky="nsew", padx=5, pady=(5, 10))
+        self.after_desc_frame.grid(row=2, column=4, columnspan=3, sticky="nsew", padx=5)
 
-        ctk.CTkLabel(self.after_desc_frame, text="After Image Description", font=("Arial", 12)).pack(anchor="w", padx=5)
-        self.after_desc_textbox = ctk.CTkTextbox(self.after_desc_frame, height=60, wrap="word")
-        self.after_desc_textbox.pack(fill="both", expand=True, padx=5, pady=5)
+        ctk.CTkLabel(self.after_desc_frame, text="After Image Description", font=("Arial", 14)).pack(anchor="w", padx=5)
+        self.after_desc_textbox = ctk.CTkTextbox(self.after_desc_frame, height=60, wrap="word", corner_radius=0, fg_color="#1e1e1e")
+        self.after_desc_textbox.pack(fill="both", expand=True)
 
     def set_before_image(self, event):
         """Set the selected image as the Before Image."""
