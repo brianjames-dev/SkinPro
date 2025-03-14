@@ -402,8 +402,8 @@ class AppointmentsPage:
         # ✅ Compile formatted notes with dynamic dividers
         for date, treatment, notes in all_notes:
             max_length = max(len(date), len(treatment) - 2)  # 🔥 Choose longest text for dividers
-            if max_length > 37:
-                max_length = 37
+            if max_length > 35:
+                max_length = 35
             divider_line = "━" * max_length  # 🔥 Create dynamic length divider
 
             self.all_notes_textbox.insert("end", f"{divider_line}\n", "divider")  # Top Divider
