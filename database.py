@@ -81,8 +81,8 @@ def create_tables(cursor):
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
         appointment_id INTEGER NOT NULL,
+        appt_date DATE,
         file_path TEXT NOT NULL,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         description TEXT DEFAULT '',
         FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE,
         FOREIGN KEY (appointment_id) REFERENCES appointments (id) ON DELETE CASCADE
@@ -139,7 +139,7 @@ def insert_mock_data(cursor):
                 fake.time(pattern="%I:%M %p"),  # Random time in 12-hour format
                 fake.sentence(nb_words=5),  # Random treatment description
                 f"${fake.random_int(min=30, max=500)}.00",  # Random price
-                fake.random_element(["No", "Yes"]),  # Photos taken
+                fake.random_element(["No"]),  # Photos taken
                 fake.sentence(nb_words=10)  # Random treatment notes
 
             )
