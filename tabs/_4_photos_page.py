@@ -2,6 +2,7 @@ import customtkinter as ctk
 from tkinter import ttk
 from tkinter import filedialog
 from PIL import Image, ImageTk
+from customtkinter import CTkImage
 import os
 
 class PhotosPage:
@@ -41,9 +42,11 @@ class PhotosPage:
         treeview_frame.grid(row=0, column=0, rowspan=3, sticky="nsew", padx=(0, 10))
 
         self.photo_list = ttk.Treeview(treeview_frame, selectmode="browse", show="headings", style="Appointments.Treeview")
-        self.photo_list["columns"] = ("photo_path",)
-        self.photo_list.heading("photo_path", text="Photos (By Most Recent)")
-        self.photo_list.column("photo_path", width=200)
+        self.photo_list["columns"] = ("appt_date", "photo_path")
+        self.photo_list.heading("appt_date", text="Date")
+        self.photo_list.heading("photo_path", text="Photos")
+        self.photo_list.column("appt_date", width=150)
+        self.photo_list.column("photo_path", width=50)
         self.photo_list.pack(fill="both", expand=True)
 
         self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)    # Set Before Image
@@ -129,13 +132,13 @@ class PhotosPage:
         """Load and display an image in the specified label."""
         if os.path.exists(file_path):
             try:
-                image = Image.open(file_path)
-                image.thumbnail((250, 445))  # Scale while maintaining aspect ratio
-                photo = ImageTk.PhotoImage(image)
+                img = Image.open(file_path)
+                img.thumbnail((250, 445))  # Resize while maintaining aspect ratio
+                photo = CTkImage(img, size=(260, 445))
 
                 label.configure(image=photo, text="")
                 label.image = photo  # Keep reference
-                self.update_photo_metadata(file_path)  # Update date & description
+                self.update_photo_metadata(file_path)  # Update metadata
             except Exception as e:
                 print(f"⚠ Error loading image: {e}")
                 label.configure(text="Error loading image", image="")
@@ -144,30 +147,76 @@ class PhotosPage:
 
     def update_photo_metadata(self, file_path):
         """Update the date label and description based on the selected photo."""
-        self.cursor.execute("SELECT appointment_date, description FROM photos WHERE file_path = ?", (file_path,))
+        self.cursor.execute("SELECT appt_date, description FROM photos WHERE file_path = ?", (file_path,))  # ✅ Fix column name
         result = self.cursor.fetchone()
 
         if result:
-            appointment_date, description = result
-            self.date_label.configure(text=appointment_date)  # Update Date Label
-            self.desc_textbox.delete("1.0", "end")
-            self.desc_textbox.insert("1.0", description if description else "<No Description Yet>")
+            appt_date, description = result
+
+            # Determine which image is being updated (Before or After)
+            if file_path in self.photo_paths[:len(self.photo_paths)//2]:  # First half = Before
+                self.before_date_label.configure(text=appt_date)  # ✅ Correct label
+                self.before_desc_textbox.delete("1.0", "end")
+                self.before_desc_textbox.insert("1.0", description if description else "<No Description Yet>")
+            else:  # Second half = After
+                self.after_date_label.configure(text=appt_date)  # ✅ Correct label
+                self.after_desc_textbox.delete("1.0", "end")
+                self.after_desc_textbox.insert("1.0", description if description else "<No Description Yet>")
         else:
-            self.date_label.configure(text="Unknown Date")
-            self.desc_textbox.delete("1.0", "end")
-            self.desc_textbox.insert("1.0", "<No Description Yet>")
+            print("⚠ No metadata found for image.")
 
     def navigate_image(self, direction, frame_type):
         """Cycle through images using navigation buttons."""
         if not self.photo_paths:
-            return  # No images to navigate
+            return  # No images available
 
-        # Determine which label to update (Before or After)
-        if direction == -1:  # Left button
-            self.before_image_index = (self.before_image_index - 1) % len(self.photo_paths)
+        if frame_type == "before":
+            self.before_image_index = (self.before_image_index + direction) % len(self.photo_paths)
             file_path = self.photo_paths[self.before_image_index]
             self.load_image(file_path, self.before_label)
-        else:  # Right button
-            self.after_image_index = (self.after_image_index + 1) % len(self.photo_paths)
+        elif frame_type == "after":
+            self.after_image_index = (self.after_image_index + direction) % len(self.photo_paths)
             file_path = self.photo_paths[self.after_image_index]
             self.load_image(file_path, self.after_label)
+
+    def refresh_photos_list(self, client_id):
+        """Load photos for the selected client into the Treeview/Listbox."""
+        self.photo_list.delete(*self.photo_list.get_children())  # Clear existing list
+        self.photo_paths.clear()  # Reset stored paths for navigation
+
+        # Fetch all photos for the selected client, sorted by most recent
+        self.cursor.execute("SELECT id, file_path, appt_date FROM photos WHERE client_id = ? ORDER BY appt_date DESC", (client_id,))
+        photos = self.cursor.fetchall()
+
+        print(f"🟢 Debug: Fetched {len(photos)} photos for Client ID {client_id}")  # Debugging print
+        if not photos:
+            print(f"⚠ No photos found for Client ID {client_id}")
+            return
+
+        # Store paths & insert into Treeview/Listbox
+        for photo in photos:
+            photo_id, file_path, appt_date = photo
+            print(f"🖼️ Debug: Adding Photo ID {photo_id} | Path: {file_path} | Date: {appt_date}")  # Debugging print
+            self.photo_list.insert("", "end", iid=photo_id, values=(file_path, appt_date))
+            self.photo_paths.append(file_path)  # Store path for navigation
+
+        print(f"🟢 Loaded {len(photos)} photos for Client ID: {client_id}")
+
+    def on_photo_selected(self, event):
+        """Display the selected photo(s) in the Before/After panes."""
+        selected_items = self.photo_list.selection()
+
+        if not selected_items:
+            return
+
+        # Select up to two images
+        selected_images = [self.photo_list.item(item, "values")[0] for item in selected_items[:2]]
+
+        # Load images into Before/After panes
+        if len(selected_images) > 0:
+            self.before_image_index = self.photo_paths.index(selected_images[0])
+            self.load_image(selected_images[0], self.before_label)
+
+        if len(selected_images) > 1:
+            self.after_image_index = self.photo_paths.index(selected_images[1])
+            self.load_image(selected_images[1], self.after_label)
