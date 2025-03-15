@@ -1066,18 +1066,19 @@ class AppointmentsPage:
             print(f"✅ Copied {file_path} to {new_path}")  # Debugging print
 
             # Insert record into database
-            self.cursor.execute("INSERT INTO photos (client_id, appointment_id, file_path) VALUES (?, ?, ?)",
-                                (client_id, appointment_id, new_path))
+            self.cursor.execute("INSERT INTO photos (client_id, appointment_id, appt_date, file_path) VALUES (?, ?, ?, ?)",
+                                (client_id, appointment_id, appt_date, new_path))
 
         # Update the `photos_taken` column in the appointments table
         self.cursor.execute("UPDATE appointments SET photos_taken = 'Yes' WHERE id = ?", (appointment_id,))
         self.conn.commit()
 
         messagebox.showinfo("Success", f"{len(file_paths)} photo(s) uploaded successfully.")
+        print(f"✅ Inserted Photo - Client: {self.client_id}, Appt: {appointment_id}, Date: {appt_date}, Path: {new_path}")
 
-        # Refresh photos list on the Photos Page (if it's open)
-        if hasattr(self, "refresh_photos_list"):
-            self.refresh_photos_list(client_id)
+        # Refresh photos list on the Photos Page
+        if "Photos" in self.main_app.tabs:  # ✅ Access PhotosPage from `self.tabs`
+            self.main_app.tabs["Photos"].refresh_photos_list(client_id)
 
         # 🔄 Refresh the appointments table to show the updated "Yes" in the photos_taken column
         self.load_client_appointments(client_id)
