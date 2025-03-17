@@ -85,7 +85,7 @@ class ProfileCard:
 
         # ✅ Ensure profile image exists, otherwise fallback to default
         if not self.profile_path or not os.path.exists(self.profile_path):
-            print(f"⚠ Image path not found: {self.profile_path}. Using default image.")
+            print(f"⚠ Image path not found: {self.profile_path}. Using default profile picture.")
             self.profile_path = "icons/add_photo.png"
 
         # ✅ Load and apply circular transformation only for real images

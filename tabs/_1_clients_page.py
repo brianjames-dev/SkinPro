@@ -116,9 +116,9 @@ class ClientsPage:
         self.client_list.column("Name", width=int(total_width * 0.18), minwidth=120)
         self.client_list.column("Gender", width=int(total_width * 0.05), minwidth=55)
         self.client_list.column("Birthdate", width=int(total_width * 0.10), minwidth=60)
-        self.client_list.column("Phone #", width=int(total_width * 0.15), minwidth=100)
-        self.client_list.column("Email", width=int(total_width * 0.08), minwidth=200)
-        self.client_list.column("Address", width=int(total_width * 0.44), minwidth=200)
+        self.client_list.column("Phone #", width=int(total_width * 0.13), minwidth=100)
+        self.client_list.column("Email", width=int(total_width * 0.14), minwidth=200)
+        self.client_list.column("Address", width=int(total_width * 0.40), minwidth=200)
 
     def load_clients(self):
         """Load all clients from the database and insert them into the Treeview."""

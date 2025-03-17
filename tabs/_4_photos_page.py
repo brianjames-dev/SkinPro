@@ -43,19 +43,19 @@ class PhotosPage:
 
         # Treeview Frame (Left Panel)
         treeview_frame = ctk.CTkFrame(main_frame)
-        treeview_frame.grid(row=0, column=0, rowspan=3, sticky="nsew", padx=(0, 10))
+        treeview_frame.grid(row=0, column=0, rowspan=3, sticky="nsew", padx=(0, 5))
 
         # Apply treeview styling
         style_treeview("Photos.Treeview", rowheight=55)
 
         self.photo_list = ttk.Treeview(treeview_frame, selectmode="browse", show="tree headings", style="Photos.Treeview")
         self.photo_list["columns"] = ("appt_date", "type")
-        self.photo_list.heading("#0", text="Thumbnail")  # ✅ Thumbnail as the first column
+        self.photo_list.heading("#0", text="Thumbnail")  # Thumbnail as the first column
         self.photo_list.heading("appt_date", text="Date")
         self.photo_list.heading("type", text="Type")
-        self.photo_list.column("#0", width=75, anchor="w")  # ✅ Use the implicit first column for thumbnails
+        self.photo_list.column("#0", width=85, stretch=False)  # Use the implicit first column for thumbnails
         self.photo_list.column("appt_date", width=50, anchor="center")
-        self.photo_list.column("type", width=100, anchor="center")
+        self.photo_list.column("type", width=65, anchor="center")
         self.photo_list.pack(fill="both", expand=True)
         self.photo_list.bind("<Button-1>", self.clear_selection_on_empty_click)
         self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)            # Set Before Image
@@ -63,7 +63,7 @@ class PhotosPage:
 
         # Before Image Preview Pane (Middle Column)
         before_frame = ctk.CTkFrame(main_frame, width=279, height=372)
-        before_frame.grid(row=0, column=1, columnspan=3, sticky="nsew", padx=5)
+        before_frame.grid(row=0, column=1, columnspan=3, sticky="nsew", padx=(5, 5))
 
         ctk.CTkLabel(before_frame, text="Before", font=("Arial", 16)).pack()
         self.before_label = ctk.CTkLabel(before_frame, text="<No Image Selected>", width=279, height=372, fg_color="gray")
@@ -71,14 +71,14 @@ class PhotosPage:
 
         # After Image Preview Pane (Right Column)
         after_frame = ctk.CTkFrame(main_frame, width=279, height=372)
-        after_frame.grid(row=0, column=4, columnspan=3, sticky="nsew", padx=5)
+        after_frame.grid(row=0, column=4, columnspan=3, sticky="nsew", padx=(5, 0))
 
         ctk.CTkLabel(after_frame, text="After", font=("Arial", 16)).pack()
         self.after_label = ctk.CTkLabel(after_frame, text="<No Image Selected>", width=279, height=372, fg_color="gray")
         self.after_label.pack(pady=(0, 10))
 
         # Navigation Buttons & Date Label (Before Image)
-        self.before_nav_frame = ctk.CTkFrame(main_frame)
+        self.before_nav_frame = ctk.CTkFrame(main_frame, fg_color="#2b2b2b")
         self.before_nav_frame.grid(row=1, column=2, sticky="ew", pady=(5, 5))
 
         self.before_left_button = ctk.CTkButton(self.before_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "before"))
@@ -91,7 +91,7 @@ class PhotosPage:
         self.before_right_button.pack(side="right")
 
         # Navigation Buttons & Date Label (After Image)
-        self.after_nav_frame = ctk.CTkFrame(main_frame)
+        self.after_nav_frame = ctk.CTkFrame(main_frame, fg_color="#2b2b2b")
         self.after_nav_frame.grid(row=1, column=5, sticky="ew", pady=(5, 5))
 
         self.after_left_button = ctk.CTkButton(self.after_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "after"))
@@ -105,22 +105,29 @@ class PhotosPage:
 
         # Photo Description Box (Before Image)
         self.before_desc_frame = ctk.CTkFrame(main_frame)
-        self.before_desc_frame.grid(row=2, column=1, columnspan=3, sticky="nsew", padx=10)
-        desc_header_frame = ctk.CTkFrame(self.before_desc_frame)
-        desc_header_frame.pack(fill="x", padx=10)  # Ensures proper spacing
+        self.before_desc_frame.grid(row=2, column=1, columnspan=3, sticky="nsew", padx=(5, 5))
+        self.before_header_frame = ctk.CTkFrame(self.before_desc_frame, fg_color="#333333")
+        self.before_header_frame.pack(fill="both", padx=10) 
 
-        ctk.CTkLabel(desc_header_frame, text="Description", font=("Arial", 14)).pack(side="left")
-        ctk.CTkButton(desc_header_frame, text="Save", width=40, height=20).pack(side="right")
+        ctk.CTkLabel(self.before_header_frame, text="Description", font=("Arial", 14)).pack(side="left", pady=(5,0))
+        self.before_save_button = ctk.CTkButton(self.before_header_frame, text="Save", width=60, height=20, command=self.save_before_description, state="disabled", fg_color="#696969", text_color="white")
+        self.before_save_button.pack(side="right")
         self.before_desc_textbox = ctk.CTkTextbox(self.before_desc_frame, height=60, wrap="word", corner_radius=0, fg_color="#1e1e1e")
         self.before_desc_textbox.pack(fill="both", expand=True)
+        self.before_desc_textbox.bind("<KeyRelease>", self.on_before_text_change)
 
         # Photo Description Box (After Image)
         self.after_desc_frame = ctk.CTkFrame(main_frame)
-        self.after_desc_frame.grid(row=2, column=4, columnspan=3, sticky="nsew", padx=10)
+        self.after_desc_frame.grid(row=2, column=4, columnspan=3, sticky="nsew", padx=(5, 0))
+        self.after_header_frame = ctk.CTkFrame(self.after_desc_frame, fg_color="#333333")
+        self.after_header_frame.pack(fill="both", padx=10) 
 
-        ctk.CTkLabel(self.after_desc_frame, text="Description", font=("Arial", 14)).pack(anchor="w", padx=10)
+        ctk.CTkLabel(self.after_header_frame, text="Description", font=("Arial", 14)).pack(side="left", pady=(5,0))
+        self.after_save_button = ctk.CTkButton(self.after_header_frame, text="Save", width=60, height=20, command=self.save_after_description, state="disabled", fg_color="#696969", text_color="white")
+        self.after_save_button.pack(side="right") 
         self.after_desc_textbox = ctk.CTkTextbox(self.after_desc_frame, height=60, wrap="word", corner_radius=0, fg_color="#1e1e1e")
         self.after_desc_textbox.pack(fill="both", expand=True)
+        self.after_desc_textbox.bind("<KeyRelease>", self.on_after_text_change)
 
     def set_before_image(self, event):
         """Set the selected image as the Before Image."""
@@ -131,12 +138,15 @@ class PhotosPage:
 
         photo_id = int(selected_item[0])  # Convert ID to integer
 
-        # ✅ Retrieve file path from our dictionary
+        # Retrieve file path from our dictionary
         file_path = self.photo_file_paths.get(photo_id)
 
         if file_path and os.path.exists(file_path):
             self.before_image_index = self.photo_paths.index(file_path)  # Track index
-            self.load_image(file_path, self.before_label, "before")  # ✅ Display it
+            self.load_image(file_path, self.before_label, "before")  # Display it
+
+            self.before_save_button.configure(state="disabled", text="Save", fg_color="#696969")
+
         else:
             print(f"⚠ Error: {file_path} not found in photo_paths list or does not exist.")
 
@@ -150,14 +160,97 @@ class PhotosPage:
 
         photo_id = int(selected_item[0])  # Convert ID to integer
 
-        # ✅ Retrieve file path from our dictionary
+        # Retrieve file path from our dictionary
         file_path = self.photo_file_paths.get(photo_id)
 
         if file_path and os.path.exists(file_path):
             self.after_image_index = self.photo_paths.index(file_path)  # Track index
-            self.load_image(file_path, self.after_label, "after")  # ✅ Display it
+            self.load_image(file_path, self.after_label, "after")  # Display it
+
+            self.after_save_button.configure(state="disabled", text="Save", fg_color="#696969")
+
         else:
             print(f"⚠ Error: {file_path} not found in photo_paths list or does not exist.")
+
+    def save_before_description(self):
+        """Save the before image description to the database and update UI."""
+        if not hasattr(self, "before_label") or not self.before_label.image:
+            print("⚠ No before image selected.")
+            return
+
+        file_path = self.photo_paths[self.before_image_index]
+        new_description = self.before_desc_textbox.get("1.0", "end").strip()
+
+        self.cursor.execute("SELECT id FROM photos WHERE file_path = ?", (file_path,))
+        result = self.cursor.fetchone()
+
+        if result:
+            photo_id = result[0]
+            self.cursor.execute("UPDATE photos SET description = ? WHERE id = ?", (new_description, photo_id))
+            self.conn.commit()
+            print(f"✅ Saved description for Before Image (Photo ID: {photo_id})")
+
+            # ✅ Store new description as the original
+            self.before_original_text = new_description
+
+            # ✅ Disable Save button after saving
+            self.before_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
+
+
+    def save_after_description(self):
+        """Save the after image description to the database and update UI."""
+        if not hasattr(self, "after_label") or not self.after_label.image:
+            print("⚠ No after image selected.")
+            return
+
+        file_path = self.photo_paths[self.after_image_index]
+        new_description = self.after_desc_textbox.get("1.0", "end").strip()
+
+        self.cursor.execute("SELECT id FROM photos WHERE file_path = ?", (file_path,))
+        result = self.cursor.fetchone()
+
+        if result:
+            photo_id = result[0]
+            self.cursor.execute("UPDATE photos SET description = ? WHERE id = ?", (new_description, photo_id))
+            self.conn.commit()
+            print(f"✅ Saved description for After Image (Photo ID: {photo_id})")
+
+            # ✅ Store new description as the original
+            self.after_original_text = new_description
+
+            # ✅ Disable Save button after saving
+            self.after_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
+
+
+    def on_before_text_change(self, event):
+        """Enable the Save button when the before description is modified."""
+        if not hasattr(self, "before_original_text"):
+            return  # Ensure original text is set
+
+        current_text = self.before_desc_textbox.get("1.0", "end")
+
+        if current_text and current_text != self.before_original_text:
+            # print("🟢 Text changed! Enabling Save button.")
+            self.before_save_button.configure(state="normal", text="Save", fg_color="#3B8ED0")
+        else:
+            # print("🔴 No change detected. Disabling Save button.")
+            self.before_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
+
+
+    def on_after_text_change(self, event):
+        """Enable the Save button only if the text has changed from the original."""
+        if not hasattr(self, "after_original_text"):
+            return  # Ensure original text is set
+
+        current_text = self.after_desc_textbox.get("1.0", "end")
+
+        if current_text and current_text != self.after_original_text:
+            # print("🟢 Text changed! Enabling Save button.")
+            self.after_save_button.configure(state="normal", text="Save", fg_color="#3B8ED0")
+        else:
+            # print("🔴 No change detected. Disabling Save button.")
+            self.after_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
+
 
     def load_image(self, file_path, label, frame_type):
         """Load and display an image in the specified label while preserving aspect ratio."""
@@ -172,11 +265,11 @@ class PhotosPage:
             img = Image.open(file_path)
             print(f"✅ Successfully loaded image: {file_path}")
 
-            # ✅ FIX: Prevent label from dynamically resizing each time
+            # FIX: Prevent label from dynamically resizing each time
             label.update_idletasks()  # Ensure we have the correct width/height
             fixed_width, fixed_height = 279, 372  # Manually set fixed dimensions
 
-            # ✅ Preserve aspect ratio while fitting within `fixed_width` & `fixed_height`
+            # Preserve aspect ratio while fitting within `fixed_width` & `fixed_height`
             img_ratio = img.width / img.height
             target_ratio = fixed_width / fixed_height
 
@@ -191,15 +284,15 @@ class PhotosPage:
 
             img = img.resize((new_width, new_height), Image.LANCZOS)
 
-            # ✅ Convert to CTkImage & Apply Fixed Size
+            # Convert to CTkImage & Apply Fixed Size
             photo = CTkImage(img, size=(fixed_width, fixed_height))  # Ensure consistent sizing
             print(f"✅ CTkImage created successfully with size {fixed_width}x{fixed_height}")
 
-            # ✅ Center the image inside the label (to prevent odd spacing issues)
+            # Center the image inside the label (to prevent odd spacing issues)
             label.configure(image=photo, text="", width=fixed_width, height=fixed_height)
             label.image = photo  # Keep reference to prevent garbage collection
 
-            # ✅ Update Metadata for the Image
+            # Update Metadata for the Image
             self.update_photo_metadata(file_path, frame_type)
 
         except Exception as e:
@@ -212,31 +305,43 @@ class PhotosPage:
             print(f"⚠ Warning: No file path provided for metadata lookup.")
             return
 
-        self.cursor.execute("SELECT appt_date, description FROM photos WHERE file_path = ?", (file_path,))  # ✅ Fix column name
+        self.cursor.execute("SELECT appt_date, description FROM photos WHERE file_path = ?", (file_path,))  # Fix column name
         result = self.cursor.fetchone()
 
         if result:
             appointment_date, description = result
 
-            # ✅ Debugging log
+            # Debugging log
             print(f"🟢 Retrieved metadata → Date: {appointment_date}, Description: {description}")
 
             if frame_type == "before":
                 self.before_date_label.configure(text=appointment_date)
+
+                self.before_desc_textbox.unbind("<KeyRelease>")  # Temporarily unbind event
                 self.before_desc_textbox.delete("1.0", "end")
                 self.before_desc_textbox.insert("1.0", description if description else "<No Description Yet>")
+                self.before_desc_textbox.bind("<KeyRelease>", self.on_before_text_change)  # Rebind event
+
+                self.before_original_text = description if description else ""
+
             elif frame_type == "after":
                 self.after_date_label.configure(text=appointment_date)
+
+                self.after_desc_textbox.unbind("<KeyRelease>")
                 self.after_desc_textbox.delete("1.0", "end")
                 self.after_desc_textbox.insert("1.0", description if description else "<No Description Yet>")
+                self.after_desc_textbox.bind("<KeyRelease>", self.on_after_text_change)
+
+                self.after_original_text = description if description else ""
         else:
             print(f"⚠ Warning: No metadata found for {file_path}")
 
     def navigate_image(self, direction, frame_type):
-        """Cycle through images using navigation buttons."""
+        """Cycle through images using navigation buttons and highlight the current image in the Treeview."""
         if not self.photo_paths:
             return  # No images available
 
+        # ✅ Determine the correct index and file path
         if frame_type == "before":
             self.before_image_index = (self.before_image_index + direction) % len(self.photo_paths)
             file_path = self.photo_paths[self.before_image_index]
@@ -245,6 +350,24 @@ class PhotosPage:
             self.after_image_index = (self.after_image_index + direction) % len(self.photo_paths)
             file_path = self.photo_paths[self.after_image_index]
             self.load_image(file_path, self.after_label, "after")
+
+        # ✅ Find the corresponding Photo ID in the Treeview
+        photo_id = None
+        for pid, path in self.photo_file_paths.items():
+            if path == file_path:
+                photo_id = pid
+                break
+
+        if photo_id is not None:
+            # ✅ Deselect all items first to clear old selections
+            self.photo_list.selection_remove(self.photo_list.selection())
+
+            # ✅ Select the new image in the Treeview
+            self.photo_list.selection_set(str(photo_id))
+            self.photo_list.focus(str(photo_id))  # ✅ Ensure it is focused
+            self.photo_list.see(str(photo_id))  # ✅ Scroll to the selected item
+
+            print(f"📌 Highlighted Photo ID: {photo_id} in the Treeview.")
 
     def refresh_photos_list(self, client_id):
         """Load photos for the selected client into the Treeview/Listbox with thumbnails."""
@@ -255,11 +378,19 @@ class PhotosPage:
         self.before_desc_textbox.delete("1.0", "end")  # Clear before description
         self.after_desc_textbox.delete("1.0", "end")  # Clear after description
 
-        # ✅ Reset Navigation Indexes
+        # Reset Save Buttons (Prevent previous client's data from affecting new selection)
+        self.before_save_button.configure(state="disabled", text="Save", fg_color="#696969")
+        self.after_save_button.configure(state="disabled", text="Save", fg_color="#696969")
+
+        # Reset original texts (Prevents Save button from activating incorrectly)
+        self.before_original_text = ""
+        self.after_original_text = ""
+
+        # Reset Navigation Indexes
         self.before_image_index = 0
         self.after_image_index = 0
 
-        self.photo_list.delete(*self.photo_list.get_children())  # ✅ Clear existing list
+        self.photo_list.delete(*self.photo_list.get_children())  # Clear existing list
         self.photo_file_paths.clear()
         self.photo_paths.clear()
         self.thumbnails.clear()
@@ -276,26 +407,27 @@ class PhotosPage:
 
         # Store paths & insert into Treeview/Listbox
         for photo in photos:
-            photo_id, appt_date, type, file_path = photo  # ✅ Corrected order
+            photo_id, appt_date, type, file_path = photo  # Corrected order
 
-            # ✅ Ensure `photo_id` is unique in the Treeview
+            # Ensure `photo_id` is unique in the Treeview
             if self.photo_list.exists(str(photo_id)):  # Tkinter requires `iid` as a string
                 print(f"⚠ Warning: Duplicate Photo ID {photo_id} detected, skipping...")
                 continue  # Skip inserting duplicates
 
             print(f"🖼️ Debug: Adding Photo ID {photo_id} | Path: {file_path} | Date: {appt_date} | Type: {type}")
 
-            # ✅ Generate and store thumbnail (if file exists)
+            # Generate and store thumbnail (if file exists)
             thumbnail = self.generate_thumbnail(file_path, photo_id) if file_path else None
-            self.photo_file_paths[photo_id] = file_path  # ✅ Map ID → file_path for selection
-            self.photo_paths.append(file_path)  # ✅ Store correct path for navigation
+            self.thumbnails[str(photo_id)] = thumbnail      # Store reference
+            self.photo_file_paths[photo_id] = file_path     # Map ID → file_path for selection
+            self.photo_paths.append(file_path)              # Store correct path for navigation
 
-            # ✅ Insert into Treeview, linking the image via the `image` parameter
+            # Insert into Treeview, linking the image via the `image` parameter
             print(f"📌 Inserting Image: {self.thumbnails.get(str(photo_id))} for ID {photo_id}")
             self.photo_list.insert(
                 "", "end", iid=str(photo_id),  # Tkinter requires `iid` as a string
                 values=(appt_date, type),  # Leave first column empty for image
-                image=self.thumbnails.get(str(photo_id), None)  # ✅ Use stored thumbnail, None if missing
+                image=self.thumbnails.get(str(photo_id), None)  # Use stored thumbnail, None if missing
             )
 
         print(f"🔍 Debug: Thumbnails dictionary contains {len(self.thumbnails)} entries")
@@ -310,10 +442,10 @@ class PhotosPage:
             if os.path.exists(file_path):
                 img = Image.open(file_path)
 
-                # ✅ **Step 1: Ensure Image is in RGB Mode (Fix for PNGs with Alpha)**
+                # **Step 1: Ensure Image is in RGB Mode (Fix for PNGs with Alpha)**
                 img = img.convert("RGB")  # Ensures consistent color mode
 
-                # ✅ **Step 2: Crop to Square Center**
+                # **Step 2: Crop to Square Center**
                 width, height = img.size
                 min_side = min(width, height)
                 left = (width - min_side) / 2
@@ -322,15 +454,14 @@ class PhotosPage:
                 bottom = (height + min_side) / 2
                 img = img.crop((left, top, right, bottom))
 
-                # ✅ **Step 3: Resize to 50x50**
+                # **Step 3: Resize to 50x50**
                 img = img.resize(size, Image.LANCZOS)
 
-                # ✅ **Step 4: Convert to Tkinter-compatible Image**
-                thumbnail = ImageTk.PhotoImage(img)  # ✅ Keep reference to prevent GC
+                # **Step 4: Convert to Tkinter-compatible Image**
+                thumbnail = ImageTk.PhotoImage(img)  # Keep reference to prevent GC
                 
-                self.thumbnails[str(photo_id)] = thumbnail  # ✅ Store reference
                 print(f"✅ Debug: Generated thumbnail for {photo_id} ({file_path})")
-                return thumbnail  # ✅ Return image
+                return thumbnail  # Return image
             else:
                 print(f"⚠ Error: File does not exist - {file_path}")
                 return None
@@ -367,6 +498,6 @@ class PhotosPage:
         """Deselects Treeview selection when clicking an empty space."""
         region = self.photo_list.identify("region", event.x, event.y)
 
-        if region not in ("cell", "item"):  # ✅ Click is outside rows
+        if region not in ("cell", "item"):  # Click is outside rows
             print("⚠ Clicked on empty space, clearing selection.")
-            self.photo_list.selection_remove(self.photo_list.selection())  # ✅ Deselect all
+            self.photo_list.selection_remove(self.photo_list.selection())  # Deselect all
