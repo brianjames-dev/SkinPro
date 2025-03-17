@@ -1009,32 +1009,30 @@ class AppointmentsPage:
         appointment_data = self.appointments_table.item(selected_item[0], "values")
         appointment_id = self.get_selected_appointment_id(selected_item)  
         print(f"🟢 Selected Appointment ID: {appointment_id}")  # Debugging print
-
         if not appointment_data:
             messagebox.showerror("Error", "Could not retrieve appointment data.")
             return
-    
-        appt_date = appointment_data[0]  # Fetch appointment date (MM/DD/YYYY format)
 
+        # Fetch values/init variables
+        appt_date = appointment_data[0]  # Fetch appointment date (MM/DD/YYYY format)
+        treatment = appointment_data[2]  # Fetch treatment name
+
+        # Fetch full name of client using client id
         self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
         result = self.cursor.fetchone()
-
         if not result:
             messagebox.showerror("Error", "Failed to retrieve client's full name from database.")
             return
-        
-        client_id = self.client_id
         client_name = result[0]
-        print(f"🟢 Retrieved Client: {client_name} (ID: {client_id}) | Appointment Date: {appt_date} (ID: {appointment_id})")  # Debugging print
+        print(f"🟢 Retrieved Client: {client_name} (ID: {self.client_id}) | Appointment Date: {appt_date} (ID: {appointment_id})")  # Debugging print
 
         # Sanitize client name to avoid invalid folder names
         safe_client_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in client_name)
-
         # Format appointment date as YYYY-MM-DD for better sorting
         appt_date_formatted = appt_date.replace("/", "-")
 
         # Create directory path
-        client_folder = os.path.join("images", "before_after", f"{safe_client_name}_id_{client_id}", appt_date_formatted)
+        client_folder = os.path.join("images", "before_after", f"{safe_client_name}_id_{self.client_id}", appt_date_formatted)
         os.makedirs(client_folder, exist_ok=True)
 
         # Open file dialog for multiple image selection
@@ -1043,10 +1041,10 @@ class AppointmentsPage:
             filetypes=[("Image Files", "*.jpg *.png *.jpeg *.bmp *.gif")]
         )
         
+        # Debugging/edge case prevention
         if not file_paths:
             print("⚠ No photos selected.")
             return  # User canceled selection
-
         print(f"🟢 {len(file_paths)} photos selected.")  # Debugging print
 
         # Copy files to the destination folder and store paths in DB
@@ -1066,22 +1064,22 @@ class AppointmentsPage:
             print(f"✅ Copied {file_path} to {new_path}")  # Debugging print
 
             # Insert record into database
-            self.cursor.execute("INSERT INTO photos (client_id, appointment_id, appt_date, file_path) VALUES (?, ?, ?, ?)",
-                                (client_id, appointment_id, appt_date, new_path))
+            self.cursor.execute("INSERT INTO photos (client_id, appointment_id, appt_date, file_path, treatment) VALUES (?, ?, ?, ?, ?)",
+                                (self.client_id, appointment_id, appt_date, new_path, treatment))
 
         # Update the `photos_taken` column in the appointments table
         self.cursor.execute("UPDATE appointments SET photos_taken = 'Yes' WHERE id = ?", (appointment_id,))
         self.conn.commit()
 
         messagebox.showinfo("Success", f"{len(file_paths)} photo(s) uploaded successfully.")
-        print(f"✅ Inserted Photo - Client: {self.client_id}, Appt: {appointment_id}, Date: {appt_date}, Path: {new_path}")
+        print(f"✅ Inserted Photo - Client: {self.client_id}, Appt: {appointment_id}, Date: {appt_date}, Path: {new_path}, Treatment: {treatment}")
 
         # Refresh photos list on the Photos Page
         if "Photos" in self.main_app.tabs:  # ✅ Access PhotosPage from `self.tabs`
-            self.main_app.tabs["Photos"].refresh_photos_list(client_id)
+            self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
 
         # 🔄 Refresh the appointments table to show the updated "Yes" in the photos_taken column
-        self.load_client_appointments(client_id)
+        self.load_client_appointments(self.client_id)
 
-        print(f"🟢 Photos successfully linked to Client ID: {client_id} | Appointment ID: {appointment_id}")
+        print(f"🟢 Photos successfully linked to Client ID: {self.client_id} | Appointment ID: {appointment_id}")
         print(f"🔄 Appointments table refreshed.")
