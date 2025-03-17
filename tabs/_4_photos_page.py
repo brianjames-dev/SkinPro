@@ -49,16 +49,16 @@ class PhotosPage:
         style_treeview("Photos.Treeview", rowheight=55)
 
         self.photo_list = ttk.Treeview(treeview_frame, selectmode="browse", show="tree headings", style="Photos.Treeview")
-        self.photo_list["columns"] = ("appt_date", "treatment")
+        self.photo_list["columns"] = ("appt_date", "type")
         self.photo_list.heading("#0", text="Thumbnail")  # ✅ Thumbnail as the first column
         self.photo_list.heading("appt_date", text="Date")
-        self.photo_list.heading("treatment", text="Treatment")
+        self.photo_list.heading("type", text="Type")
         self.photo_list.column("#0", width=75, anchor="w")  # ✅ Use the implicit first column for thumbnails
-        self.photo_list.column("appt_date", width=50)
-        self.photo_list.column("treatment", width=100)
+        self.photo_list.column("appt_date", width=50, anchor="center")
+        self.photo_list.column("type", width=100, anchor="center")
         self.photo_list.pack(fill="both", expand=True)
         self.photo_list.bind("<Button-1>", self.clear_selection_on_empty_click)
-        self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)    # Set Before Image
+        self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)            # Set Before Image
         self.photo_list.bind("<Control-ButtonRelease-1>", self.set_after_image)     # Set After Image
 
         # Before Image Preview Pane (Middle Column)
@@ -106,8 +106,11 @@ class PhotosPage:
         # Photo Description Box (Before Image)
         self.before_desc_frame = ctk.CTkFrame(main_frame)
         self.before_desc_frame.grid(row=2, column=1, columnspan=3, sticky="nsew", padx=10)
+        desc_header_frame = ctk.CTkFrame(self.before_desc_frame)
+        desc_header_frame.pack(fill="x", padx=10)  # Ensures proper spacing
 
-        ctk.CTkLabel(self.before_desc_frame, text="Description", font=("Arial", 14)).pack(anchor="w", padx=10)
+        ctk.CTkLabel(desc_header_frame, text="Description", font=("Arial", 14)).pack(side="left")
+        ctk.CTkButton(desc_header_frame, text="Save", width=40, height=20).pack(side="right")
         self.before_desc_textbox = ctk.CTkTextbox(self.before_desc_frame, height=60, wrap="word", corner_radius=0, fg_color="#1e1e1e")
         self.before_desc_textbox.pack(fill="both", expand=True)
 
@@ -263,7 +266,7 @@ class PhotosPage:
         print("🔄 Debug: Cleared previous photo data.")
 
         # Fetch all photos for the selected client, sorted by most recent
-        self.cursor.execute("SELECT id, appt_date, treatment, file_path FROM photos WHERE client_id = ? ORDER BY appt_date DESC", (client_id,))
+        self.cursor.execute("SELECT id, appt_date, type, file_path FROM photos WHERE client_id = ? ORDER BY appt_date DESC", (client_id,))
         photos = self.cursor.fetchall()
 
         print(f"🟢 Debug: Fetched {len(photos)} photos for Client ID {client_id}")
@@ -273,14 +276,14 @@ class PhotosPage:
 
         # Store paths & insert into Treeview/Listbox
         for photo in photos:
-            photo_id, appt_date, treatment, file_path = photo  # ✅ Corrected order
+            photo_id, appt_date, type, file_path = photo  # ✅ Corrected order
 
             # ✅ Ensure `photo_id` is unique in the Treeview
             if self.photo_list.exists(str(photo_id)):  # Tkinter requires `iid` as a string
                 print(f"⚠ Warning: Duplicate Photo ID {photo_id} detected, skipping...")
                 continue  # Skip inserting duplicates
 
-            print(f"🖼️ Debug: Adding Photo ID {photo_id} | Path: {file_path} | Date: {appt_date} | Treatment: {treatment}")
+            print(f"🖼️ Debug: Adding Photo ID {photo_id} | Path: {file_path} | Date: {appt_date} | Type: {type}")
 
             # ✅ Generate and store thumbnail (if file exists)
             thumbnail = self.generate_thumbnail(file_path, photo_id) if file_path else None
@@ -291,7 +294,7 @@ class PhotosPage:
             print(f"📌 Inserting Image: {self.thumbnails.get(str(photo_id))} for ID {photo_id}")
             self.photo_list.insert(
                 "", "end", iid=str(photo_id),  # Tkinter requires `iid` as a string
-                values=(appt_date, treatment),  # Leave first column empty for image
+                values=(appt_date, type),  # Leave first column empty for image
                 image=self.thumbnails.get(str(photo_id), None)  # ✅ Use stored thumbnail, None if missing
             )
 

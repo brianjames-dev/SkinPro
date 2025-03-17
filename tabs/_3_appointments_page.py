@@ -9,8 +9,6 @@ import re
 import os
 import shutil
 
-
-
 class AppointmentsPage:
     def __init__(self, parent, conn, main_app):
         self.conn = conn
@@ -123,7 +121,7 @@ class AppointmentsPage:
         style_treeview("Appointments.Treeview")
 
         # Treeview widget for appointments
-        columns = ("date", "time", "treatment", "price", "photos")
+        columns = ("date", "type", "treatment", "price", "photos")
         self.appointments_table = ttk.Treeview(treeview_frame, selectmode="extended", columns=columns, show="headings", height=10, style="Appointments.Treeview")
         self.appointments_table.pack(side="left", fill="both", expand=True)
         self.appointments_table.bind("<ButtonRelease-1>", self.on_appointment_select)
@@ -205,7 +203,7 @@ class AppointmentsPage:
 
         # Set column widths as percentages of the total width
         self.appointments_table.column("date", width=int(total_width * 0.10), minwidth=80)
-        self.appointments_table.column("time", width=int(total_width * 0.10), minwidth=75)
+        self.appointments_table.column("type", width=int(total_width * 0.10), minwidth=75)
         self.appointments_table.column("treatment", width=int(total_width * 0.55), minwidth=200)
         self.appointments_table.column("price", width=int(total_width * 0.08), minwidth=70)
         self.appointments_table.column("photos", width=int(total_width * 0.07), minwidth=40)
@@ -266,7 +264,7 @@ class AppointmentsPage:
         try:
             # FETCH APPT DATA --> Load appointments into selected client variable
             self.cursor.execute("""
-                SELECT id, date, time, treatment, price, photos_taken, treatment_notes 
+                SELECT id, date, type, treatment, price, photos_taken, treatment_notes 
                 FROM appointments 
                 WHERE client_id = ?
                 ORDER BY date DESC
@@ -283,9 +281,9 @@ class AppointmentsPage:
 
             # Insert sorted appointments into the TreeView
             for row in appointments:
-                appointment_id, date, time, treatment, price, photos_taken, treatment_notes = row
+                appointment_id, date, type, treatment, price, photos_taken, treatment_notes = row
                 self.appointments_table.insert(
-                    "", "end", values=(date, time, treatment, price, photos_taken), tags=(treatment_notes,)
+                    "", "end", values=(date, type, treatment, price, photos_taken), tags=(treatment_notes,)
                 )
 
             # LOAD ALL NOTES --> Load compilation of treatment notes in "All Notes" view 
@@ -322,7 +320,7 @@ class AppointmentsPage:
 
             # Extract fields
             date = appointment_data[0]
-            time = appointment_data[1]
+            type = appointment_data[1]
             treatment = appointment_data[2]
             price = appointment_data[3]
             photos_taken = appointment_data[4]
@@ -330,7 +328,7 @@ class AppointmentsPage:
             # Debugging statements
             print(f"🆔 Appointment ID:     {appointment_id}")
             print(f"📅 Date:               {date}")
-            print(f"⏰ Time:               {time}") 
+            print(f"⏰ Type:               {type}") 
             print(f"💆 Treatment:          {treatment}") 
             print(f"💰 Price:              {price}")
             print(f"📸 photos Taken?:       {photos_taken}")
@@ -457,7 +455,7 @@ class AppointmentsPage:
         try:
             if column == "date":
                 data.sort(key=lambda x: datetime.strptime(x[0], "%m/%d/%Y"), reverse=reverse)
-            elif column == "time":
+            elif column == "type":
                 data.sort(key=lambda x: datetime.strptime(x[0], "%I:%M %p"), reverse=reverse)
             elif column == "price":
                 data.sort(key=lambda x: float(x[0].replace("$", "")), reverse=reverse)
@@ -516,12 +514,12 @@ class AppointmentsPage:
         self.date_entry.bind("<Return>", lambda event: (self.format_date(), self.focus_next_widget(event)))
         self.date_entry.bind("<FocusOut>", lambda event: self.format_date())
 
-        # Row 0 [pop_main_frame]: TIME Label/Entry
-        ctk.CTkLabel(self.pop_main_frame, text="Time", anchor="w", width=70).grid(row=0, column=2, padx=5, pady=5, sticky="w")
-        self.time_entry = ctk.CTkEntry(self.pop_main_frame)
-        self.time_entry.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
-        self.time_entry.bind("<Return>", lambda event: (self.format_time(), self.focus_next_widget(event)))
-        self.time_entry.bind("<FocusOut>", lambda event: self.format_time())
+        # Row 0 [pop_main_frame]: TYPE Label/Entry
+        ctk.CTkLabel(self.pop_main_frame, text="Type", anchor="w", width=70).grid(row=0, column=2, padx=5, pady=5, sticky="w")
+        self.type_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.type_entry.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
+        self.type_entry.bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.type_entry.bind("<FocusOut>")
 
         # Row 0 [pop_main_frame]: PRICE Label/Entry
         ctk.CTkLabel(self.pop_main_frame, text="Price", anchor="w", width=70).grid(row=0, column=4, padx=5, pady=5, sticky="w")
@@ -561,7 +559,7 @@ class AppointmentsPage:
         """Save the new appointment to the database."""
         # EXTRACT --> PACK data from entry boxes into variables
         date = self.date_entry.get().strip()
-        time = self.time_entry.get().strip()
+        type = self.type_entry.get().strip()
         treatment = self.treatment_entry.get().strip()
         price = self.price_entry.get().strip()
         treatment_notes = self.current_notes_textbox.get("1.0", "end").strip()
@@ -582,20 +580,19 @@ class AppointmentsPage:
 
         # Apply CORRECT FORMATTING to all entry boxes before saving
         self.format_date()
-        self.format_time()
         self.format_price()
 
-        print(f"🆕 Creating Appointment for Client ID {self.client_id}: {date}, {time}, {treatment}, {price}, {treatment_notes}")
+        print(f"🆕 Creating Appointment for Client ID {self.client_id}: {date}, {type}, {treatment}, {price}, {treatment_notes}")
 
         try:
             # Insert into database
             self.cursor.execute("""
-                INSERT INTO appointments (client_id, date, time, treatment, price, photos_taken, treatment_notes)
+                INSERT INTO appointments (client_id, date, type, treatment, price, photos_taken, treatment_notes)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (self.client_id, date, time, treatment, price, "No", treatment_notes if treatment_notes else "<No notes added>"))
+            """, (self.client_id, date, type, treatment, price, "No", treatment_notes if treatment_notes else "<No notes added>"))
             self.conn.commit()
 
-            print(f"✅ New appointment created for Client ID {self.client_id} on {date} at {time}.")
+            print(f"✅ New appointment created for Client ID {self.client_id} on {date} at {type}.")
 
             # Refresh the appointments list & close the window
             self.load_client_appointments(self.client_id)
@@ -619,7 +616,7 @@ class AppointmentsPage:
             print("⚠ Unable to determine appointment ID.")
             return
 
-        date, time, treatment, price, photos_taken = item_data
+        date, type, treatment, price, photos_taken = item_data
 
         # Fetch treatment notes from the database
         self.cursor.execute("SELECT treatment_notes FROM appointments WHERE id = ?", (appointment_id,))
@@ -663,13 +660,13 @@ class AppointmentsPage:
         self.date_entry.bind("<Return>", lambda event: (self.format_date(), self.focus_next_widget(event)))
         self.date_entry.bind("<FocusOut>", lambda event: self.format_date())
 
-        # Row 0 [pop_main_frame]: TIME Label/Entry
-        ctk.CTkLabel(self.pop_main_frame, text="Time", anchor="w", width=70).grid(row=0, column=2, padx=5, pady=5, sticky="w")
-        self.time_entry = ctk.CTkEntry(self.pop_main_frame)
-        self.time_entry.insert(0, time)
-        self.time_entry.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
-        self.time_entry.bind("<Return>", lambda event: (self.format_time(), self.focus_next_widget(event)))
-        self.time_entry.bind("<FocusOut>", lambda event: self.format_time())
+        # Row 0 [pop_main_frame]: TYPE Label/Entry
+        ctk.CTkLabel(self.pop_main_frame, text="Type", anchor="w", width=70).grid(row=0, column=2, padx=5, pady=5, sticky="w")
+        self.type_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.type_entry.insert(0, type)
+        self.type_entry.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
+        self.type_entry.bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.type_entry.bind("<FocusOut>")
 
         # Row 0 [pop_main_frame]: PRICE Label/Entry
         ctk.CTkLabel(self.pop_main_frame, text="Price", anchor="w", width=70).grid(row=0, column=4, padx=5, pady=5, sticky="w")
@@ -710,7 +707,7 @@ class AppointmentsPage:
     def save_updated_appointment(self, appointment_id):
         """Save the updated appointment details."""
         date = self.date_entry.get().strip()
-        time = self.time_entry.get().strip()
+        type = self.type_entry.get().strip()
         treatment = self.treatment_entry.get().strip()
         price = self.price_entry.get().strip()
         treatment_notes = self.current_notes_textbox.get("1.0", "end").strip()
@@ -731,18 +728,17 @@ class AppointmentsPage:
 
         # Apply formatting to all fields before saving
         self.format_date()
-        self.format_time()
         self.format_price()
 
-        print(f"✏️ Updating Appointment ID {appointment_id}: {date}, {time}, {treatment}, {price}, {treatment_notes}")
+        print(f"✏️ Updating Appointment ID {appointment_id}: {date}, {type}, {treatment}, {price}, {treatment_notes}")
 
         try:
             # Update the database
             self.cursor.execute("""
                 UPDATE appointments 
-                SET date = ?, time = ?, treatment = ?, price = ?, treatment_notes = ?
+                SET date = ?, type = ?, treatment = ?, price = ?, treatment_notes = ?
                 WHERE id = ?
-            """, (date, time, treatment, price, treatment_notes if treatment_notes else "<No notes added>", appointment_id))
+            """, (date, type, treatment, price, treatment_notes if treatment_notes else "<No notes added>", appointment_id))
             self.conn.commit()
             print(f"Appointment {appointment_id} updated successfully.")
 
@@ -825,64 +821,6 @@ class AppointmentsPage:
         self.date_entry.delete(0, "end")
         self.date_entry.insert(0, formatted_date)
         print(f"✅ Formatted Date: {formatted_date}")
-
-    def format_time(self):
-        """Format the time entry to HH:MM AM/PM upon hitting Enter or leaving the field."""
-        raw_time = self.time_entry.get().strip()
-
-        if not raw_time:  # Keep placeholder if empty
-            self.time_entry.delete(0, "end")
-            self.time_entry.insert(0, "00:00 AM")  # Default to placeholder
-            return
-
-        # Extract AM/PM indicator
-        am_pm_match = re.search(r"(am|pm)", raw_time.lower())  # Extract "am" or "pm"
-        am_pm = am_pm_match.group(0).upper() if am_pm_match else None  # Convert to uppercase AM/PM
-
-        # Remove spaces and ensure lowercase
-        cleaned_time = raw_time.lower().replace(" ", "").replace("-", "").replace(".", "")
-
-        # Extract numeric values
-        numbers_only = re.sub(r"\D", "", cleaned_time)
-
-        formatted_time = None  # Initialize
-
-        try:
-            # Ensure we apply AM/PM if provided, otherwise default to AM
-            if ":" in cleaned_time:  # Example: 3:15pm → 03:15 PM
-                parsed_time = datetime.strptime(cleaned_time, "%I:%M%p" if am_pm else "%I:%M")
-            elif len(numbers_only) == 4:  # Example: 0315 → 03:15
-                parsed_time = datetime.strptime(numbers_only, "%I%M")
-            elif len(numbers_only) == 3:  # Example: 315 → 03:15
-                parsed_time = datetime.strptime(numbers_only.zfill(4), "%I%M")
-            elif len(numbers_only) <= 2:  # Example: 8pm → 08:00 PM
-                parsed_time = datetime.strptime(numbers_only.zfill(2), "%I")
-            else:
-                raise ValueError("Invalid time format")
-
-            # Apply AM/PM if detected
-            if am_pm:
-                formatted_time = parsed_time.strftime(f"%I:%M {am_pm}")  # Correctly apply AM/PM
-            else:
-                formatted_time = parsed_time.strftime("%I:%M AM")  # Default to AM
-
-        except ValueError:
-            print("⚠ Invalid time entered. Resetting to placeholder.")
-            self.time_entry.delete(0, "end")
-            self.time_entry.insert(0, "00:00 AM")  # Reset to placeholder
-            return
-
-        # Prevent re-formatting if the new formatted time is the same as last time
-        if hasattr(self, "last_formatted_time") and self.last_formatted_time == formatted_time:
-            return
-    
-        # Store formatted time to prevent redundant formatting
-        self.last_formatted_time = formatted_time  
-
-        # Insert the correctly formatted time
-        self.time_entry.delete(0, "end")
-        self.time_entry.insert(0, formatted_time)
-        print(f"✅ Formatted Time: {formatted_time}")
 
     def format_price(self, event=None):
         """Format the price entry to '$X.XX' upon hitting Enter or leaving the field."""
@@ -1015,7 +953,7 @@ class AppointmentsPage:
 
         # Fetch values/init variables
         appt_date = appointment_data[0]  # Fetch appointment date (MM/DD/YYYY format)
-        treatment = appointment_data[2]  # Fetch treatment name
+        type = appointment_data[1]  # Fetch type name
 
         # Fetch full name of client using client id
         self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
@@ -1064,15 +1002,15 @@ class AppointmentsPage:
             print(f"✅ Copied {file_path} to {new_path}")  # Debugging print
 
             # Insert record into database
-            self.cursor.execute("INSERT INTO photos (client_id, appointment_id, appt_date, file_path, treatment) VALUES (?, ?, ?, ?, ?)",
-                                (self.client_id, appointment_id, appt_date, new_path, treatment))
+            self.cursor.execute("INSERT INTO photos (client_id, appointment_id, appt_date, file_path, type) VALUES (?, ?, ?, ?, ?)",
+                                (self.client_id, appointment_id, appt_date, new_path, type))
 
         # Update the `photos_taken` column in the appointments table
         self.cursor.execute("UPDATE appointments SET photos_taken = 'Yes' WHERE id = ?", (appointment_id,))
         self.conn.commit()
 
         messagebox.showinfo("Success", f"{len(file_paths)} photo(s) uploaded successfully.")
-        print(f"✅ Inserted Photo - Client: {self.client_id}, Appt: {appointment_id}, Date: {appt_date}, Path: {new_path}, Treatment: {treatment}")
+        print(f"✅ Inserted Photo - Client: {self.client_id}, Appt: {appointment_id}, Date: {appt_date}, Path: {new_path}, Type: {type}")
 
         # Refresh photos list on the Photos Page
         if "Photos" in self.main_app.tabs:  # ✅ Access PhotosPage from `self.tabs`

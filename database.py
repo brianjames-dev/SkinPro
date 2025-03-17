@@ -1,12 +1,17 @@
 import sqlite3
+import datetime
 from faker import Faker  # Import Faker for generating mock data
 import random
 
-def init_database(db_name="client_database.db"):
+def init_database():
     """
     Initialize the database, create tables, and insert mock data if necessary.
     Returns a database connection object.
     """
+    # ✅ Format timestamp as MM-DD-YYYY_HH-MM-SS
+    timestamp = datetime.datetime.now().strftime("%m-%d-%Y") 
+    db_name = f"client_database_{timestamp}.db"  # ✅ Append timestamp to filename
+
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
 
@@ -17,6 +22,7 @@ def init_database(db_name="client_database.db"):
     insert_mock_data(cursor)
 
     conn.commit()
+    print(f"✅ Database initialized: {db_name}")  # Debugging print
     return conn
 
 def create_tables(cursor):
@@ -42,7 +48,7 @@ def create_tables(cursor):
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
         date DATE NOT NULL,
-        time TIME,
+        type TEXT NOT NULL,
         treatment TEXT,
         price TEXT,
         photos_taken TEXT DEFAULT 'No',
@@ -83,7 +89,7 @@ def create_tables(cursor):
         appointment_id INTEGER NOT NULL,
         appt_date DATE,
         file_path TEXT NOT NULL,
-        treatment TEXT,
+        type TEXT,
         description TEXT DEFAULT '',
         FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE,
         FOREIGN KEY (appointment_id) REFERENCES appointments (id) ON DELETE CASCADE
@@ -137,7 +143,7 @@ def insert_mock_data(cursor):
             (
                 fake.random_int(min=1, max=100),  # client_id (randomly assign to a client)
                 fake.date_this_year().strftime("%m/%d/%Y"),  # Random date within this year
-                fake.time(pattern="%I:%M %p"),  # Random time in 12-hour format
+                fake.random_element(["Facial", "Electrolysis", "Waxing"]),
                 fake.sentence(nb_words=5),  # Random treatment description
                 f"${fake.random_int(min=30, max=500)}.00",  # Random price
                 fake.random_element(["No"]),  # Photos taken
@@ -147,7 +153,7 @@ def insert_mock_data(cursor):
             for _ in range(1000)
         ]
         cursor.executemany("""
-        INSERT INTO appointments (client_id, date, time, treatment, price, photos_taken, treatment_notes)
+        INSERT INTO appointments (client_id, date, type, treatment, price, photos_taken, treatment_notes)
         VALUES (?, ?, ?, ?, ?, ?, ?)
                            
         """, mock_appointments)
