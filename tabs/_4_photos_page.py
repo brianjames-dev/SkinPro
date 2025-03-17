@@ -57,8 +57,9 @@ class PhotosPage:
         self.photo_list.column("appt_date", width=50)
         self.photo_list.column("treatment", width=100)
         self.photo_list.pack(fill="both", expand=True)
+        self.photo_list.bind("<Button-1>", self.clear_selection_on_empty_click)
         self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)    # Set Before Image
-        self.photo_list.bind("<ButtonRelease-3>", self.set_after_image)     # Set After Image
+        self.photo_list.bind("<Control-ButtonRelease-1>", self.set_after_image)     # Set After Image
 
         # Before Image Preview Pane (Middle Column)
         before_frame = ctk.CTkFrame(main_frame, width=279, height=372)
@@ -122,6 +123,7 @@ class PhotosPage:
         """Set the selected image as the Before Image."""
         selected_item = self.photo_list.selection()
         if not selected_item:
+            print("⚠ Ignoring empty click in Treeview")
             return
 
         photo_id = int(selected_item[0])  # Convert ID to integer
@@ -140,6 +142,7 @@ class PhotosPage:
         """Set the selected image as the After Image."""
         selected_item = self.photo_list.selection()
         if not selected_item:
+            print("⚠ Ignoring empty click in Treeview")
             return
 
         photo_id = int(selected_item[0])  # Convert ID to integer
@@ -152,8 +155,6 @@ class PhotosPage:
             self.load_image(file_path, self.after_label, "after")  # ✅ Display it
         else:
             print(f"⚠ Error: {file_path} not found in photo_paths list or does not exist.")
-
-
 
     def load_image(self, file_path, label, frame_type):
         """Load and display an image in the specified label while preserving aspect ratio."""
@@ -244,6 +245,17 @@ class PhotosPage:
 
     def refresh_photos_list(self, client_id):
         """Load photos for the selected client into the Treeview/Listbox with thumbnails."""
+        self.before_label.configure(text="<No Image Selected>", image="")
+        self.after_label.configure(text="<No Image Selected>", image="")
+        self.before_date_label.configure(text="                   ")  # Clear before date
+        self.after_date_label.configure(text="                   ")  # Clear after date
+        self.before_desc_textbox.delete("1.0", "end")  # Clear before description
+        self.after_desc_textbox.delete("1.0", "end")  # Clear after description
+
+        # ✅ Reset Navigation Indexes
+        self.before_image_index = 0
+        self.after_image_index = 0
+
         self.photo_list.delete(*self.photo_list.get_children())  # ✅ Clear existing list
         self.photo_file_paths.clear()
         self.photo_paths.clear()
@@ -347,3 +359,11 @@ class PhotosPage:
         if len(selected_photos) > 1:
             self.after_image_index = self.photo_paths.index(selected_photos[1])
             self.load_image(selected_photos[1], self.after_label)
+
+    def clear_selection_on_empty_click(self, event):
+        """Deselects Treeview selection when clicking an empty space."""
+        region = self.photo_list.identify("region", event.x, event.y)
+
+        if region not in ("cell", "item"):  # ✅ Click is outside rows
+            print("⚠ Clicked on empty space, clearing selection.")
+            self.photo_list.selection_remove(self.photo_list.selection())  # ✅ Deselect all
