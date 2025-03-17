@@ -1,6 +1,6 @@
 from tkinter import ttk
 
-def style_treeview(style_name="Custom.Treeview"):
+def style_treeview(style_name="Custom.Treeview", rowheight=22):
     """Applies a custom style to all ttk.Treeview widgets with no borders and a dark-themed scrollbar."""
     style = ttk.Style()
     style.theme_use("default")  # Use a modifiable theme
@@ -23,7 +23,7 @@ def style_treeview(style_name="Custom.Treeview"):
                     fieldbackground="#222222",  # Cell background
                     foreground="white",         # Text color
                     font=("Arial", 10),         # Font + size
-                    rowheight=22,               # Adjust row height for spacing
+                    rowheight=rowheight,        # Adjust row height for spacing
                     borderwidth=0,              # Remove outer border
                     relief="flat")              # Remove 3D effect
 

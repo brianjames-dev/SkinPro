@@ -83,6 +83,7 @@ def create_tables(cursor):
         appointment_id INTEGER NOT NULL,
         appt_date DATE,
         file_path TEXT NOT NULL,
+        treatment TEXT,
         description TEXT DEFAULT '',
         FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE,
         FOREIGN KEY (appointment_id) REFERENCES appointments (id) ON DELETE CASCADE
