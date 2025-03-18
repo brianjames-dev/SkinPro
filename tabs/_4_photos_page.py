@@ -7,11 +7,12 @@ from class_elements.treeview_styling import style_treeview
 import os
 
 class PhotosPage:
-    def __init__(self, parent, conn, main_app):
+    def __init__(self, parent, conn, main_app, image_cache):
         self.conn = conn
         self.cursor = conn.cursor()
-        self.main_app = main_app  # Reference to main app
-        self.client_id = None  # Store selected client ID
+        self.main_app = main_app        # Reference to main app
+        self.image_cache = image_cache  # Store reference to the shared image cache
+        self.client_id = None           # Store selected client ID
 
         self.before_image_index = -1  # Track navigation index
         self.after_image_index = -1
@@ -129,6 +130,7 @@ class PhotosPage:
         self.after_desc_textbox = ctk.CTkTextbox(self.after_desc_frame, height=60, wrap="word", corner_radius=0, fg_color="#1e1e1e")
         self.after_desc_textbox.pack(fill="both", expand=True)
         self.after_desc_textbox.bind("<KeyRelease>", self.on_after_text_change)
+
 
     def set_before_image(self, event):
         """Set the selected image as the Before Image and ensure After highlight isn't forced."""
@@ -265,51 +267,35 @@ class PhotosPage:
 
 
     def load_image(self, file_path, label, frame_type):
-        """Load and display an image in the specified label while preserving aspect ratio."""
+        """Load and display an image in the specified label, using cached images for faster loading."""
         print(f"🟢 Debug: Attempting to load image → {file_path}")
 
         if not os.path.exists(file_path):
             print(f"❌ File does NOT exist: {file_path}")
             label.configure(text="Image not found", image="")
             return
-
+        
         try:
-            img = Image.open(file_path)
-            print(f"✅ Successfully loaded image: {file_path}")
+            # Use the correct `get_image()` method
+            image = self.image_cache.get_image(file_path)
 
-            # FIX: Prevent label from dynamically resizing each time
-            label.update_idletasks()  # Ensure we have the correct width/height
-            fixed_width, fixed_height = 279, 372  # Manually set fixed dimensions
-
-            # Preserve aspect ratio while fitting within `fixed_width` & `fixed_height`
-            img_ratio = img.width / img.height
-            target_ratio = fixed_width / fixed_height
-
-            if img_ratio > target_ratio:
-                # Image is wider than target → Fit width, adjust height proportionally
-                new_width = fixed_width
-                new_height = int(fixed_width / img_ratio)
+            if image:
+                print(f"⚡ Instant Load: Using cached image for {file_path}")
             else:
-                # Image is taller than target → Fit height, adjust width proportionally
-                new_height = fixed_height
-                new_width = int(fixed_height * img_ratio)
+                print(f"🛠️ Processing image → {file_path}")
+                image = self.image_cache.preload_image(file_path)  # Preload and cache the image
 
-            img = img.resize((new_width, new_height), Image.LANCZOS)
+            if image:
+                label.configure(image=image, text="", width=279, height=372)
+                label.image = image  # Keep reference to prevent garbage collection
 
-            # Convert to CTkImage & Apply Fixed Size
-            photo = CTkImage(img, size=(fixed_width, fixed_height))  # Ensure consistent sizing
-            print(f"✅ CTkImage created successfully with size {fixed_width}x{fixed_height}")
-
-            # Center the image inside the label (to prevent odd spacing issues)
-            label.configure(image=photo, text="", width=fixed_width, height=fixed_height)
-            label.image = photo  # Keep reference to prevent garbage collection
-
-            # Update Metadata for the Image
+            # Update metadata for the image
             self.update_photo_metadata(file_path, frame_type)
 
         except Exception as e:
             print(f"⚠ Error loading image: {e}")
             label.configure(text="Error loading image", image="")
+
 
     def update_photo_metadata(self, file_path, frame_type):
         """Update the date label and description based on the selected photo."""
@@ -348,6 +334,7 @@ class PhotosPage:
         else:
             print(f"⚠ Warning: No metadata found for {file_path}")
 
+
     def navigate_image(self, direction, frame_type):
         """Navigate through images, preventing wrap-around but allowing free movement."""
         if not self.photo_paths:
@@ -383,6 +370,7 @@ class PhotosPage:
         # Call highlight function after navigating
         self.highlight_images_in_treeview()
 
+
     def refresh_photos_list(self, client_id):
         """Load photos for the selected client into the Treeview/Listbox with thumbnails."""
         self.before_label.configure(text="<No Image Selected>", image="")
@@ -407,7 +395,7 @@ class PhotosPage:
         self.photo_list.delete(*self.photo_list.get_children())  # Clear existing list
         self.photo_file_paths.clear()
         self.photo_paths.clear()
-        self.thumbnails.clear()
+
         print("🔄 Debug: Cleared previous photo data.")
 
         # Fetch all photos for the selected client, sorted by most recent
@@ -419,69 +407,89 @@ class PhotosPage:
             print(f"⚠ No photos found for Client ID {client_id}")
             return
 
-        # Store paths & insert into Treeview/Listbox
+        full_image_paths = []  # Stores file paths for preloading full-size images
+
         for photo in photos:
-            photo_id, appt_date, type, file_path = photo  # Corrected order
+            photo_id, appt_date, type, file_path = photo  # Unpack data
 
             # Ensure `photo_id` is unique in the Treeview
-            if self.photo_list.exists(str(photo_id)):  # Tkinter requires `iid` as a string
-                print(f"⚠ Warning: Duplicate Photo ID {photo_id} detected, skipping...")
-                continue  # Skip inserting duplicates
+            if self.photo_list.exists(str(photo_id)):
+                continue  
 
             print(f"🖼️ Debug: Adding Photo ID {photo_id} | Path: {file_path} | Date: {appt_date} | Type: {type}")
 
-            # Generate and store thumbnail (if file exists)
-            thumbnail = self.generate_thumbnail(file_path, photo_id) if file_path else None
-            self.thumbnails[str(photo_id)] = thumbnail      # Store reference
-            self.photo_file_paths[photo_id] = file_path     # Map ID → file_path for selection
-            self.photo_paths.append(file_path)              # Store correct path for navigation
+            # Use cached thumbnail if available, otherwise generate
+            thumbnail = self.image_cache.get_thumbnail(file_path)
+            self.thumbnails[str(photo_id)] = thumbnail  
+            self.photo_file_paths[photo_id] = file_path  
+            self.photo_paths.append(file_path)  
+            full_image_paths.append(file_path)  # Store for preloading
 
             # Insert into Treeview, linking the image via the `image` parameter
-            print(f"📌 Inserting Image: {self.thumbnails.get(str(photo_id))} for ID {photo_id}")
             self.photo_list.insert(
                 "", "end", iid=str(photo_id),  # Tkinter requires `iid` as a string
-                values=(appt_date, type),  # Leave first column empty for image
-                image=self.thumbnails.get(str(photo_id), None)  # Use stored thumbnail, None if missing
+                values=(appt_date, type),
+                image=thumbnail  # Use cached thumbnail
             )
 
-        print(f"🔍 Debug: Thumbnails dictionary contains {len(self.thumbnails)} entries")
-        for key, value in self.thumbnails.items():
-            print(f"  🔹 {key} → {value}")
+        # ✅ Preload images asynchronously for faster loading
+        self.image_cache.preload_images(full_image_paths)
 
-        print(f"🟢 Loaded {len(photos)} photos for Client ID: {client_id}")
+        print(f"🔍 Debug: Thumbnail cache contains {len(self.image_cache.thumbnail_cache)} entries")
+        print(f"🔍 Debug: Full-size image cache contains {len(self.image_cache.image_cache)} entries")
+
 
     def generate_thumbnail(self, file_path, photo_id, size=(50, 50)):  # Adjust size as needed
         """Generate and return a thumbnail image for Treeview."""
         try:
-            if os.path.exists(file_path):
-                img = Image.open(file_path)
-
-                # **Step 1: Ensure Image is in RGB Mode (Fix for PNGs with Alpha)**
-                img = img.convert("RGB")  # Ensures consistent color mode
-
-                # **Step 2: Crop to Square Center**
-                width, height = img.size
-                min_side = min(width, height)
-                left = (width - min_side) / 2
-                top = (height - min_side) / 2
-                right = (width + min_side) / 2
-                bottom = (height + min_side) / 2
-                img = img.crop((left, top, right, bottom))
-
-                # **Step 3: Resize to 50x50**
-                img = img.resize(size, Image.LANCZOS)
-
-                # **Step 4: Convert to Tkinter-compatible Image**
-                thumbnail = ImageTk.PhotoImage(img)  # Keep reference to prevent GC
-                
-                print(f"✅ Debug: Generated thumbnail for {photo_id} ({file_path})")
-                return thumbnail  # Return image
-            else:
-                print(f"⚠ Error: File does not exist - {file_path}")
+            if not os.path.exists(file_path):
+                print(f"❌ File does not exist: {file_path}")
                 return None
+            img = Image.open(file_path)
+            img = img.convert("RGB")  # Ensures consistent color mode
+
+            # Crop to Square Center**
+            width, height = img.size
+            min_side = min(width, height)
+            left = (width - min_side) / 2
+            top = (height - min_side) / 2
+            right = (width + min_side) / 2
+            bottom = (height + min_side) / 2
+            img = img.crop((left, top, right, bottom))
+
+            # Resize to 50x50**
+            img = img.resize(size, Image.LANCZOS)
+
+            # Convert to Tkinter-compatible Image**
+            thumbnail = ImageTk.PhotoImage(img)  # Keep reference to prevent GC
+    
+            if not isinstance(thumbnail, PhotoImage):  # ✅ Extra safeguard
+                print(f"⚠ Error: Thumbnail generation failed for {file_path}")
+                return None
+
+            return thumbnail
+
         except Exception as e:
             print(f"⚠ Error generating thumbnail for {file_path}: {e}")
             return None
+
+
+    def add_thumbnail_to_cache(self, file_path, thumbnail):
+        """Add a thumbnail to the cache with LRU handling."""
+        if not thumbnail or not isinstance(thumbnail, PhotoImage):  # ✅ Extra safeguard
+            print(f"⚠ Warning: Not caching invalid thumbnail for {file_path}")
+            return  
+
+        if file_path in self.thumbnail_cache:
+            self.thumbnail_cache.move_to_end(file_path)
+        else:
+            if len(self.thumbnail_cache) >= self.cache_size:
+                removed = self.thumbnail_cache.popitem(last=False)
+                print(f"🔄 LRU Removed Oldest Thumbnail: {removed[0]}")
+
+            self.thumbnail_cache[file_path] = thumbnail
+            print(f"✅ Cached Thumbnail: {file_path}")
+
 
     def highlight_images_in_treeview(self):
         """Highlight Before and After images in the Treeview with different colors."""
@@ -505,3 +513,33 @@ class PhotosPage:
 
         # ✅ Deselect all items to prevent default selection highlight
         self.photo_list.selection_remove(self.photo_list.selection())
+
+
+    def preload_image(self, file_path):
+        """Preload and resize an image for instant display."""
+        try:
+            img = Image.open(file_path)
+
+            # ✅ Ensure consistent color mode (fixes issues with PNGs)
+            img = img.convert("RGB")  
+
+            # ✅ Resize image **once** and store it in cache
+            fixed_width, fixed_height = 279, 372  
+            img_ratio = img.width / img.height
+            target_ratio = fixed_width / fixed_height
+
+            if img_ratio > target_ratio:
+                new_width = fixed_width
+                new_height = int(fixed_width / img_ratio)
+            else:
+                new_height = fixed_height
+                new_width = int(fixed_height * img_ratio)
+
+            img = img.resize((new_width, new_height), Image.LANCZOS)
+
+            # ✅ Convert to a CTkImage for Tkinter use
+            return CTkImage(img, size=(fixed_width, fixed_height))
+
+        except Exception as e:
+            print(f"⚠ Error preloading image {file_path}: {e}")
+            return None
