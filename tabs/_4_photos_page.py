@@ -13,8 +13,8 @@ class PhotosPage:
         self.main_app = main_app  # Reference to main app
         self.client_id = None  # Store selected client ID
 
-        self.before_image_index = 0  # Track navigation index
-        self.after_image_index = 0
+        self.before_image_index = -1  # Track navigation index
+        self.after_image_index = -1
 
         self.photo_paths = []  # Stores tuples of (photo_id, file_path) for navigation
         self.photo_file_paths = {}
@@ -57,12 +57,13 @@ class PhotosPage:
         self.photo_list.column("appt_date", width=50, anchor="center")
         self.photo_list.column("type", width=65, anchor="center")
         self.photo_list.pack(fill="both", expand=True)
-        self.photo_list.bind("<Button-1>", self.clear_selection_on_empty_click)
         self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)            # Set Before Image
         self.photo_list.bind("<Control-ButtonRelease-1>", self.set_after_image)     # Set After Image
+        self.photo_list.tag_configure("before_highlight", background="#0080FF")  # Before highlight color
+        self.photo_list.tag_configure("after_highlight", background="green")   # Before highlight color
 
         # Before Image Preview Pane (Middle Column)
-        before_frame = ctk.CTkFrame(main_frame, width=279, height=372)
+        before_frame = ctk.CTkFrame(main_frame, width=279, height=372, fg_color="#0080FF")
         before_frame.grid(row=0, column=1, columnspan=3, sticky="nsew", padx=(5, 5))
 
         ctk.CTkLabel(before_frame, text="Before", font=("Arial", 16)).pack()
@@ -70,7 +71,7 @@ class PhotosPage:
         self.before_label.pack(pady=(0, 10))
 
         # After Image Preview Pane (Right Column)
-        after_frame = ctk.CTkFrame(main_frame, width=279, height=372)
+        after_frame = ctk.CTkFrame(main_frame, width=279, height=372, fg_color="green")
         after_frame.grid(row=0, column=4, columnspan=3, sticky="nsew", padx=(5, 0))
 
         ctk.CTkLabel(after_frame, text="After", font=("Arial", 16)).pack()
@@ -130,7 +131,7 @@ class PhotosPage:
         self.after_desc_textbox.bind("<KeyRelease>", self.on_after_text_change)
 
     def set_before_image(self, event):
-        """Set the selected image as the Before Image."""
+        """Set the selected image as the Before Image and ensure After highlight isn't forced."""
         selected_item = self.photo_list.selection()
         if not selected_item:
             print("⚠ Ignoring empty click in Treeview")
@@ -143,16 +144,22 @@ class PhotosPage:
 
         if file_path and os.path.exists(file_path):
             self.before_image_index = self.photo_paths.index(file_path)  # Track index
-            self.load_image(file_path, self.before_label, "before")  # Display it
+            self.load_image(file_path, self.before_label, "before")
 
+            # ✅ Reset save button state for Before
             self.before_save_button.configure(state="disabled", text="Save", fg_color="#696969")
 
+            # ✅ Only update highlights if an After image was actually set (Prevent green auto-highlighting)
+            if self.after_image_index != -1:
+                self.highlight_images_in_treeview()
+
+            print(f"🟢 Selected Before Image: {file_path} (Index: {self.before_image_index})")
         else:
             print(f"⚠ Error: {file_path} not found in photo_paths list or does not exist.")
 
 
     def set_after_image(self, event):
-        """Set the selected image as the After Image."""
+        """Set the selected image as the After Image with no restrictions."""
         selected_item = self.photo_list.selection()
         if not selected_item:
             print("⚠ Ignoring empty click in Treeview")
@@ -164,13 +171,18 @@ class PhotosPage:
         file_path = self.photo_file_paths.get(photo_id)
 
         if file_path and os.path.exists(file_path):
-            self.after_image_index = self.photo_paths.index(file_path)  # Track index
-            self.load_image(file_path, self.after_label, "after")  # Display it
+            self.after_image_index = self.photo_paths.index(file_path)  # ✅ Always allow selection
+            self.load_image(file_path, self.after_label, "after")
 
+            # ✅ Reset save button state for After
             self.after_save_button.configure(state="disabled", text="Save", fg_color="#696969")
 
+            # ✅ Apply highlighting in treeview
+            self.highlight_images_in_treeview()
+            print(f"🟢 Selected After Image: {file_path} (Index: {self.after_image_index})")
         else:
             print(f"⚠ Error: {file_path} not found in photo_paths list or does not exist.")
+
 
     def save_before_description(self):
         """Save the before image description to the database and update UI."""
@@ -337,37 +349,39 @@ class PhotosPage:
             print(f"⚠ Warning: No metadata found for {file_path}")
 
     def navigate_image(self, direction, frame_type):
-        """Cycle through images using navigation buttons and highlight the current image in the Treeview."""
+        """Navigate through images, preventing wrap-around but allowing free movement."""
         if not self.photo_paths:
             return  # No images available
 
-        # ✅ Determine the correct index and file path
         if frame_type == "before":
-            self.before_image_index = (self.before_image_index + direction) % len(self.photo_paths)
+            new_index = self.before_image_index + direction
+
+            # ✅ Prevent wrap-around (stay within range)
+            if new_index < 0 or new_index >= len(self.photo_paths):
+                print("⚠ Cannot navigate further in this direction.")
+                return  # Stay at the current image
+
+            self.before_image_index = new_index
             file_path = self.photo_paths[self.before_image_index]
             self.load_image(file_path, self.before_label, "before")
+
         elif frame_type == "after":
-            self.after_image_index = (self.after_image_index + direction) % len(self.photo_paths)
+            new_index = self.after_image_index + direction
+
+            # ✅ Prevent wrap-around (stay within range)
+            if new_index < 0 or new_index >= len(self.photo_paths):
+                print("⚠ Cannot navigate further in this direction.")
+                return  # Stay at the current image
+
+            self.after_image_index = new_index
             file_path = self.photo_paths[self.after_image_index]
             self.load_image(file_path, self.after_label, "after")
 
-        # ✅ Find the corresponding Photo ID in the Treeview
-        photo_id = None
-        for pid, path in self.photo_file_paths.items():
-            if path == file_path:
-                photo_id = pid
-                break
+        # Clear selection to avoid confusion but keep colored row highlights
+        self.photo_list.selection_remove(self.photo_list.selection())
 
-        if photo_id is not None:
-            # ✅ Deselect all items first to clear old selections
-            self.photo_list.selection_remove(self.photo_list.selection())
-
-            # ✅ Select the new image in the Treeview
-            self.photo_list.selection_set(str(photo_id))
-            self.photo_list.focus(str(photo_id))  # ✅ Ensure it is focused
-            self.photo_list.see(str(photo_id))  # ✅ Scroll to the selected item
-
-            print(f"📌 Highlighted Photo ID: {photo_id} in the Treeview.")
+        # Call highlight function after navigating
+        self.highlight_images_in_treeview()
 
     def refresh_photos_list(self, client_id):
         """Load photos for the selected client into the Treeview/Listbox with thumbnails."""
@@ -387,8 +401,8 @@ class PhotosPage:
         self.after_original_text = ""
 
         # Reset Navigation Indexes
-        self.before_image_index = 0
-        self.after_image_index = 0
+        self.before_image_index = -1
+        self.after_image_index = -1
 
         self.photo_list.delete(*self.photo_list.get_children())  # Clear existing list
         self.photo_file_paths.clear()
@@ -469,35 +483,25 @@ class PhotosPage:
             print(f"⚠ Error generating thumbnail for {file_path}: {e}")
             return None
 
-    def on_photo_selected(self, event):
-        """Display the selected photo(s) in the Before/After panes."""
-        selected_items = self.photo_list.selection()
+    def highlight_images_in_treeview(self):
+        """Highlight Before and After images in the Treeview with different colors."""
+        # ✅ Remove previous highlights
+        for item in self.photo_list.get_children():
+            self.photo_list.item(item, tags=())  # Clears all tags
 
-        if not selected_items:
-            return
+        # ✅ Apply the Before highlight
+        if self.before_image_index != -1 and self.before_image_index < len(self.photo_paths):
+            before_file_path = self.photo_paths[self.before_image_index]
+            before_photo_id = next((pid for pid, path in self.photo_file_paths.items() if path == before_file_path), None)
+            if before_photo_id is not None:
+                self.photo_list.item(str(before_photo_id), tags=("before_highlight",))
 
-        selected_photos = []
-        
-        # Fetch the actual file paths instead of thumbnails
-        for item in selected_items[:2]:
-            self.cursor.execute("SELECT file_path FROM photos WHERE id = ?", (item,))
-            result = self.cursor.fetchone()
-            if result:
-                selected_photos.append(result[0])
+        # ✅ Apply the After highlight **ONLY IF** a valid After image was chosen
+        if self.after_image_index != -1 and self.after_image_index < len(self.photo_paths):
+            after_file_path = self.photo_paths[self.after_image_index]
+            after_photo_id = next((pid for pid, path in self.photo_file_paths.items() if path == after_file_path), None)
+            if after_photo_id is not None:
+                self.photo_list.item(str(after_photo_id), tags=("after_highlight",))
 
-        # Load images into Before/After panes
-        if len(selected_photos) > 0:
-            self.before_image_index = self.photo_paths.index(selected_photos[0])
-            self.load_image(selected_photos[0], self.before_label)
-
-        if len(selected_photos) > 1:
-            self.after_image_index = self.photo_paths.index(selected_photos[1])
-            self.load_image(selected_photos[1], self.after_label)
-
-    def clear_selection_on_empty_click(self, event):
-        """Deselects Treeview selection when clicking an empty space."""
-        region = self.photo_list.identify("region", event.x, event.y)
-
-        if region not in ("cell", "item"):  # Click is outside rows
-            print("⚠ Clicked on empty space, clearing selection.")
-            self.photo_list.selection_remove(self.photo_list.selection())  # Deselect all
+        # ✅ Deselect all items to prevent default selection highlight
+        self.photo_list.selection_remove(self.photo_list.selection())
