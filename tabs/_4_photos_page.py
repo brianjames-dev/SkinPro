@@ -460,10 +460,10 @@ class PhotosPage:
             # Resize to 50x50**
             img = img.resize(size, Image.LANCZOS)
 
-            # Convert to Tkinter-compatible Image**
-            thumbnail = ImageTk.PhotoImage(img)  # Keep reference to prevent GC
+            # **Convert to CTkImage**
+            thumbnail = CTkImage(light_image=img, size=size)  
     
-            if not isinstance(thumbnail, PhotoImage):  # ✅ Extra safeguard
+            if not isinstance(thumbnail, CTkImage):  # ✅ Extra safeguard
                 print(f"⚠ Error: Thumbnail generation failed for {file_path}")
                 return None
 
@@ -476,7 +476,7 @@ class PhotosPage:
 
     def add_thumbnail_to_cache(self, file_path, thumbnail):
         """Add a thumbnail to the cache with LRU handling."""
-        if not thumbnail or not isinstance(thumbnail, PhotoImage):  # ✅ Extra safeguard
+        if not thumbnail or not isinstance(thumbnail, CTkImage):  # ✅ Extra safeguard
             print(f"⚠ Warning: Not caching invalid thumbnail for {file_path}")
             return  
 
