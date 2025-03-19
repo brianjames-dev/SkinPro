@@ -15,9 +15,7 @@ class ImageCache:
         self.image_cache = OrderedDict()  # LRU Cache for full-size images
         self.thumbnail_cache = OrderedDict()  # LRU Cache for thumbnails
 
-        # Load cache immediately at startup
-        self.load_cache_from_disk()
-        self.load_thumbnail_cache()
+        print(f"✅ ImageCache initialized.")  # Debugging print
 
 
     #######################################
@@ -118,25 +116,46 @@ class ImageCache:
     ########################################    
     ### --- Cache Saving and Loading --- ###
     ########################################
-    def load_cache_from_disk(self):
-        """Load full-size image cache from disk and convert to Tkinter images."""
+    def load_cache_from_disk(self, splash_screen=None):
+        """Load full-size image cache from disk and update splash screen dynamically."""
+        print("🔍 Entering load_cache_from_disk()...")  # ✅ Debug: Confirm function entry
+
         if os.path.exists(self.cache_file):
             try:
                 with open(self.cache_file, "r") as f:
                     data = json.load(f)
 
                 cached_paths = data.get("cached_paths", [])
-                print(f"📂 Loading {len(cached_paths)} cached full-size images from disk...")
+                total_images = len(cached_paths)
+                print(f"📂 Found {total_images} cached images...")  # ✅ Debug: How many images exist
 
-                for file_path in cached_paths:
+                if splash_screen:
+                    step = 0.4 / total_images if total_images > 0 else 1
+
+                for i, file_path in enumerate(cached_paths):
+                    print(f"🔄 Checking file {i+1}/{total_images}: {file_path}")  # ✅ Debug: Show progress
+
                     if os.path.exists(file_path):
-                        print(f"🟢 Preloading full-size image: {file_path}")
-                        self.image_cache[file_path] = self.preload_image(file_path)  # Now loads full image immediately
+                        print(f"🟢 Preloading full-size image: {file_path}")  # ✅ Debug: Processing image
+                        img = self.preload_image(file_path)  # Load image
 
-                print(f"✅ Preloaded {len(self.image_cache)} full-size images into memory.")
+                        if img is None:
+                            print(f"⚠ Warning: Image {file_path} failed to load!")  # ✅ Debug: Image loading issue
+
+                        self.image_cache[file_path] = img  # Store image in cache
+
+                        if splash_screen:
+                            progress = (i + 1) * step
+                            splash_screen.update_progress(progress, f"Loading images... ({i+1}/{total_images})")
+                    else:
+                        print(f"❌ Warning: Image file does NOT exist - {file_path}")  # ✅ Debug: Missing file
+
+                print("✅ Successfully loaded all cached images!")  # ✅ Debug: Confirm completion
 
             except Exception as e:
                 print(f"⚠ Error loading full-size image cache: {e}")
+        
+        print("🔍 Exiting load_cache_from_disk()...")  # ✅ Debug: Ensure function fully executed
 
 
     def save_cache_to_disk(self):
@@ -228,13 +247,28 @@ class ImageCache:
                 print(f"❌ Skipping {file_path}, file does not exist.")
 
 
-    def preload_thumbnails(self):
-        """Create Tkinter-compatible thumbnails only after Tkinter is fully initialized."""
-        print("🟢 Creating Tkinter-compatible thumbnails...")
+    def preload_thumbnails(self, splash_screen, index=0):
+        """Process thumbnails one by one asynchronously to allow UI updates."""
+        thumbnails = list(self.thumbnail_cache.keys())
+        total_thumbnails = len(thumbnails)
 
-        for file_path in self.thumbnail_cache.keys():
-            if self.thumbnail_cache[file_path] is None:  # Only process uncached ones
-                print(f"🖼️ Processing thumbnail: {file_path}")
-                self.thumbnail_cache[file_path] = self.generate_thumbnail(file_path)
+        if index >= total_thumbnails:
+            print(f"✅ Loaded {total_thumbnails} thumbnails into memory.")
+            return  # Done processing
 
-        print(f"✅ Loaded {len(self.thumbnail_cache)} thumbnails into memory.")
+        file_path = thumbnails[index]
+        print(f"🖼️ Processing thumbnail {index+1}/{total_thumbnails}: {file_path}")
+        self.thumbnail_cache[file_path] = self.generate_thumbnail(file_path)  # Process thumbnail
+
+        # Update progress bar dynamically
+        progress = 0.55 + ((index + 1) / total_thumbnails) * 0.35  # Allocating 35% of the bar
+        splash_screen.update_progress(progress, f"Loading thumbnails... ({index+1}/{total_thumbnails})")
+
+        # Process the next thumbnail asynchronously
+        splash_screen.after(50, lambda: self.preload_thumbnails(splash_screen, index + 1))
+
+
+    def load_all_caches(self):
+        """Explicitly load full-size and thumbnail caches."""
+        self.load_cache_from_disk()
+        self.load_thumbnail_cache()
