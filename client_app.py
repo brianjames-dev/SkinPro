@@ -26,78 +26,93 @@ class ClientApp(ctk.CTk):
         """Load full images & thumbnails while updating splash screen progress."""
         splash_screen.update_progress(0, "Initializing UI...")
 
-        # 🔹 First, initialize the UI BEFORE loading images
+        # First, initialize the UI BEFORE loading images
         self.init_ui()
 
-        # 🔹 Now that the UI is set up, start loading cached images
-        splash_screen.update_progress(0.1, "Loading cached images...")
+        # Now that the UI is set up, start loading cached images
+        splash_screen.update_progress(0.0, "Loading cached images...")
 
-        self.image_cache.load_cache_from_disk(splash_screen)  # ✅ Loads full-size images
-        self.image_cache.load_thumbnail_cache()  # ✅ Loads cached thumbnail file paths
-        self.image_cache.preload_thumbnails(splash_screen, index=0)  # ✅ Convert paths into actual thumbnails
+        # Load image caches
+        self.image_cache.load_cache_from_disk(splash_screen)  # Load full-size images
+        self.image_cache.load_thumbnail_cache()  # Load cached thumbnail paths
 
+        # Prepare lists
         full_images = list(self.image_cache.image_cache.keys())
-        thumbnails = list(self.image_cache.thumbnail_cache.keys())  # ✅ Now should contain valid paths
+        thumbnails = list(self.image_cache.thumbnail_cache.keys())
 
-        total_items = len(full_images) + len(thumbnails)
-        step = 0.4 / total_items if total_items > 0 else 1  # Allocate 40% of progress to thumbnails
+        total_full_images = len(full_images)
+        total_thumbnails = len(thumbnails)
+        total_items = total_full_images + total_thumbnails
 
-        # 🔹 Process full-size images one at a time asynchronously
-        self.load_full_images(full_images, thumbnails, splash_screen, 0, step, total_items)
+        if total_items == 0:
+            print("⚠ Warning: No images or thumbnails found!")
+            return self.finish_loading(splash_screen)
+
+        # Allocate exact progress range:
+        full_start = 0.05  # Start at 5%
+        full_end = 0.50    # Full images end at 50%
+        thumb_start = 0.50   # Thumbnails start at 50%
+        thumb_end = 1.00     # End at 100%
+
+        # Calculate step sizes based on counts
+        step_full_images = (full_end - full_start) / total_full_images if total_full_images > 0 else 0
+        step_thumbnails = (thumb_end - thumb_start) / total_thumbnails if total_thumbnails > 0 else 0
+
+        # 🔹 Process full-size images one by one asynchronously
+        self.load_full_images(full_images, thumbnails, splash_screen, 0, step_full_images, step_thumbnails)
 
 
-    def load_full_images(self, full_images, thumbnails, splash_screen, index, step, total_items):
+    def load_full_images(self, full_images, thumbnails, splash_screen, index, step_full, step_thumb):
         """Recursively load full-size images while updating the progress bar."""
         if index >= len(full_images):
             print("✅ Finished loading full-size images, moving to thumbnails...")
-            return self.after(10, lambda: self.load_thumbnails(thumbnails, splash_screen, 0.55, step))
+            return self.after(10, lambda: self.load_thumbnails(thumbnails, splash_screen, 0.50, step_thumb))
 
         file_path = full_images[index]
-        print(f"🟢 Loading {index+1}/{len(full_images)}: {file_path}")
+        # print(f"🟢 Loading {index+1}/{len(full_images)}: {file_path}")
 
         self.image_cache.get_image(file_path)  # Load image
 
-        splash_screen.update_progress(
-            0.1 + (index + 1) * step, f"Loading images... ({index + 1}/{total_items})"
-        )
+        progress = 0.05 + (index + 1) * step_full  # Smoothly increments between 5% and 50%
+        splash_screen.update_progress(progress, f"Loading images... ({index + 1}/{len(full_images)})")
 
-        # ✅ Schedule the next image to load asynchronously
-        self.after(10, lambda: self.load_full_images(full_images, thumbnails, splash_screen, index + 1, step, total_items))
+        # Schedule the next image load asynchronously
+        self.after(10, lambda: self.load_full_images(full_images, thumbnails, splash_screen, index + 1, step_full, step_thumb))
 
 
-    def load_thumbnails(self, thumbnails, splash_screen, start_progress, step):
+    def load_thumbnails(self, thumbnails, splash_screen, start_progress, step_thumb):
         """Load thumbnails while updating splash screen progress."""
         total_thumbnails = len(thumbnails)
 
         if total_thumbnails == 0:
             print("⚠ Warning: No thumbnails found to load!")
-            return self.finish_loading(splash_screen)  # ✅ Handle case where no thumbnails exist
+            return self.finish_loading(splash_screen)  # Handle case where no thumbnails exist
 
         print(f"📂 Loading {total_thumbnails} thumbnails...")
 
         def process_thumbnail(i):
             if i >= total_thumbnails:
-                return self.finish_loading(splash_screen)  # ✅ All thumbnails done → Finish loading
+                return self.finish_loading(splash_screen)  # All thumbnails done → Finish loading
 
             file_path = thumbnails[i]
             print(f"🖼️ Loading thumbnail {i+1}/{total_thumbnails}: {file_path}")
 
             self.image_cache.get_thumbnail(file_path)  # Load thumbnail
-            progress = start_progress + ((i + 1) * step)
+            progress = start_progress + ((i + 1) * step_thumb)
             splash_screen.update_progress(progress, f"Loading thumbnails... ({i+1}/{total_thumbnails})")
 
-            # ✅ Schedule the next thumbnail to load asynchronously
+            # Schedule the next thumbnail to load asynchronously
             self.after(10, lambda: process_thumbnail(i + 1))
 
-        process_thumbnail(0)  # ✅ Start thumbnail loading asynchronously
+        process_thumbnail(0)  # Start thumbnail loading asynchronously
 
 
     def finish_loading(self, splash_screen):
         """Finalize UI setup and close the splash screen."""
         print("✅ Finished preloading assets. Closing splash screen and starting app...")
         
-        self.after(500, splash_screen.destroy)  # ✅ Destroy splash screen after a short delay
-        self.deiconify()  # ✅ Show the main app
+        self.after(500, splash_screen.destroy)  # Destroy splash screen after a short delay
+        self.deiconify()  # Show the main app
 
 
     def init_ui(self):

@@ -56,11 +56,11 @@ class ImageCache:
             if isinstance(thumbnail, ImageTk.PhotoImage):  # Must be PhotoImage for ttk.Treeview
                 print(f"⚡ Instant Load: Using cached thumbnail for {file_path}")
                 return thumbnail
-            else:
-                print(f"Regenerating cached thumbnail for {file_path} on startup.")
+            # else:
+            #     print(f"Regenerating cached thumbnail for {file_path} on startup.")
 
         # Generate and cache if missing
-        print(f"🖼️ Generating new thumbnail → {file_path}")
+        # print(f"🖼️ Generating new thumbnail → {file_path}")
         thumbnail = self.generate_thumbnail(file_path)
         self.thumbnail_cache[file_path] = thumbnail  # Cache properly
         return thumbnail
@@ -136,7 +136,7 @@ class ImageCache:
                     print(f"🔄 Checking file {i+1}/{total_images}: {file_path}")  # ✅ Debug: Show progress
 
                     if os.path.exists(file_path):
-                        print(f"🟢 Preloading full-size image: {file_path}")  # ✅ Debug: Processing image
+                        # print(f"🟢 Preloading full-size image: {file_path}")  # ✅ Debug: Processing image
                         img = self.preload_image(file_path)  # Load image
 
                         if img is None:
@@ -254,18 +254,20 @@ class ImageCache:
 
         if index >= total_thumbnails:
             print(f"✅ Loaded {total_thumbnails} thumbnails into memory.")
-            return  # Done processing
+            splash_screen.update_progress(1.00, "Finalizing...")
+            return splash_screen.after(500, lambda: splash_screen.destroy())  # ✅ Close splash screen smoothly
 
         file_path = thumbnails[index]
         print(f"🖼️ Processing thumbnail {index+1}/{total_thumbnails}: {file_path}")
         self.thumbnail_cache[file_path] = self.generate_thumbnail(file_path)  # Process thumbnail
 
         # Update progress bar dynamically
-        progress = 0.55 + ((index + 1) / total_thumbnails) * 0.35  # Allocating 35% of the bar
+        progress = 0.50 + ((index + 1) / total_thumbnails) * 0.45  # Allocating 45% of the bar
         splash_screen.update_progress(progress, f"Loading thumbnails... ({index+1}/{total_thumbnails})")
 
         # Process the next thumbnail asynchronously
-        splash_screen.after(50, lambda: self.preload_thumbnails(splash_screen, index + 1))
+        splash_screen.after(10, lambda: self.preload_thumbnails(splash_screen, index + 1))
+
 
 
     def load_all_caches(self):
