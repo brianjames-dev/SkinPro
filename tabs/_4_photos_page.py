@@ -407,8 +407,6 @@ class PhotosPage:
             print(f"⚠ No photos found for Client ID {client_id}")
             return
 
-        full_image_paths = []  # Stores file paths for preloading full-size images
-
         for photo in photos:
             photo_id, appt_date, type, file_path = photo  # Unpack data
 
@@ -418,37 +416,47 @@ class PhotosPage:
 
             print(f"🖼️ Debug: Adding Photo ID {photo_id} | Path: {file_path} | Date: {appt_date} | Type: {type}")
 
-            # Use cached thumbnail if available, otherwise generate
+            # ✅ Retrieve cached thumbnail first
             thumbnail = self.image_cache.get_thumbnail(file_path)
+
+
+            if not isinstance(thumbnail, ImageTk.PhotoImage):  # ✅ Must be PhotoImage for ttk.Treeview
+                print(f"⚠ Warning: Cached thumbnail is invalid. Regenerating: {file_path}")
+                thumbnail = self.generate_thumbnail(file_path, photo_id)  # Ensure this returns PhotoImage
+                self.image_cache.add_thumbnail_to_cache(file_path, thumbnail)
+
+            # ✅ If thumbnail is still invalid, log the issue and skip insertion
+            if not isinstance(thumbnail, ImageTk.PhotoImage):
+                print(f"❌ Error: Could not generate valid PhotoImage for {file_path}. Skipping...")
+                continue  # Prevents Tkinter crash
+
+            # ✅ Store the valid thumbnail reference
             self.thumbnails[str(photo_id)] = thumbnail  
             self.photo_file_paths[photo_id] = file_path  
             self.photo_paths.append(file_path)  
-            full_image_paths.append(file_path)  # Store for preloading
 
-            # Insert into Treeview, linking the image via the `image` parameter
+            # ✅ Insert into Treeview using PhotoImage
             self.photo_list.insert(
                 "", "end", iid=str(photo_id),  # Tkinter requires `iid` as a string
                 values=(appt_date, type),
-                image=thumbnail  # Use cached thumbnail
+                image=self.thumbnails[str(photo_id)]  # Use PhotoImage, not CTkImage
             )
 
-        # ✅ Preload images asynchronously for faster loading
-        self.image_cache.preload_images(full_image_paths)
-
-        print(f"🔍 Debug: Thumbnail cache contains {len(self.image_cache.thumbnail_cache)} entries")
+        print(f"🔍 Debug: Thumbnail cache contains {len(self.thumbnails)} entries")
         print(f"🔍 Debug: Full-size image cache contains {len(self.image_cache.image_cache)} entries")
 
 
-    def generate_thumbnail(self, file_path, photo_id, size=(50, 50)):  # Adjust size as needed
-        """Generate and return a thumbnail image for Treeview."""
+    def generate_thumbnail(self, file_path, photo_id, size=(50, 50)):  
+        """Generate and return a Tkinter-compatible PhotoImage thumbnail for Treeview."""
         try:
             if not os.path.exists(file_path):
                 print(f"❌ File does not exist: {file_path}")
                 return None
+            
             img = Image.open(file_path)
             img = img.convert("RGB")  # Ensures consistent color mode
 
-            # Crop to Square Center**
+            # Crop to square center
             width, height = img.size
             min_side = min(width, height)
             left = (width - min_side) / 2
@@ -457,17 +465,17 @@ class PhotosPage:
             bottom = (height + min_side) / 2
             img = img.crop((left, top, right, bottom))
 
-            # Resize to 50x50**
+            # Resize to target size (50x50)
             img = img.resize(size, Image.LANCZOS)
 
-            # **Convert to CTkImage**
-            thumbnail = CTkImage(light_image=img, size=size)  
-    
-            if not isinstance(thumbnail, CTkImage):  # ✅ Extra safeguard
+            # ✅ Convert to `PhotoImage` for use in `ttk.Treeview`
+            thumbnail = ImageTk.PhotoImage(img)  
+
+            if not isinstance(thumbnail, ImageTk.PhotoImage):  
                 print(f"⚠ Error: Thumbnail generation failed for {file_path}")
                 return None
 
-            return thumbnail
+            return thumbnail  # ✅ Correct format for `ttk.Treeview`
 
         except Exception as e:
             print(f"⚠ Error generating thumbnail for {file_path}: {e}")

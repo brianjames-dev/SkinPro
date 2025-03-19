@@ -52,20 +52,19 @@ class ImageCache:
     ### --- Thumbnail Caching --- ###
     #################################
     def get_thumbnail(self, file_path):
-        """Retrieve a cached thumbnail or regenerate if invalid."""
+        """Retrieve the cached thumbnail as a Tkinter-compatible PhotoImage."""
         if file_path in self.thumbnail_cache:
-            cached_thumbnail = self.thumbnail_cache[file_path]
-            
-            # ✅ Ensure it's a valid Tkinter PhotoImage
-            if isinstance(cached_thumbnail, ImageTk.PhotoImage):
+            thumbnail = self.thumbnail_cache[file_path]
+            if isinstance(thumbnail, ImageTk.PhotoImage):  # Must be PhotoImage for ttk.Treeview
                 print(f"⚡ Instant Load: Using cached thumbnail for {file_path}")
-                return cached_thumbnail
+                return thumbnail
             else:
-                print(f"⚠ Warning: Cached thumbnail for {file_path} is not a valid PhotoImage. Regenerating.")
+                print(f"Regenerating cached thumbnail for {file_path} on startup.")
 
-        # ✅ Generate a new thumbnail if not cached or invalid
+        # Generate and cache if missing
+        print(f"🖼️ Generating new thumbnail → {file_path}")
         thumbnail = self.generate_thumbnail(file_path)
-        self.thumbnail_cache[file_path] = thumbnail  # ✅ Store the valid object
+        self.thumbnail_cache[file_path] = thumbnail  # Cache properly
         return thumbnail
 
 
@@ -82,7 +81,7 @@ class ImageCache:
 
 
     def generate_thumbnail(self, file_path, size=(50, 50)):
-        """Generate and return a thumbnail image for caching."""
+        """Generate and return a Tkinter-compatible PhotoImage thumbnail."""
         try:
             if not os.path.exists(file_path):
                 print(f"❌ File does not exist: {file_path}")
@@ -102,11 +101,19 @@ class ImageCache:
 
             img = img.resize(size, Image.LANCZOS)
 
-            return ImageTk.PhotoImage(img)  # ✅ Returns Tkinter-compatible thumbnail
+            # Convert to Tkinter-compatible PhotoImage for Treeview
+            thumbnail = ImageTk.PhotoImage(img)  # Use PhotoImage instead of CTkImage
+
+            if not isinstance(thumbnail, ImageTk.PhotoImage):
+                print(f"⚠ Error: Thumbnail generation failed for {file_path}")
+                return None
+
+            return thumbnail  # Now works correctly in ttk.Treeview
 
         except Exception as e:
             print(f"⚠ Error generating thumbnail for {file_path}: {e}")
             return None
+
 
     ########################################    
     ### --- Cache Saving and Loading --- ###

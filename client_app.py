@@ -4,11 +4,15 @@ from tabs._2_info_page import InfoPage
 from tabs._3_appointments_page import AppointmentsPage
 from tabs._4_photos_page import PhotosPage
 from class_elements.profile_card import ProfileCard
+from splash_screen import SplashScreen
 
 class ClientApp(ctk.CTk):
     def __init__(self, conn, image_cache):
         super().__init__()
-        
+
+        # Hide main window initially
+        self.withdraw()
+
         self.title("SkinPro")
         self.geometry("936x702")
         ctk.set_appearance_mode("Dark")  # Options: "Light", "Dark", or "System"
@@ -19,8 +23,45 @@ class ClientApp(ctk.CTk):
         self.image_cache = image_cache  # Store image cache reference
         self.selected_client_id = None  # Store selected client ID
 
-        # Defer profile card initialization until the window is fully set up
-        self.after(100, self.init_ui)  
+        # Show splash screen while loading
+        self.splash = SplashScreen(self)
+
+        # Preload images & thumbnails in SplashScreen
+        self.after(100, self.preload_assets)  # Delay slightly to ensure UI is drawn
+
+
+    def preload_assets(self):
+        """Load full images & thumbnails while updating splash screen progress."""
+        full_images = list(self.image_cache.image_cache.keys())
+        thumbnails = list(self.image_cache.thumbnail_cache.keys())
+        total_items = len(full_images) + len(thumbnails)
+        step = 1 / total_items if total_items > 0 else 1
+
+        # Preload full-size images
+        for i, file_path in enumerate(full_images):
+            self.image_cache.get_image(file_path)
+            self.splash.progress_label.configure(text=f"Loading images... ({i+1}/{total_items})")
+            self.splash.progress_bar.set((i + 1) * step)
+            self.splash.update_idletasks()
+
+        # Preload thumbnails
+        for i, file_path in enumerate(thumbnails):
+            self.image_cache.get_thumbnail(file_path)
+            self.splash.progress_label.configure(text=f"Loading thumbnails... ({len(full_images) + i+1}/{total_items})")
+            self.splash.progress_bar.set((len(full_images) + i + 1) * step)
+            self.splash.update_idletasks()
+
+        # Close splash and show main window after loading
+        self.after(500, self.finish_loading)
+
+
+    def finish_loading(self):
+        """Finalize UI setup and close the splash screen."""
+        if self.splash and self.splash.winfo_exists():
+            self.splash.close_splash()
+
+        self.deiconify()  # Show the main UI properly
+        self.init_ui()  # Initialize the UI components
 
 
     def init_ui(self):
@@ -47,9 +88,6 @@ class ClientApp(ctk.CTk):
         self.init_appointments_tab()
         self.init_photos_tab()
 
-        # Preload images **AFTER** UI is set up
-        self.after(500, self.preload_images)  
-
 
     def init_clients_tab(self):
         clients_tab = self.tab_view.tab("Clients")
@@ -66,31 +104,6 @@ class ClientApp(ctk.CTk):
     def init_photos_tab(self):
         photos_tab = self.tab_view.tab("Photos")
         self.tabs["Photos"] = PhotosPage(photos_tab, self.conn, self, self.image_cache)  
-
-
-    def preload_images(self):
-        """Load cached images and thumbnails after the UI is fully initialized."""
-        print("🟢 Preloading images after UI setup...")
-
-        # Only load missing images
-        uncached_paths = [p for p in self.image_cache.image_cache.keys() if self.image_cache.image_cache[p] is None]
-        if uncached_paths:
-            self.image_cache.preload_images(uncached_paths)
-
-        # Delay thumbnail image creation until Tkinter is initialized
-        self.after(1000, self.preload_thumbnails)  
-
-
-    def preload_thumbnails(self):
-        """Create Tkinter-compatible thumbnails only after Tkinter is fully initialized."""
-        print("🟢 Preloading thumbnails...")
-
-        for file_path in self.image_cache.thumbnail_cache.keys():
-            if self.image_cache.thumbnail_cache[file_path] is None:  # Only process uncached ones
-                print(f"🖼️ Processing thumbnail: {file_path}")
-                self.image_cache.thumbnail_cache[file_path] = self.image_cache.generate_thumbnail(file_path)
-
-        print(f"✅ Loaded {len(self.image_cache.thumbnail_cache)} thumbnails into memory.")
 
 
     def switch_to_tab(self, tab_name, data=None):
