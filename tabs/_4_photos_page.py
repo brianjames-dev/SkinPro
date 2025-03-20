@@ -414,7 +414,7 @@ class PhotosPage:
             if self.photo_list.exists(str(photo_id)):
                 continue  
 
-            print(f"🖼️ Debug: Adding Photo ID {photo_id} | Path: {file_path} | Date: {appt_date} | Type: {type}")
+            # print(f"🖼️ Debug: Adding Photo ID {photo_id} | Path: {file_path} | Date: {appt_date} | Type: {type}")
 
             # ✅ Retrieve cached thumbnail first
             thumbnail = self.image_cache.get_thumbnail(file_path)

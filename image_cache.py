@@ -9,8 +9,9 @@ from tkinter import PhotoImage
 CACHE_FILE = "image_cache.json"
 
 class ImageCache:
-    def __init__(self, cache_size=3000, cache_file="image_cache.json"):
+    def __init__(self, cache_size=100, thumbnail_cache_size=100, cache_file="image_cache.json"):
         self.cache_size = cache_size
+        self.thumbnail_cache_size = thumbnail_cache_size
         self.cache_file = cache_file
         self.image_cache = OrderedDict()  # LRU Cache for full-size images
         self.thumbnail_cache = OrderedDict()  # LRU Cache for thumbnails
@@ -125,7 +126,7 @@ class ImageCache:
                 with open(self.cache_file, "r") as f:
                     data = json.load(f)
 
-                cached_paths = data.get("cached_paths", [])
+                cached_paths = data.get("cached_paths", [])[:self.cache_size]
                 total_images = len(cached_paths)
                 print(f"📂 Found {total_images} cached images...")  # ✅ Debug: How many images exist
 
@@ -138,7 +139,7 @@ class ImageCache:
                     if os.path.exists(file_path):
                         # print(f"🟢 Preloading full-size image: {file_path}")  # ✅ Debug: Processing image
                         img = self.preload_image(file_path)  # Load image
-
+                        
                         if img is None:
                             print(f"⚠ Warning: Image {file_path} failed to load!")  # ✅ Debug: Image loading issue
 
@@ -147,6 +148,8 @@ class ImageCache:
                         if splash_screen:
                             progress = (i + 1) * step
                             splash_screen.update_progress(progress, f"Loading images... ({i+1}/{total_images})")
+                            splash_screen.update_idletasks()  # 🔹 Force UI update
+                            splash_screen.after(10)  # 🔹 Allow Tkinter to refresh
                     else:
                         print(f"❌ Warning: Image file does NOT exist - {file_path}")  # ✅ Debug: Missing file
 
@@ -159,11 +162,12 @@ class ImageCache:
 
 
     def save_cache_to_disk(self):
-        """Save only file paths of full-size images to disk."""
+        """Save up to 100 full-size images to disk."""
         try:
+            cache_data = list(self.image_cache.keys())[-self.cache_size:]  # ✅ Keep only last 100
             with open(self.cache_file, "w") as f:
-                json.dump({"cached_paths": list(self.image_cache.keys())}, f, indent=4)
-            print(f"💾 Saved {len(self.image_cache)} cached full-size images to disk.")
+                json.dump({"cached_paths": cache_data}, f, indent=4)
+            print(f"💾 Saved {len(cache_data)} cached full-size images to disk.")
         except Exception as e:
             print(f"⚠ Error saving cache: {e}")
 
@@ -175,7 +179,7 @@ class ImageCache:
                 with open(CACHE_FILE, "r") as f:
                     data = json.load(f)
 
-                cached_paths = data.get("cached_paths", [])
+                cached_paths = data.get("cached_paths", [])[:self.thumbnail_cache_size] 
                 print(f"📂 Loading {len(cached_paths)} cached thumbnails from disk...")
 
                 # Store file paths only (not Tkinter objects)
@@ -186,11 +190,12 @@ class ImageCache:
 
 
     def save_thumbnail_cache(self):
-        """Save only file paths of thumbnails to disk."""
+        """Save up to 100 thumbnails to disk."""
         try:
+            cache_data = list(self.thumbnail_cache.keys())[-self.thumbnail_cache_size:]  # ✅ Keep only last 100
             with open(CACHE_FILE, "w") as f:
-                json.dump({"cached_paths": list(self.thumbnail_cache.keys())}, f, indent=4)
-            print(f"💾 Saved {len(self.thumbnail_cache)} cached thumbnails to disk.")
+                json.dump({"cached_paths": cache_data}, f, indent=4)
+            print(f"💾 Saved {len(cache_data)} cached thumbnails to disk.")
         except Exception as e:
             print(f"⚠ Error saving thumbnail cache: {e}")
 
@@ -267,7 +272,6 @@ class ImageCache:
 
         # Process the next thumbnail asynchronously
         splash_screen.after(10, lambda: self.preload_thumbnails(splash_screen, index + 1))
-
 
 
     def load_all_caches(self):

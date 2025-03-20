@@ -4,7 +4,6 @@ from database import init_database
 from image_cache import ImageCache
 from splash_screen import SplashScreen
 
-
 if __name__ == "__main__":
     ctk.set_appearance_mode("Dark")
     ctk.set_default_color_theme("blue")
@@ -17,7 +16,6 @@ if __name__ == "__main__":
     app = ClientApp(conn, image_cache)
     app.update_idletasks()
     app.withdraw()  # Hide main UI until everything is loaded
-
 
     # 🔹 Show splash screen FIRST before loading anything
     splash_screen = SplashScreen(app)  # ✅ Attach to main UI

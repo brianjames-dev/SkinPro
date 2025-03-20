@@ -30,7 +30,7 @@ class ClientApp(ctk.CTk):
         self.init_ui()
 
         # Now that the UI is set up, start loading cached images
-        splash_screen.update_progress(0.0, "Loading cached images...")
+        splash_screen.update_progress(0.00, "Loading cached images...")
 
         # Load image caches
         self.image_cache.load_cache_from_disk(splash_screen)  # Load full-size images
@@ -100,7 +100,7 @@ class ClientApp(ctk.CTk):
             self.image_cache.get_thumbnail(file_path)  # Load thumbnail
             progress = start_progress + ((i + 1) * step_thumb)
             splash_screen.update_progress(progress, f"Loading thumbnails... ({i+1}/{total_thumbnails})")
-
+            
             # Schedule the next thumbnail to load asynchronously
             self.after(10, lambda: process_thumbnail(i + 1))
 
@@ -109,10 +109,9 @@ class ClientApp(ctk.CTk):
 
     def finish_loading(self, splash_screen):
         """Finalize UI setup and close the splash screen."""
-        print("✅ Finished preloading assets. Closing splash screen and starting app...")
-        
-        self.after(500, splash_screen.destroy)  # Destroy splash screen after a short delay
-        self.deiconify()  # Show the main app
+        splash_screen.stop_timer()  # ✅ Stop the timer before destroying the screen
+        splash_screen.destroy()  # ✅ Now it's safe to destroy
+        self.deiconify()  # Show main application
 
 
     def init_ui(self):
