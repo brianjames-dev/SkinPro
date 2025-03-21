@@ -102,7 +102,7 @@ class ClientsPage:
         # Key "bind" configurations for quick functionality
         self.name_entry. bind("<KeyRelease>", lambda event: (self.search_client(), "break"))    # Prevent default behavior
         self.client_list.bind("<Return>", self.jump_to_info_tab)                                # Pressing Enter in Treeview
-        self.client_list.bind("<ButtonRelease-1>", self.update_profile_card)                    # Update profile card w/ single-click
+        self.client_list.bind("<ButtonRelease-1>", self.on_client_select)                       # Update all client info w/ single click
         self.client_list.bind("<Double-1>", self.jump_to_info_tab)                              # Double left-click
         self.client_list.bind_all("<Control-Return>", lambda event: self.add_client_button())   # Bind globally for Ctrl+Enter
         self.client_list.bind("<Delete>", self.confirm_delete_client)                           # Deletes client
@@ -138,8 +138,8 @@ class ClientsPage:
             return
         
         for row in results:
-            client_id = row[0]  # ✅ Extract client_id
-            client_values = row[1:]  # ✅ Everything except client_id
+            client_id = row[0]  # Extract client_id
+            client_values = row[1:]  # Everything except client_id
             self.client_list.insert("", "end", iid=str(client_id), values=client_values)
 
         print(f"✅ Loaded {len(results)} clients.")  # Debugging
@@ -152,7 +152,7 @@ class ClientsPage:
         if query:
             self.client_list.delete(*self.client_list.get_children())  # Clear existing rows
 
-            # ✅ Include client_id in the query (important for selection!)
+            # Include client_id in the query (important for selection!)
             self.cursor.execute("""
                 SELECT id, full_name, gender, birthdate, phone, email, address1 || ' ' || address2 
                 FROM clients 
@@ -162,8 +162,8 @@ class ClientsPage:
             results = self.cursor.fetchall()
             if results:
                 for row in results:
-                    client_id = row[0]  # ✅ Extract client_id
-                    client_values = row[1:]  # ✅ Everything except client_id
+                    client_id = row[0]  # Extract client_id
+                    client_values = row[1:]  # Everything except client_id
 
                     # ✅ Insert using client_id as the TreeView iid
                     self.client_list.insert("", "end", iid=str(client_id), values=client_values)
@@ -182,44 +182,44 @@ class ClientsPage:
     def jump_to_info_tab(self, event):
         """Switch to the Info tab when a client (row) is double-clicked in the TreeView."""
     
-        # ✅ Step 1: Check where the click happened
+        # Check where the click happened
         region = self.client_list.identify_region(event.x, event.y)
         if region == "heading":  
             print("⚠ Double-clicked on a header. Ignoring.")
-            return  # 🔥 Do nothing if it's a column header
+            return  # Do nothing if it's a column header
 
-        # ✅ Step 2: Ensure a valid row is selected
+        # Ensure a valid row is selected
         selected_item = self.client_list.selection()
         if not selected_item:  
             print("⚠ No client selected. Ignoring.")
-            return  # 🔥 Ignore if no valid row is selected
+            return  # Ignore if no valid row is selected
 
         print(f"🔄 Switching to Info Tab for Client ID: {selected_item[0]}")
         self.main_app.switch_to_tab("Info")
 
-    def update_profile_card(self, event):
+    def on_client_select(self, event):
         """Update the profile card when a client is single-clicked in the treeview."""
         
-        # ✅ 1. Ensure a client is selected
+        # Ensure a client is selected
         selected_client = self.client_list.selection()
         if not selected_client:
             print("⚠ No item selected in the Treeview.")  # Debugging
             return  
 
-        # ✅ 2. Get selected client's client_id from Treeview
+        # Get selected client's client_id from Treeview
         client_id = selected_client[0]  # Treeview 'iid' is now the correct client_id
         self.client_id = int(client_id)  # Store current client_id for future use
         print(f"\n🟢 Selected Client ID:      {self.client_id}")  # Debugging
 
-        # ✅ Ensure the selected client is brought into view
-        self.client_list.see(client_id)  # 🔥 Scroll to selected client
+        # Ensure the selected client is brought into view
+        self.client_list.see(client_id)  # Scroll to selected client
         
-        # ✅ 3. Update ProfileCard's client_id
+        # Update ProfileCard's client_id
         if hasattr(self.main_app, "profile_card"):
-            self.main_app.profile_card.client_id = self.client_id  # 🔥 Store client_id in ProfileCard
+            self.main_app.profile_card.client_id = self.client_id  # Store client_id in ProfileCard
             print(f"✅ ProfileCard client_id updated to: {self.client_id}")
 
-        # ✅ 4. Fetch full client data from Treeview
+        # Fetch full client data from Treeview
         item_data = self.client_list.item(client_id)
         client_data = item_data.get("values", [])
         
@@ -241,13 +241,13 @@ class ClientsPage:
         print(f"🔹 Retrieved Email:         {email}") 
         print(f"🔹 Retrieved Address:       {address}")  # Debugging
 
-        # ✅ 5. Update Other Tabs
+        # Update Other Tabs
         print(f"\n🔄 Populating Info & Appointments tabs for Client ID: {self.client_id}")
         self.main_app.tabs["Info"].populate_client_info(self.client_id)
         self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
         self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
 
-        # ✅ 6. Update Profile Card if it exists
+        # Update Profile Card if it exists
         if hasattr(self.main_app, "profile_card"):
             print("🟢 Updating Profile Card for Client ID:", self.client_id)
             self.main_app.profile_card.load_client(self.client_id)
@@ -263,12 +263,12 @@ class ClientsPage:
             print("⚠ No name entered. Cannot add new client.")
             return  # Prevent empty input
 
-        # ✅ Step 1: Check for duplicate name in the database
+        # Check for duplicate name in the database
         self.cursor.execute("SELECT COUNT(*) FROM clients WHERE LOWER(full_name) = LOWER(?)", (full_name,))
         existing_count = self.cursor.fetchone()[0]
 
         if existing_count > 0:
-             # ✅ Step 2: Show the confirmation popup, calling `handle_duplicate_response` on Yes/No
+             # Show the confirmation popup, calling `handle_duplicate_response` on Yes/No
             ConfirmationPopup(
                 self.parent,
                 "Duplicate Name Detected",
@@ -276,10 +276,10 @@ class ClientsPage:
                 lambda response: self.handle_duplicate_response(response, full_name)  # Pass response & full_name
             )
         else:
-            # ✅ No duplicate detected, proceed immediately
+            # No duplicate detected, proceed immediately
             self.proceed_with_new_client(full_name)
 
-            # ✅ Ensure a valid client ID before selecting in TreeView
+            # Ensure a valid client ID before selecting in TreeView
             if self.main_app.current_client_id != -1:
                 print(f"🔄 Selecting Client ID: {self.main_app.current_client_id} in TreeView...")
                 self.main_app.tabs["Clients"].client_list.selection_set(str(self.main_app.current_client_id))
@@ -293,7 +293,7 @@ class ClientsPage:
             print("🔴 User canceled adding duplicate client.")
             return  # Stop if user selects "No"
 
-        # ✅ Proceed with adding the client
+        # Proceed with adding the client
         self.proceed_with_new_client(full_name)
 
     def proceed_with_new_client(self, full_name):
@@ -302,18 +302,18 @@ class ClientsPage:
         self.main_app.tabs["Appointments"].clear_appointments()
         self.main_app.current_client_id = -1  # Placeholder for new clients
 
-        # ✅ Populate the full name entry in the Info tab
+        # Populate the full name entry in the Info tab
         info_tab = self.main_app.tabs["Info"]
         info_tab.full_name_entry.insert(0, full_name)
         
-        # ✅ Update the Profile Card with the New Client Name
+        # Update the Profile Card with the New Client Name
         if hasattr(self.main_app, "profile_card"):
             self.main_app.profile_card.client_id = -1  # Placeholder ID
             self.main_app.profile_card.full_name = full_name
             self.main_app.profile_card.name_label.configure(text=full_name)  # Update UI
             print(f"🆕 New Client Placeholder Set: {full_name} (ID: -1)")
 
-        # ✅ Switch to the Info tab
+        # Switch to the Info tab
         self.main_app.switch_to_tab("Info")
 
         print(f"🆕 Proceeding to add a new client: {full_name}")
@@ -336,7 +336,7 @@ class ClientsPage:
 
         client_name = client_name[0]  # Extract name from tuple
 
-        # ✅ Show Confirmation Popup
+        # Show Confirmation Popup
         ConfirmationPopup(
             self.parent,
             "Confirm Deletion",
@@ -353,7 +353,7 @@ class ClientsPage:
         try:
             print(f"🗑️ Deleting client ID: {client_id}")
 
-            # ✅ Fetch the profile picture path before deletion
+            # Fetch the profile picture path before deletion
             self.cursor.execute("SELECT profile_picture FROM clients WHERE id = ?", (client_id,))
             result = self.cursor.fetchone()
 
@@ -361,25 +361,25 @@ class ClientsPage:
                 profile_picture_path = result[0]
                 print(f"🖼️ Attempting to delete profile image: {profile_picture_path}")
 
-                # ✅ Check if the file exists before attempting to delete
+                # Check if the file exists before attempting to delete
                 if os.path.exists(profile_picture_path):
                     os.remove(profile_picture_path)
                     print("✅ Profile image successfully deleted.")
                 else:
                     print("⚠ Profile image file not found, skipping deletion.")
 
-            # ✅ Delete the client from the database (ON DELETE CASCADE removes linked data)
+            # Delete the client from the database (ON DELETE CASCADE removes linked data)
             self.cursor.execute("DELETE FROM clients WHERE id = ?", (client_id,))
             self.conn.commit()
 
-            # ✅ Refresh UI after deletion
+            # Refresh UI after deletion
             self.load_clients()
             
-            # ✅ Reset ProfileCard (Loads default state)
+            # Reset ProfileCard (Loads default state)
             if hasattr(self.main_app, "profile_card"):
                 self.main_app.profile_card.load_client(None)  # Reset profile card
 
-            # ✅ Reset Info Tab (Clear all fields)
+            # Reset Info Tab (Clear all fields)
             if "Info" in self.main_app.tabs:
                 self.main_app.tabs["Info"].clear_info()
 

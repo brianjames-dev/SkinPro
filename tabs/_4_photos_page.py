@@ -6,12 +6,14 @@ from customtkinter import CTkImage
 from class_elements.treeview_styling import style_treeview
 import os
 
+
 class PhotosPage:
-    def __init__(self, parent, conn, main_app, image_cache):
+    def __init__(self, parent, conn, main_app, image_cache, image_loader):
         self.conn = conn
         self.cursor = conn.cursor()
         self.main_app = main_app        # Reference to main app
         self.image_cache = image_cache  # Store reference to the shared image cache
+        self.image_loader = image_loader
         self.client_id = None           # Store selected client ID
 
         self.before_image_index = -1  # Track navigation index
@@ -416,138 +418,60 @@ class PhotosPage:
 
             # print(f"🖼️ Debug: Adding Photo ID {photo_id} | Path: {file_path} | Date: {appt_date} | Type: {type}")
 
+            # ✅ Store the valid thumbnail reference
+            self.photo_file_paths[photo_id] = file_path  
+            self.photo_paths.append(file_path)
+
             # ✅ Retrieve cached thumbnail first
             thumbnail = self.image_cache.get_thumbnail(file_path)
 
-
-            if not isinstance(thumbnail, ImageTk.PhotoImage):  # ✅ Must be PhotoImage for ttk.Treeview
-                print(f"⚠ Warning: Cached thumbnail is invalid. Regenerating: {file_path}")
-                thumbnail = self.generate_thumbnail(file_path, photo_id)  # Ensure this returns PhotoImage
-                self.image_cache.add_thumbnail_to_cache(file_path, thumbnail)
-
-            # ✅ If thumbnail is still invalid, log the issue and skip insertion
-            if not isinstance(thumbnail, ImageTk.PhotoImage):
-                print(f"❌ Error: Could not generate valid PhotoImage for {file_path}. Skipping...")
-                continue  # Prevents Tkinter crash
+            if thumbnail is None:
+                # ✅ Add task to worker thread to generate the thumbnail asynchronously
+                self.image_loader.add_task(file_path, photo_id)
+            else:
+                # ✅ Use cached thumbnail immediately
+                self.main_app.after(0, lambda: self.update_ui_with_thumbnail(photo_id, thumbnail))
 
             # ✅ Store the valid thumbnail reference
-            self.thumbnails[str(photo_id)] = thumbnail  
-            self.photo_file_paths[photo_id] = file_path  
-            self.photo_paths.append(file_path)  
+            self.thumbnails[str(photo_id)] = thumbnail if thumbnail else None  
 
-            # ✅ Insert into Treeview using PhotoImage
+            # Insert row into Treeview
             self.photo_list.insert(
                 "", "end", iid=str(photo_id),  # Tkinter requires `iid` as a string
                 values=(appt_date, type),
-                image=self.thumbnails[str(photo_id)]  # Use PhotoImage, not CTkImage
+                image=thumbnail if thumbnail else ""  # Use cached or leave blank until worker fills it
             )
 
-        print(f"🔍 Debug: Thumbnail cache contains {len(self.thumbnails)} entries")
-        print(f"🔍 Debug: Full-size image cache contains {len(self.image_cache.image_cache)} entries")
-
-
-    def generate_thumbnail(self, file_path, photo_id, size=(50, 50)):  
-        """Generate and return a Tkinter-compatible PhotoImage thumbnail for Treeview."""
-        try:
-            if not os.path.exists(file_path):
-                print(f"❌ File does not exist: {file_path}")
-                return None
-            
-            img = Image.open(file_path)
-            img = img.convert("RGB")  # Ensures consistent color mode
-
-            # Crop to square center
-            width, height = img.size
-            min_side = min(width, height)
-            left = (width - min_side) / 2
-            top = (height - min_side) / 2
-            right = (width + min_side) / 2
-            bottom = (height + min_side) / 2
-            img = img.crop((left, top, right, bottom))
-
-            # Resize to target size (50x50)
-            img = img.resize(size, Image.LANCZOS)
-
-            # ✅ Convert to `PhotoImage` for use in `ttk.Treeview`
-            thumbnail = ImageTk.PhotoImage(img)  
-
-            if not isinstance(thumbnail, ImageTk.PhotoImage):  
-                print(f"⚠ Error: Thumbnail generation failed for {file_path}")
-                return None
-
-            return thumbnail  # ✅ Correct format for `ttk.Treeview`
-
-        except Exception as e:
-            print(f"⚠ Error generating thumbnail for {file_path}: {e}")
-            return None
-
-
-    def add_thumbnail_to_cache(self, file_path, thumbnail):
-        """Add a thumbnail to the cache with LRU handling."""
-        if not thumbnail or not isinstance(thumbnail, CTkImage):  # ✅ Extra safeguard
-            print(f"⚠ Warning: Not caching invalid thumbnail for {file_path}")
-            return  
-
-        if file_path in self.thumbnail_cache:
-            self.thumbnail_cache.move_to_end(file_path)
-        else:
-            if len(self.thumbnail_cache) >= self.cache_size:
-                removed = self.thumbnail_cache.popitem(last=False)
-                print(f"🔄 LRU Removed Oldest Thumbnail: {removed[0]}")
-
-            self.thumbnail_cache[file_path] = thumbnail
-            print(f"✅ Cached Thumbnail: {file_path}")
+        print(f"🔍 Debug: Thumbnail cache contains {len(self.image_cache.thumbnail_cache)} entries")
 
 
     def highlight_images_in_treeview(self):
         """Highlight Before and After images in the Treeview with different colors."""
-        # ✅ Remove previous highlights
+        # Remove previous highlights
         for item in self.photo_list.get_children():
             self.photo_list.item(item, tags=())  # Clears all tags
 
-        # ✅ Apply the Before highlight
+        # Apply the Before highlight
         if self.before_image_index != -1 and self.before_image_index < len(self.photo_paths):
             before_file_path = self.photo_paths[self.before_image_index]
             before_photo_id = next((pid for pid, path in self.photo_file_paths.items() if path == before_file_path), None)
             if before_photo_id is not None:
                 self.photo_list.item(str(before_photo_id), tags=("before_highlight",))
 
-        # ✅ Apply the After highlight **ONLY IF** a valid After image was chosen
+        # Apply the After highlight **ONLY IF** a valid After image was chosen
         if self.after_image_index != -1 and self.after_image_index < len(self.photo_paths):
             after_file_path = self.photo_paths[self.after_image_index]
             after_photo_id = next((pid for pid, path in self.photo_file_paths.items() if path == after_file_path), None)
             if after_photo_id is not None:
                 self.photo_list.item(str(after_photo_id), tags=("after_highlight",))
 
-        # ✅ Deselect all items to prevent default selection highlight
+        # Deselect all items to prevent default selection highlight
         self.photo_list.selection_remove(self.photo_list.selection())
 
 
-    def preload_image(self, file_path):
-        """Preload and resize an image for instant display."""
-        try:
-            img = Image.open(file_path)
-
-            # ✅ Ensure consistent color mode (fixes issues with PNGs)
-            img = img.convert("RGB")  
-
-            # ✅ Resize image **once** and store it in cache
-            fixed_width, fixed_height = 279, 372  
-            img_ratio = img.width / img.height
-            target_ratio = fixed_width / fixed_height
-
-            if img_ratio > target_ratio:
-                new_width = fixed_width
-                new_height = int(fixed_width / img_ratio)
-            else:
-                new_height = fixed_height
-                new_width = int(fixed_height * img_ratio)
-
-            img = img.resize((new_width, new_height), Image.LANCZOS)
-
-            # ✅ Convert to a CTkImage for Tkinter use
-            return CTkImage(img, size=(fixed_width, fixed_height))
-
-        except Exception as e:
-            print(f"⚠ Error preloading image {file_path}: {e}")
-            return None
+    def update_ui_with_thumbnail(self, photo_id, thumbnail):
+        """Update thumbnail in the Treeview, if the item exists."""
+        if self.photo_list.exists(str(photo_id)):
+            self.main_app.after(0, lambda: self.photo_list.item(str(photo_id), image=thumbnail))
+        else:
+            print(f"⚠️ Skipping UI update: Treeview item {photo_id} not found.")

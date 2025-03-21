@@ -5,9 +5,10 @@ from tabs._3_appointments_page import AppointmentsPage
 from tabs._4_photos_page import PhotosPage
 from class_elements.profile_card import ProfileCard
 from splash_screen import SplashScreen
+from img_load_threading import ImageLoaderThread
 
 class ClientApp(ctk.CTk):
-    def __init__(self, conn, image_cache):
+    def __init__(self, conn, image_cache, image_loader):
         super().__init__()
 
         self.title("SkinPro")
@@ -16,6 +17,7 @@ class ClientApp(ctk.CTk):
         self.conn = conn  # Save the database connection
         self.cursor = self.conn.cursor()
         self.image_cache = image_cache  # Store image cache reference
+        self.image_loader = image_loader  # ✅ Now `self.image_loader` exists in ClientApp
         self.selected_client_id = None  # Store selected client ID
 
         # Hide the UI until everything is preloaded
@@ -33,7 +35,7 @@ class ClientApp(ctk.CTk):
         splash_screen.update_progress(0.00, "Loading cached images...")
 
         # Load image caches
-        self.image_cache.load_cache_from_disk(splash_screen)  # Load full-size images
+        self.image_cache.load_image_cache(splash_screen)  # Load full-size images
         self.image_cache.load_thumbnail_cache()  # Load cached thumbnail paths
 
         # Prepare lists
@@ -45,7 +47,7 @@ class ClientApp(ctk.CTk):
         total_items = total_full_images + total_thumbnails
 
         if total_items == 0:
-            print("⚠ Warning: No images or thumbnails found!")
+            print("⚠ Warning: No cached images or thumbnails found!")
             return self.finish_loading(splash_screen)
 
         # Allocate exact progress range:
@@ -58,7 +60,7 @@ class ClientApp(ctk.CTk):
         step_full_images = (full_end - full_start) / total_full_images if total_full_images > 0 else 0
         step_thumbnails = (thumb_end - thumb_start) / total_thumbnails if total_thumbnails > 0 else 0
 
-        # 🔹 Process full-size images one by one asynchronously
+        # Process full-size images one by one asynchronously
         self.load_full_images(full_images, thumbnails, splash_screen, 0, step_full_images, step_thumbnails)
 
 
@@ -83,6 +85,10 @@ class ClientApp(ctk.CTk):
     def load_thumbnails(self, thumbnails, splash_screen, start_progress, step_thumb):
         """Load thumbnails while updating splash screen progress."""
         total_thumbnails = len(thumbnails)
+        print(f"⚠️ Skipping thumbnail generation during splash screen. Total: {len(thumbnails)}")
+        
+        return self.finish_loading(splash_screen)
+
 
         if total_thumbnails == 0:
             print("⚠ Warning: No thumbnails found to load!")
@@ -97,7 +103,15 @@ class ClientApp(ctk.CTk):
             file_path = thumbnails[i]
             print(f"🖼️ Loading thumbnail {i+1}/{total_thumbnails}: {file_path}")
 
-            self.image_cache.get_thumbnail(file_path)  # Load thumbnail
+            thumbnail = self.image_cache.get_thumbnail(file_path)  # Load thumbnail
+
+            if thumbnail is None:
+                # ✅ Add task to worker thread to generate the thumbnail asynchronously
+                self.image_loader.add_task(file_path, i)  # Use `i` as temporary ID
+            else:
+                # ✅ Use cached thumbnail immediately in UI
+                self.main_app.after(0, lambda: self.update_ui_with_thumbnail(i, thumbnail))
+
             progress = start_progress + ((i + 1) * step_thumb)
             splash_screen.update_progress(progress, f"Loading thumbnails... ({i+1}/{total_thumbnails})")
             
@@ -109,8 +123,8 @@ class ClientApp(ctk.CTk):
 
     def finish_loading(self, splash_screen):
         """Finalize UI setup and close the splash screen."""
-        splash_screen.stop_timer()  # ✅ Stop the timer before destroying the screen
-        splash_screen.destroy()  # ✅ Now it's safe to destroy
+        splash_screen.stop_timer()  # Stop the timer before destroying the screen
+        splash_screen.destroy()  # Now it's safe to destroy
         self.deiconify()  # Show main application
 
 
@@ -153,7 +167,10 @@ class ClientApp(ctk.CTk):
 
     def init_photos_tab(self):
         photos_tab = self.tab_view.tab("Photos")
-        self.tabs["Photos"] = PhotosPage(photos_tab, self.conn, self, self.image_cache)  
+        photos_page = PhotosPage(photos_tab, self.conn, self, self.image_cache, self.image_loader)
+        self.tabs["Photos"] = photos_page
+
+        self.image_loader.update_ui_callback = photos_page.update_ui_with_thumbnail
 
 
     def switch_to_tab(self, tab_name, data=None):
@@ -183,4 +200,3 @@ class ClientApp(ctk.CTk):
         """Update the Appointments Tab with data for the selected client."""
         if self.selected_client_id:
             self.tabs["Appointments"].load_client_appointments(self.selected_client_id)
-

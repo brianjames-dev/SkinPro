@@ -3,6 +3,7 @@ from client_app import ClientApp
 from database import init_database
 from image_cache import ImageCache
 from splash_screen import SplashScreen
+from img_load_threading import ImageLoaderThread
 
 if __name__ == "__main__":
     ctk.set_appearance_mode("Dark")
@@ -12,13 +13,21 @@ if __name__ == "__main__":
     conn = init_database()
     image_cache = ImageCache()
 
+    # Define a temporary function that will be overridden
+    def update_ui_stub(photo_id, thumbnail):
+        print(f"⚠ Warning: `update_ui_with_thumbnail` called before UI initialized. Skipping update.")
+
+    # Start Image Loader Thread once at startup
+    image_loader = ImageLoaderThread(image_cache, update_ui_stub)  # Use temporary function for now
+    image_loader.start()
+
     # 🔹 Create the main application but keep it hidden
-    app = ClientApp(conn, image_cache)
+    app = ClientApp(conn, image_cache, image_loader)
     app.update_idletasks()
     app.withdraw()  # Hide main UI until everything is loaded
 
     # 🔹 Show splash screen FIRST before loading anything
-    splash_screen = SplashScreen(app)  # ✅ Attach to main UI
+    splash_screen = SplashScreen(app)  # Attach to main UI
     splash_screen.update_idletasks()
 
     # 🔹 Start loading assets **after** splash screen is drawn
