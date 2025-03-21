@@ -1,28 +1,49 @@
 import sqlite3
 import datetime
+import os
+import shutil
 from faker import Faker  # Import Faker for generating mock data
 import random
 
+
 def init_database():
     """
-    Initialize the database, create tables, and insert mock data if necessary.
-    Returns a database connection object.
+    Initialize or reuse the existing database.
+    Weekly backups are made with a timestamped filename.
     """
-    # ✅ Format timestamp as MM-DD-YYYY_HH-MM-SS
-    timestamp = datetime.datetime.now().strftime("%m-%d-%Y") 
-    db_name = f"client_database_{timestamp}.db"  # ✅ Append timestamp to filename
+    base_db = "client_database.db"
 
-    conn = sqlite3.connect(db_name)
+    # Create or reuse the main database
+    is_new = not os.path.exists(base_db)
+    conn = sqlite3.connect(base_db)
     cursor = conn.cursor()
 
-    # Create tables
-    create_tables(cursor)
+    if is_new:
+        print("🆕 Creating new main database...")
+        create_tables(cursor)
+        insert_mock_data(cursor)
+        conn.commit()
+    else:
+        print("🟢 Reusing existing database...")
 
-    # Insert mock data
-    insert_mock_data(cursor)
+    # Weekly backup logic
+    backup_folder = "db_backups"
+    os.makedirs(backup_folder, exist_ok=True)
 
-    conn.commit()
-    print(f"✅ Database initialized: {db_name}")  # Debugging print
+    today = datetime.date.today()
+    current_week = today.isocalendar()[1]  # Get ISO week number
+    year = today.year
+
+    backup_name = f"client_database_{year}_W{current_week}.db"
+    backup_path = os.path.join(backup_folder, backup_name)
+
+    if not os.path.exists(backup_path):
+        print(f"📦 Creating weekly backup: {backup_name}")
+        shutil.copyfile(base_db, backup_path)
+    else:
+        print(f"✅ Weekly backup already exists: {backup_name}")
+
+    print(f"✅ Database ready: {base_db}")
     return conn
 
 def create_tables(cursor):
