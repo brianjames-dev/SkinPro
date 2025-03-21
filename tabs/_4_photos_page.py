@@ -470,8 +470,9 @@ class PhotosPage:
 
 
     def update_ui_with_thumbnail(self, photo_id, thumbnail):
-        """Update thumbnail in the Treeview, if the item exists."""
+        """Update the Treeview with the new thumbnail and store the reference to prevent GC."""
         if self.photo_list.exists(str(photo_id)):
+            self.thumbnails[str(photo_id)] = thumbnail  # ✅ Store the reference!
             self.main_app.after(0, lambda: self.photo_list.item(str(photo_id), image=thumbnail))
         else:
             print(f"⚠️ Skipping UI update: Treeview item {photo_id} not found.")

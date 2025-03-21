@@ -85,10 +85,8 @@ class ClientApp(ctk.CTk):
     def load_thumbnails(self, thumbnails, splash_screen, start_progress, step_thumb):
         """Load thumbnails while updating splash screen progress."""
         total_thumbnails = len(thumbnails)
-        print(f"⚠️ Skipping thumbnail generation during splash screen. Total: {len(thumbnails)}")
-        
-        return self.finish_loading(splash_screen)
-
+        # print(f"⚠️ Skipping thumbnail generation during splash screen. Total: {len(thumbnails)}")
+        # return self.finish_loading(splash_screen)
 
         if total_thumbnails == 0:
             print("⚠ Warning: No thumbnails found to load!")
@@ -106,10 +104,10 @@ class ClientApp(ctk.CTk):
             thumbnail = self.image_cache.get_thumbnail(file_path)  # Load thumbnail
 
             if thumbnail is None:
-                # ✅ Add task to worker thread to generate the thumbnail asynchronously
+                # Add task to worker thread to generate the thumbnail asynchronously
                 self.image_loader.add_task(file_path, i)  # Use `i` as temporary ID
             else:
-                # ✅ Use cached thumbnail immediately in UI
+                # Use cached thumbnail immediately in UI
                 self.main_app.after(0, lambda: self.update_ui_with_thumbnail(i, thumbnail))
 
             progress = start_progress + ((i + 1) * step_thumb)

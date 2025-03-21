@@ -4,7 +4,6 @@ from collections import OrderedDict
 from PIL import Image, ImageTk
 from customtkinter import CTkImage
 from tkinter import PhotoImage
-import threading
 
 CACHE_FILE = "image_cache.json"
 
