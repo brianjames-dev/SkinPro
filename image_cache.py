@@ -31,7 +31,7 @@ class ImageCache:
             image = self.preload_image(file_path)
             self.add_image_to_cache(file_path, image)
             return image
-        
+
 
     def add_image_to_cache(self, file_path, img):
         """Add an image to the cache, ensuring it doesn't exceed max size."""
@@ -163,13 +163,15 @@ class ImageCache:
     ### --- Cache Loading on Startup --- ###
     ########################################
     def preload_image(self, file_paths):
-        """Preload multiple images into cache, handling both single and multiple file paths."""
+        """Preload image(s) and return the last one (if any)."""
         if isinstance(file_paths, str):
-            file_paths = [file_paths]  # Convert single string to list
+            file_paths = [file_paths]
         
         if not isinstance(file_paths, list):
             print(f"⚠ Unexpected input type: {type(file_paths)}. Expected a list or a string.")
-            return
+            return None
+
+        last_image = None
 
         for file_path in file_paths:
             if not isinstance(file_path, str):
@@ -178,13 +180,19 @@ class ImageCache:
 
             if file_path in self.image_cache:
                 print(f"⚡ Skipping {file_path}, already cached.")
+                last_image = self.image_cache[file_path]
                 continue
 
             if os.path.exists(file_path):
                 print(f"🟢 Preloading {file_path} into cache...")
-                self.image_cache[file_path] = self.crop_image(file_path)
+                image = self.crop_image(file_path)
+                if image:
+                    self.image_cache[file_path] = image
+                    last_image = image
             else:
                 print(f"❌ Skipping {file_path}, file does not exist.")
+
+        return last_image
 
 
     def crop_image(self, file_path):
@@ -193,7 +201,7 @@ class ImageCache:
             img = Image.open(file_path)
             img = img.convert("RGB")  # Ensure consistent color mode
 
-            # Resize for display
+            # Resize for display.
             fixed_width, fixed_height = 279, 372
             img_ratio = img.width / img.height
             target_ratio = fixed_width / fixed_height

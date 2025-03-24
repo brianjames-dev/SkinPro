@@ -51,6 +51,10 @@ class PhotosPage:
         # Apply treeview styling
         style_treeview("Photos.Treeview", rowheight=55)
 
+        # Grid layout in treeview_frame
+        treeview_frame.rowconfigure(0, weight=1)
+        treeview_frame.columnconfigure(0, weight=1)
+
         self.photo_list = ttk.Treeview(treeview_frame, selectmode="browse", show="tree headings", style="Photos.Treeview")
         self.photo_list["columns"] = ("appt_date", "type")
         self.photo_list.heading("#0", text="Thumbnail")  # Thumbnail as the first column
@@ -59,11 +63,16 @@ class PhotosPage:
         self.photo_list.column("#0", width=85, stretch=False)  # Use the implicit first column for thumbnails
         self.photo_list.column("appt_date", width=50, anchor="center")
         self.photo_list.column("type", width=65, anchor="center")
-        self.photo_list.pack(fill="both", expand=True)
+        self.photo_list.grid(row=0, column=0, sticky="nsew")
         self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)            # Set Before Image
         self.photo_list.bind("<Control-ButtonRelease-1>", self.set_after_image)     # Set After Image
         self.photo_list.tag_configure("before_highlight", background="#0080FF")  # Before highlight color
         self.photo_list.tag_configure("after_highlight", background="green")   # Before highlight color
+
+        # Add vertical scrollbar
+        scrollbar = ttk.Scrollbar(treeview_frame, orient="vertical", command=self.photo_list.yview, style="Vertical.TScrollbar")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        self.photo_list.configure(yscrollcommand=scrollbar.set)
 
         # Before Image Preview Pane (Middle Column)
         before_frame = ctk.CTkFrame(main_frame, width=279, height=372, fg_color="#0080FF")
@@ -278,21 +287,17 @@ class PhotosPage:
             return
         
         try:
-            # Use the correct `get_image()` method
             image = self.image_cache.get_image(file_path)
 
             if image:
                 print(f"⚡ Instant Load: Using cached image for {file_path}")
-            else:
-                print(f"🛠️ Processing image → {file_path}")
-                image = self.image_cache.preload_image(file_path)  # Preload and cache the image
-
-            if image:
                 label.configure(image=image, text="", width=279, height=372)
                 label.image = image  # Keep reference to prevent garbage collection
 
-            # Update metadata for the image
-            self.update_photo_metadata(file_path, frame_type)
+                # Update metadata for the image
+                self.update_photo_metadata(file_path, frame_type)
+            else:
+                print(f"⚠ Failed to load image for {file_path}")
 
         except Exception as e:
             print(f"⚠ Error loading image: {e}")
