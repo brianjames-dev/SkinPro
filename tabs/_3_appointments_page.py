@@ -334,49 +334,49 @@ class AppointmentsPage:
             print(f"📸 photos Taken?:       {photos_taken}")
             print(f"----------------------------")
 
-        if len(selected_items) > 1:  # Multiple selection: Compile only the selected appointments' notes
-            print("\n🆔 Multiple Appointments Selected:")
+            if len(selected_items) > 1:  # Multiple selection: Compile only the selected appointments' notes
+                print("\n🆔 Multiple Appointments Selected:")
 
-            # Append notes for compilation
-            treatment_notes = self.appointments_table.item(item).get("tags", [""])[0]  # Safe retrieval
+                # Append notes for compilation
+                treatment_notes = self.appointments_table.item(item).get("tags", [""])[0]  # Safe retrieval
 
-            # Dynamic Divider Logic (Match longest text)
-            max_length = max(len(date), len(treatment) - 2)
-            if max_length > 37:
-                max_length = 37
-            divider_line = "━" * max_length
+                # Dynamic Divider Logic (Match longest text)
+                max_length = max(len(date), len(treatment) - 2)
+                if max_length > 35:
+                    max_length = 35
+                divider_line = "━" * max_length
 
-            # Insert formatted text with correct tags
-            start_index = self.all_notes_textbox.index("end")  # Store where this note starts
-            self.all_notes_textbox.insert("end", f"{divider_line}\n", "divider")  # Top Divider
-            self.all_notes_textbox.insert("end", f"{treatment}\n", "header")  # Treatment (Header)
-            self.all_notes_textbox.insert("end", f"{date}\n", "header")  # Date (Header)
-            self.all_notes_textbox.insert("end", f"{divider_line}\n\n", "divider")  # Bottom Divider
-            self.all_notes_textbox.insert("end", f"{treatment_notes}\n\n", "body")  # Notes (Body)
+                # Insert formatted text with correct tags
+                start_index = self.all_notes_textbox.index("end")  # Store where this note starts
+                self.all_notes_textbox.insert("end", f"{divider_line}\n", "divider")  # Top Divider
+                self.all_notes_textbox.insert("end", f"{treatment}\n", "header")  # Treatment (Header)
+                self.all_notes_textbox.insert("end", f"{date}\n", "header")  # Date (Header)
+                self.all_notes_textbox.insert("end", f"{divider_line}\n\n", "divider")  # Bottom Divider
+                self.all_notes_textbox.insert("end", f"{treatment_notes}\n\n", "body")  # Notes (Body)
 
-            # Store first match to jump to
-            if jump_to_index is None:
-                jump_to_index = start_index
+                # Store first match to jump to
+                if jump_to_index is None:
+                    jump_to_index = start_index
 
-        else:  # Single selection: Displays ALL compiled appointment notes
-            self.load_all_treatment_notes()
-            
-            # Get the selected appointment note to jump to
-            selected_item = selected_items[0]
-            selected_data = self.appointments_table.item(selected_item)["values"]
-            if selected_data:
-                selected_date = selected_data[0]
-                selected_treatment = selected_data[2]
+            else:  # Single selection: Displays ALL compiled appointment notes
+                self.load_all_treatment_notes()
+                
+                # Get the selected appointment note to jump to
+                selected_item = selected_items[0]
+                selected_data = self.appointments_table.item(selected_item)["values"]
+                if selected_data:
+                    selected_date = selected_data[0]
+                    selected_treatment = selected_data[2]
 
-                # Find the first occurrence of the note
-                search_text = f"{selected_treatment}\n{selected_date}"
-                jump_to_index = self.all_notes_textbox.search(search_text, "1.0", stopindex="end", nocase=True)
+                    # Find the first occurrence of the note
+                    search_text = f"{selected_treatment}\n{selected_date}"
+                    jump_to_index = self.all_notes_textbox.search(search_text, "1.0", stopindex="end", nocase=True)
 
-                # Apply highlight **ONLY IF ONE APPOINTMENT IS SELECTED**
-                if jump_to_index:
-                    end_index = f"{jump_to_index.split('.')[0]}.end"
-                    self.all_notes_textbox.tag_add("highlight", jump_to_index, end_index)
-                    # print(f"✅ Highlighted note at index: {jump_to_index}")
+                    # Apply highlight **ONLY IF ONE APPOINTMENT IS SELECTED**
+                    if jump_to_index:
+                        end_index = f"{jump_to_index.split('.')[0]}.end"
+                        self.all_notes_textbox.tag_add("highlight", jump_to_index, end_index)
+                        # print(f"✅ Highlighted note at index: {jump_to_index}")
 
         # Scroll to first matching note (if found) & ensure it appears at the **top**
         if jump_to_index:
@@ -425,7 +425,6 @@ class AppointmentsPage:
             self.all_notes_textbox.insert("end", f"{treatment}\n", "header")  # Treatment (Header)
             self.all_notes_textbox.insert("end", f"{date}\n", "header")  # Date (Header)
             self.all_notes_textbox.insert("end", f"{divider_line}\n\n", "divider")  # Bottom Divider
-
             self.all_notes_textbox.insert("end", f"{notes}\n\n", "body")  # Notes (Body)
 
         if not all_notes:
@@ -748,6 +747,21 @@ class AppointmentsPage:
 
         except Exception as e:
             print(f"❌ Database update failed: {e}")
+
+        # Update photos table to sync with the edited appointment
+        try:
+            self.cursor.execute("""
+                UPDATE photos
+                SET appt_date = ?, type = ?
+                WHERE appointment_id = ?
+            """, (date, type, appointment_id))
+            self.conn.commit()
+            print(f"✅ Synced photos with updated appointment {appointment_id}")
+
+            self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
+
+        except Exception as e:
+            print(f"❌ Failed to update photos for appointment {appointment_id}: {e}")
 
 
     def get_selected_appointment_id(self, treeview_item):
