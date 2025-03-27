@@ -202,7 +202,7 @@ class ImageCache:
             img = img.convert("RGB")  # Ensure consistent color mode
 
             # Resize for display.
-            fixed_width, fixed_height = 279, 372
+            fixed_width, fixed_height = 300, 400
             img_ratio = img.width / img.height
             target_ratio = fixed_width / fixed_height
 

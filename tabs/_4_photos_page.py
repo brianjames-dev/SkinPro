@@ -74,21 +74,22 @@ class PhotosPage:
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.photo_list.configure(yscrollcommand=scrollbar.set)
 
+        # 300  x  400
         # Before Image Preview Pane (Middle Column)
-        before_frame = ctk.CTkFrame(main_frame, width=279, height=372, fg_color="#0080FF")
+        before_frame = ctk.CTkFrame(main_frame, width=300, height=400, fg_color="#0080FF")
         before_frame.grid(row=0, column=1, columnspan=3, sticky="nsew", padx=(5, 5))
 
         ctk.CTkLabel(before_frame, text="Before", font=("Arial", 16)).pack()
-        self.before_label = ctk.CTkLabel(before_frame, text="<No Image Selected>", width=279, height=372, fg_color="gray")
-        self.before_label.pack(pady=(0, 10))
+        self.before_label = ctk.CTkLabel(before_frame, text="<No Image Selected>", width=300, height=400, fg_color="gray")
+        self.before_label.pack(pady=(0, 5))
 
         # After Image Preview Pane (Right Column)
-        after_frame = ctk.CTkFrame(main_frame, width=279, height=372, fg_color="green")
+        after_frame = ctk.CTkFrame(main_frame, width=300, height=400, fg_color="green")
         after_frame.grid(row=0, column=4, columnspan=3, sticky="nsew", padx=(5, 0))
 
         ctk.CTkLabel(after_frame, text="After", font=("Arial", 16)).pack()
-        self.after_label = ctk.CTkLabel(after_frame, text="<No Image Selected>", width=279, height=372, fg_color="gray")
-        self.after_label.pack(pady=(0, 10))
+        self.after_label = ctk.CTkLabel(after_frame, text="<No Image Selected>", width=300, height=400, fg_color="gray")
+        self.after_label.pack(pady=(0, 5))
 
         # Navigation Buttons & Date Label (Before Image)
         self.before_nav_frame = ctk.CTkFrame(main_frame, fg_color="#2b2b2b")
@@ -291,7 +292,7 @@ class PhotosPage:
 
             if image:
                 print(f"⚡ Instant Load: Using cached image for {file_path}")
-                label.configure(image=image, text="", width=279, height=372)
+                label.configure(image=image, text="", width=300, height=400)
                 label.image = image  # Keep reference to prevent garbage collection
 
                 # Update metadata for the image

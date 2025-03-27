@@ -66,20 +66,6 @@ def create_tables(cursor):
     """)
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS appointments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id INTEGER NOT NULL,
-        date DATE NOT NULL,
-        type TEXT NOT NULL,
-        treatment TEXT,
-        price TEXT,
-        photos_taken TEXT DEFAULT 'No',
-        treatment_notes TEXT,
-        FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
-    )
-    """)
-    
-    cursor.execute("""
     CREATE TABLE IF NOT EXISTS client_health_info (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
@@ -91,6 +77,20 @@ def create_tables(cursor):
         skin_conditions TEXT,
         other_notes TEXT,
         desired_improvement TEXT,
+        FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS appointments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL,
+        date DATE NOT NULL,
+        type TEXT NOT NULL,
+        treatment TEXT,
+        price TEXT,
+        photos_taken TEXT DEFAULT 'No',
+        treatment_notes TEXT,
         FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
     )
     """)
@@ -118,6 +118,21 @@ def create_tables(cursor):
         FOREIGN KEY (appointment_id) REFERENCES appointments (id) ON DELETE CASCADE
     )
     """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS prescriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL,
+        appointment_id INTEGER,
+        form_type TEXT,
+        file_path TEXT NOT NULL,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients(id), ON DELETE CASCADE
+        FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+    )
+    """)
+
 
 def format_fake_phone():
     """Generate a fake phone number in the format (XXX) XXX-XXXX."""
@@ -158,28 +173,6 @@ def insert_mock_data(cursor):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, mock_clients)
 
-    # Check if data already exists in the appointments table
-    cursor.execute("SELECT COUNT(*) FROM appointments")
-    if cursor.fetchone()[0] == 0:
-        # Generate 100 mock appointments
-        mock_appointments = [
-            (
-                fake.random_int(min=1, max=100),  # client_id (randomly assign to a client)
-                fake.date_this_year().strftime("%m/%d/%Y"),  # Random date within this year
-                fake.random_element(["Facial", "Electrolysis", "Waxing"]),
-                fake.sentence(nb_words=5),  # Random treatment description
-                f"${fake.random_int(min=30, max=500)}.00",  # Random price
-                fake.random_element(["No"]),  # Photos taken
-                fake.sentence(nb_words=10)  # Random treatment notes
-
-            )
-            for _ in range(1000)
-        ]
-        cursor.executemany("""
-        INSERT INTO appointments (client_id, date, type, treatment, price, photos_taken, treatment_notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-                           
-        """, mock_appointments)
 
     # Check if data already exists in the client_health_info table
     cursor.execute("SELECT COUNT(*) FROM client_health_info")
@@ -203,3 +196,27 @@ def insert_mock_data(cursor):
         INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, mock_health_info)
+
+
+    # Check if data already exists in the appointments table
+    cursor.execute("SELECT COUNT(*) FROM appointments")
+    if cursor.fetchone()[0] == 0:
+        # Generate 100 mock appointments
+        mock_appointments = [
+            (
+                fake.random_int(min=1, max=100),  # client_id (randomly assign to a client)
+                fake.date_this_year().strftime("%m/%d/%Y"),  # Random date within this year
+                fake.random_element(["Facial", "Electrolysis", "Waxing"]),
+                fake.sentence(nb_words=5),  # Random treatment description
+                f"${fake.random_int(min=30, max=500)}.00",  # Random price
+                fake.random_element(["No"]),  # Photos taken
+                fake.sentence(nb_words=10)  # Random treatment notes
+
+            )
+            for _ in range(1000)
+        ]
+        cursor.executemany("""
+        INSERT INTO appointments (client_id, date, type, treatment, price, photos_taken, treatment_notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+                           
+        """, mock_appointments)
