@@ -3,6 +3,7 @@ from tabs._1_clients_page import ClientsPage
 from tabs._2_info_page import InfoPage
 from tabs._3_appointments_page import AppointmentsPage
 from tabs._4_photos_page import PhotosPage
+from tabs._5_prescriptions_page import PrescriptionsPage
 from class_elements.profile_card import ProfileCard
 from splash_screen import SplashScreen
 from img_load_threading import ImageLoaderThread
@@ -140,6 +141,7 @@ class ClientApp(ctk.CTk):
         self.tab_view.add("Info")
         self.tab_view.add("Appointments")
         self.tab_view.add("Photos")
+        self.tab_view.add("Prescriptions")
 
         # Tabs dictionary to store references
         self.tabs = {}
@@ -149,6 +151,7 @@ class ClientApp(ctk.CTk):
         self.init_info_tab()
         self.init_appointments_tab()
         self.init_photos_tab()
+        self.init_prescriptions_tab()
 
 
     def init_clients_tab(self):
@@ -169,6 +172,10 @@ class ClientApp(ctk.CTk):
         self.tabs["Photos"] = photos_page
 
         self.image_loader.update_ui_callback = photos_page.update_ui_with_thumbnail
+    
+    def init_prescriptions_tab(self):
+        prescriptions_tab = self.tab_view.tab("Prescriptions")
+        self.tabs["Prescriptions"] = PrescriptionsPage(prescriptions_tab, self.conn, self)
 
 
     def switch_to_tab(self, tab_name, data=None):
