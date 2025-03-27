@@ -64,6 +64,7 @@ def create_tables(cursor):
         profile_picture TEXT
     )
     """)
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS appointments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,6 +78,7 @@ def create_tables(cursor):
         FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
     )
     """)
+    
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS client_health_info (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
