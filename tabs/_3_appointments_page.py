@@ -26,7 +26,7 @@ class AppointmentsPage:
         main_frame.columnconfigure(1, weight=1) # Create appt frame
         main_frame.columnconfigure(2, weight=1) # Update/Photo buttons
         main_frame.columnconfigure(3, weight=1) # Delete button 
-        main_frame.columnconfigure(4, weight=5) # Details frame
+        main_frame.columnconfigure(4, weight=8) # Details frame
         main_frame.rowconfigure(1, weight=1)    # Allow frames to stretch vertically
 
         # Create Frame for search box
@@ -158,7 +158,7 @@ class AppointmentsPage:
         self.details_frame.rowconfigure(1, weight=1)  # Allow the textboxes to expand vertically
 
         # Create Label/Textbox for "All Appointment Notes"
-        self.notes_label = ctk.CTkLabel(self.details_frame, text="All Treatment Notes", font=("Arial", 16))
+        self.notes_label = ctk.CTkLabel(self.details_frame, text="Treatment Notes", font=("Arial", 16))
         self.notes_label.grid(row=0, column=0, sticky="w", padx=10, pady=5)
         self.all_notes_textbox = tk.Text(self.details_frame,  
                                          font=("Arial", 10), 
@@ -205,8 +205,8 @@ class AppointmentsPage:
         self.appointments_table.column("date", width=int(total_width * 0.10), minwidth=80)
         self.appointments_table.column("type", width=int(total_width * 0.10), minwidth=75)
         self.appointments_table.column("treatment", width=int(total_width * 0.55), minwidth=200)
-        self.appointments_table.column("price", width=int(total_width * 0.08), minwidth=70)
-        self.appointments_table.column("photos", width=int(total_width * 0.07), minwidth=40)
+        self.appointments_table.column("price", width=int(total_width * 0.10), minwidth=70)
+        self.appointments_table.column("photos", width=int(total_width * 0.12), minwidth=40)
 
     def filter_clients(self, event):
         """Dynamically update the client dropdown based on user input."""
