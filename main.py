@@ -18,7 +18,7 @@ if __name__ == "__main__":
         print(f"⚠ Warning: `update_ui_with_thumbnail` called before UI initialized. Skipping update.")
 
     # Start Image Loader Thread once at startup
-    image_loader = ImageLoaderThread(image_cache, update_ui_stub)  # Use temporary function for now
+    image_loader = ImageLoaderThread(image_cache, update_ui_stub)
     image_loader.start()
 
     # 🔹 Create the main application but keep it hidden
