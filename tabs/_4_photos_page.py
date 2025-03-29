@@ -74,7 +74,6 @@ class PhotosPage:
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.photo_list.configure(yscrollcommand=scrollbar.set)
 
-        # 300  x  400
         # Before Image Preview Pane (Middle Column)
         before_frame = ctk.CTkFrame(main_frame, width=300, height=400, fg_color="#0080FF")
         before_frame.grid(row=0, column=1, columnspan=3, sticky="nsew", padx=(5, 5))
