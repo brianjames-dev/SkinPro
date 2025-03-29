@@ -128,7 +128,7 @@ def create_tables(cursor):
         file_path TEXT NOT NULL,
         notes TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (client_id) REFERENCES clients(id), ON DELETE CASCADE
+        FOREIGN KEY (client_id) REFERENCES clients(id), ON DELETE CASCADE,
         FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
     )
     """)
