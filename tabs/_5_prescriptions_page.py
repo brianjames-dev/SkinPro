@@ -1,4 +1,5 @@
 import customtkinter as ctk
+from customtkinter import CTkImage
 from tkinter import ttk
 from PIL import Image, ImageTk
 from class_elements.treeview_styling import style_treeview
@@ -8,6 +9,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from datetime import datetime
 import textwrap
+from prescriptions.pdf_generators.pdf_2col import Pdf2ColGenerator
 
 
 class PrescriptionsPage:
@@ -18,6 +20,7 @@ class PrescriptionsPage:
         self.client_id = None
         self.appointment_id = None
         self.current_prescription_id = None
+        self.pdf_2col = Pdf2ColGenerator()
 
         self.prescription_paths = {}  # {iid: filepath}
 
@@ -62,8 +65,28 @@ class PrescriptionsPage:
         display_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 5))
 
         ctk.CTkLabel(display_frame, text="Current Prescription", font=("Arial", 16)).pack()
-        self.prescription_preview_label = ctk.CTkLabel(display_frame, text="<No Preview Available>", fg_color="#1e1e1e")
-        self.prescription_preview_label.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        # === Scrollable Frame for PDF Preview ===
+        self.scroll_canvas = ctk.CTkCanvas(display_frame, bg="#1e1e1e", highlightthickness=0)
+        self.scroll_canvas.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        # Scrollbar
+        scrollbar = ctk.CTkScrollbar(display_frame, orientation="vertical", command=self.scroll_canvas.yview)
+        scrollbar.place(relx=1, rely=0, relheight=1, anchor="ne")
+
+        # Configure canvas
+        self.scroll_canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Internal frame inside canvas
+        self.preview_inner_frame = ctk.CTkFrame(self.scroll_canvas, fg_color="#1e1e1e")
+        self.scroll_window = self.scroll_canvas.create_window((0, 0), window=self.preview_inner_frame, anchor="nw")
+
+        # Bind the <Configure> event to update the scroll region
+        self.preview_inner_frame.bind("<Configure>", self._update_scroll_region)
+
+        # Bind mouse wheel events for scrolling
+        self._bind_mousewheel_events()
+
 
         # Button Column on the Right
         button_column = ctk.CTkFrame(main_frame)
@@ -88,14 +111,33 @@ class PrescriptionsPage:
         client_name = "Brian James"
         start_date = "03/28/2025"
         data = {
-            "Col1": ["Cleanse", "Tone", "Serum", "Moisturizer"],
-            "Col2": ["Cleanse", "Mask", "Serum", "Night Cream"]
+            "Col1": [
+                {"product": "Cleanse", "directions": "Use the Ultra Foaming Gel Cleanser with lukewarm water, massaging gently for at least 60 seconds to ensure all debris and buildup are thoroughly removed before patting dry with a clean towel."},
+                {"product": "Tone", "directions": "Apply the Balancing Toner generously using a cotton round, making sure to press gently into the skin rather than rubbing, especially around sensitive areas like the cheeks and forehead."},
+                {"product": "Serum", "directions": "Dispense 1 to 2 pumps of the Growth Factor serum and distribute evenly over the face and neck. Allow the product to absorb fully before layering additional products."},
+                {"product": "Moisturizer", "directions": "Use the Advanced Hydra Serum and press into the skin using the palms of your hands. Focus on drier areas and don’t forget to apply to the jawline and neck."},
+                {"product": "SPF", "directions": "Apply a generous amount of Tinted Defense sunscreen 15 minutes before sun exposure. Be sure to reapply throughout the day, especially if perspiring or after towel drying."},
+                {"product": "Eye Cream", "directions": "Gently tap a pea-sized amount of the Intensive Eye Cream around the entire orbital bone using your ring finger to avoid tugging on the delicate eye area."},
+                {"product": "Lip Treatment", "directions": "Apply the Lip Balm after all other steps. Reapply as needed throughout the day to maintain hydration and protection from environmental stressors."},
+                {"product": "Neck Cream", "directions": "Apply the Neck & Decollete Serum in upward sweeping motions. Use morning and night for best results and avoid applying to freshly exfoliated skin."}
+            ],
+            "Col2": [
+                {"product": "Cleanse", "directions": "Use the AQ1 Deep Pore Cleanser in the evening, especially if you have worn makeup or SPF. Perform a double cleanse by starting with Skin Prep, then follow with the cleanser to ensure full removal."},
+                {"product": "Mask", "directions": "Apply the Quench Mask 2–3 times a week. Leave on for 10–15 minutes while avoiding eye and lip areas. Rinse thoroughly with cool water and pat dry. Follow with hydrating products immediately."},
+                {"product": "Serum", "directions": "Use the Nourishing C&E Serum in the evening, focusing on areas showing pigmentation or sun damage. Allow 5 minutes to absorb before proceeding to next step."},
+                {"product": "Night Cream", "directions": "Massage the Night Cream with Collagen & Elastin into the skin using upward strokes. This step is essential to support skin elasticity and deep hydration overnight."},
+                {"product": "Spot Treatment", "directions": "Apply BP-9 Cream only on active breakouts or red inflamed areas. Do not overuse as it may cause dryness or irritation. Spot use only, not full-face."},
+                {"product": "Hydrating Mist", "directions": "Spritz Hydra-Cool Gel Mist after cleansing and before applying serum. This helps to prep the skin and enhance absorption of active ingredients."},
+                {"product": "Retinol Cream", "directions": "Apply a thin layer of Rejuvenating Cream to the entire face, avoiding eyes and lips. Use only at night and follow with moisturizer to reduce dryness."},
+                {"product": "Overnight Mask", "directions": "On nights when retinol is not used, apply the Soothing Zinc Gel Mask as the final step. Leave on overnight and rinse off in the morning."}
+            ],
+            "Col1_Header": "Morning",
+            "Col2_Header": "Night"
         }
 
-        path = self.generate_2_column_pdf(client_name, start_date, data)
+        path = self.pdf_2col.generate(client_name, start_date, data)
         self.render_pdf_to_preview(path)
         self.add_prescription_to_list(datetime.today().strftime("%m/%d/%Y"), "2-column", path)
-
 
 
     def add_prescription_to_list(self, date, template, path):
@@ -116,16 +158,48 @@ class PrescriptionsPage:
 
 
     def preview_prescription(self):
-        print("👁️ Preview prescription")
+        selected = self.prescription_list.selection()
+        if not selected:
+            print("❌ No prescription selected.")
+            return
 
-        # Example: Use a fixed or latest saved PDF path
-        example_pdf_path = "prescriptions/example_prescription.pdf"
+        iid = selected[0]
+        pdf_path = self.prescription_paths.get(iid)
 
-        if os.path.exists(example_pdf_path):
-            self.render_pdf_to_preview(example_pdf_path)
-        else:
+        if not pdf_path or not os.path.exists(pdf_path):
             print("❌ PDF file not found for preview.")
+            return
 
+        # Open popout window
+        self.open_pdf_popup(pdf_path)
+
+    def open_pdf_popup(self, pdf_path):
+        popup = ctk.CTkToplevel()
+        popup.title("Full Size PDF Preview")
+
+        popup.geometry("850x1100")  # Or adjust to your desired full-size dimensions
+        popup.configure(fg_color="#1e1e1e")
+
+        # Lock interaction to this window only
+        popup.grab_set()
+
+        try:
+            pages = convert_from_path(pdf_path, dpi=150, first_page=1, last_page=1)
+
+            if pages:
+                image = pages[0]
+                image = image.resize((850, int(850 * 11 / 8.5)))  # Maintain letter ratio
+                tk_image = ImageTk.PhotoImage(image)
+
+                label = ctk.CTkLabel(popup, image=tk_image, text="")
+                label.image = tk_image
+                label.pack(padx=10, pady=10)
+                print("✅ PDF displayed in popup window.")
+            else:
+                print("⚠️ No pages found in PDF.")
+
+        except Exception as e:
+            print(f"❌ Failed to load PDF for popup: {e}")
 
     def print_prescription(self):
         print("🖨️ Print prescription")
@@ -142,291 +216,28 @@ class PrescriptionsPage:
 
             if pages:
                 image = pages[0]
-                image = image.resize((500, 650))  # Resize if needed
-                tk_image = ImageTk.PhotoImage(image)
-                self.prescription_preview_label.configure(image=tk_image, text="")
-                self.prescription_preview_label.image = tk_image  # Keep a reference!
-                print("✅ PDF rendered in preview label.")
+
+                # Scale image to width=500, keep aspect ratio (Letter ratio is ~1.294)
+                display_width = 464
+                aspect_ratio = image.height / image.width
+                display_height = int(display_width * aspect_ratio)
+
+                # Resize CTkImage
+                ctk_image = CTkImage(light_image=image, size=(display_width, display_height))
+
+                # Clear previous image
+                for widget in self.preview_inner_frame.winfo_children():
+                    widget.destroy()
+
+                label = ctk.CTkLabel(self.preview_inner_frame, image=ctk_image, text="", fg_color="#1e1e1e")
+                label.image = ctk_image  # Keep a reference
+                label.pack()
+
+                print("✅ PDF rendered inside scrollable frame.")
             else:
                 print("⚠️ No pages found in PDF.")
-
         except Exception as e:
             print(f"❌ Failed to render PDF: {e}")
-
-
-    def draw_wrapped_text(c, x, y, text, max_width, font_name="Helvetica", font_size=10, line_height=12):
-        c.setFont(font_name, font_size)
-        lines = []
-
-        for raw_line in text.split("\n"):
-            # Wrap each line to fit within column width
-            wrapped = textwrap.wrap(raw_line, width=999)  # Temporary width, we’ll adjust below
-            adjusted = []
-            for segment in wrapped:
-                current_line = ""
-                for word in segment.split():
-                    trial_line = f"{current_line} {word}".strip()
-                    if c.stringWidth(trial_line, font_name, font_size) > max_width:
-                        adjusted.append(current_line)
-                        current_line = word
-                    else:
-                        current_line = trial_line
-                if current_line:
-                    adjusted.append(current_line)
-            lines.extend(adjusted if adjusted else [""])
-
-        for idx, line in enumerate(lines):
-            c.drawString(x, y - idx * line_height, line)
-
-        return len(lines)
-
-
-    def generate_2_column_pdf(self, client_name, start_date, steps_dict):
-        """
-        Generate a 2-column prescription PDF
-        """
-        # File output
-        output_dir = os.path.join(os.getcwd(), "prescriptions")
-        os.makedirs(output_dir, exist_ok=True)
-        file_path = os.path.join(output_dir, f"{client_name.replace(' ', '_')}_2col.pdf")
-
-        c = canvas.Canvas(file_path, pagesize=letter)
-        width, height = letter
-
-        # === Margins & Layout Constants ===
-        left_margin = 20
-        right_margin = 20
-        top_margin = 730
-        col_spacing = 20
-
-        # === Logo ===
-        logo_path = "icons/corium_logo.webp"
-        logo_width, logo_height = 142, 110
-        c.drawImage(logo_path, 20, top_margin - logo_height + 50, width=logo_width, height=logo_height, mask='auto')
-
-        # === Title Block (Top Right-Aligned) ===
-        c.setFont("Helvetica-Bold", 26)
-        title_1 = "CORIUM CORRECTIVE 360°"
-        title_2 = "SKIN CARE SCRIPT"
-        max_title_width = max(
-            c.stringWidth(title_1, "Helvetica-Bold", 26),
-            c.stringWidth(title_2, "Helvetica-Bold", 26)
-        )
-        title_x = width - right_margin - max_title_width
-        c.drawString(title_x - 50, top_margin, title_1)
-        c.drawString(title_x, top_margin - 35, title_2)
-
-        # === Header Box Lines ===
-        header_top_y = top_margin - 65
-        header_bottom_y = top_margin - 145
-        c.setStrokeColorRGB(0, 0, 0)
-        c.setLineWidth(0.5)
-        c.line(0, header_top_y, width, header_top_y)
-        c.line(0, header_bottom_y, width, header_bottom_y)
-
-        # === Header Text Start Y ===
-        line_spacing = 23
-        header_text_y = header_top_y - 25  # First line padding from top line
-
-        # === Transforming Line (Mixed Weight) ===
-        x = left_margin
-        c.setFont("Helvetica", 10)
-        text1 = "TRANSFORMING "
-        c.drawString(x, header_text_y, text1)
-        x += c.stringWidth(text1, "Helvetica", 10)
-
-        c.setFont("Helvetica-Bold", 10)
-        client_text = client_name.upper()
-        c.drawString(x, header_text_y, client_text)
-        x += c.stringWidth(client_text, "Helvetica-Bold", 10)
-
-        c.setFont("Helvetica", 10)
-        text2 = " SKIN TO A BETTER DEGREE OF HEALTH."
-        c.drawString(x, header_text_y, text2)
-
-        # === Start Date Line ===
-        x = left_margin
-        y2 = header_text_y - line_spacing
-        label = "START TREATMENT DATE: "
-        c.setFont("Helvetica", 10)
-        c.drawString(x, y2, label)
-        x += c.stringWidth(label, "Helvetica", 10)
-
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(x, y2, start_date)
-
-        # === Disclaimer Line (same spacing)
-        y3 = y2 - line_spacing
-        c.setFont("Helvetica-Oblique", 10)
-        c.drawString(left_margin, y3, "*CORIUM CORRECTIVE 360° CANNOT BE COMBINED WITH ANY OTHER SKIN CARE PRODUCTS")
-
-        # === Section Title + Underline ===
-        section_text = "SKIN CARE ROUTINE & PRODUCTS"
-        y = top_margin - 170
-        c.setFont("Helvetica-Bold", 16)
-        text_width = c.stringWidth(section_text, "Helvetica-Bold", 16)
-
-        center_x = (width - text_width) / 2
-
-        c.drawString(center_x, y, section_text)
-
-        c.setStrokeColorRGB(0, 0, 0)
-        c.setLineWidth(1)
-        c.line(center_x, y - 2, center_x + text_width, y - 2)
-
-        # === Column Setup ===
-        c.setFont("Helvetica", 10)
-        col_spacing = 20
-        col_width = (width - 2 * left_margin - col_spacing) / 2
-        wrap_width = col_width - 40
-        col1_x = left_margin + 60
-        col2_x = left_margin + 40 + col_width
-
-        # === Column Headers ===
-        header_y = top_margin - 190
-        col1_header = steps_dict.get("Col1_Header", "Column 1")
-        col2_header = steps_dict.get("Col2_Header", "Column 2")
-        c.drawString(col1_x + 90, header_y, col1_header.upper())
-        c.drawString(col2_x + 90, header_y, col2_header.upper())
-
-        # === Word Wrapping Helper ===
-        def draw_product_block(c, x, y, product, directions, max_width, font_size=10, line_height=12, dry_run=False):
-            # Measure product name
-            c.setFont("Helvetica", font_size)
-            product_text = f"{product}:"
-            product_width = c.stringWidth(product_text, "Helvetica", font_size)
-
-            # Split directions into wrapped lines
-            c.setFont("Helvetica", font_size)
-            lines = []
-            for raw_line in directions.split("\n"):
-                words = raw_line.split()
-                line = ""
-                for word in words:
-                    trial = f"{line} {word}".strip()
-                    if c.stringWidth(trial, "Helvetica", font_size) <= max_width:
-                        line = trial
-                    else:
-                        lines.append(line)
-                        line = word
-                if line:
-                    lines.append(line)
-
-            if not dry_run:
-                # Draw product name (bold + underlined)
-                c.setFont("Helvetica", font_size)
-                c.drawString(x, y, product_text)
-                c.setLineWidth(0.6)
-                c.line(x, y - 2, x + product_width, y - 2)
-
-                # Draw wrapped directions
-                c.setFont("Helvetica", font_size)
-                for idx, line in enumerate(lines):
-                    c.drawString(x, y - ((idx + 1) * line_height), line)
-
-            return 1 + len(lines)  # 1 line for product + direction lines
-        
-        # === Table Rows with Wrapped Content ===
-        c.setFont("Helvetica", 10)
-        row_spacing = 22
-        table_top = header_y - 15
-        col1_data = steps_dict.get("Col1", [])
-        col2_data = steps_dict.get("Col2", [])
-        max_steps = max(len(col1_data), len(col2_data))
-
-        # Store where table starts and ends for vertical lines
-        row_height = 12
-        min_lines = 4  # minimum lines per cell
-        table_start_y = table_top
-        current_y = table_top
-
-        # Store row heights to determine where table ends
-        row_heights = []
-
-        for i in range(max_steps):
-            col1 = col1_data[i] if i < len(col1_data) else {"product": "", "directions": ""}
-            col2 = col2_data[i] if i < len(col2_data) else {"product": "", "directions": ""}
-
-            # Measure vertical space needed
-            lines_1 = draw_product_block(c, col1_x, current_y, col1["product"], col1["directions"], max_width=wrap_width, dry_run=True)
-            lines_2 = draw_product_block(c, col2_x, current_y, col2["product"], col2["directions"], max_width=wrap_width, dry_run=True)
-            cell_height = max(max(lines_1, lines_2), min_lines) * row_height + 5
-            row_heights.append(cell_height)
-
-        total_table_height = sum(row_heights)
-
-        # === Watermark Behind Table ===
-        watermark_path = "icons/corium_logo.webp"
-        aspect_ratio = 1200 / 930
-        watermark_width = 500
-        watermark_height = watermark_width / aspect_ratio
-
-        watermark_x = (width - watermark_width) / 2
-        watermark_y = table_top - (total_table_height / 2) - watermark_height / 2
-
-        c.saveState()
-        c.setFillAlpha(0.15)
-        c.drawImage(watermark_path, watermark_x, watermark_y, width=watermark_width, height=watermark_height, mask='auto')
-        c.restoreState()
-
-        for i in range(max_steps):
-            col1 = col1_data[i] if i < len(col1_data) else {"product": "", "directions": ""}
-            col2 = col2_data[i] if i < len(col2_data) else {"product": "", "directions": ""}
-            cell_height = row_heights[i]
-
-            # Purple color == #8555ba
-            # 🟪 Checkerboard shading
-            if i % 2 == 0:
-                c.saveState()
-                c.setFillAlpha(0.6)
-                c.setFillColorRGB(133 / 255, 85 / 255, 186 / 255)
-                c.rect(col2_x - 10, current_y - cell_height + 10, col_width - 20, cell_height, fill=True, stroke=0)
-                c.restoreState()
-            else:
-                c.saveState()
-                c.setFillAlpha(0.6)
-                c.setFillColorRGB(133 / 255, 85 / 255, 186 / 255)
-                c.rect(col1_x - 10, current_y - cell_height + 10, col_width - 20, cell_height, fill=True, stroke=0)
-                c.restoreState()
-
-            # 🟨 STEP label
-            c.setFont("Helvetica", 10)
-            c.drawString(left_margin, current_y, f"STEP {i + 1}")
-
-            # 📝 Draw wrapped text on top of background
-            draw_product_block(c, col1_x, current_y, col1["product"], col1["directions"], max_width=wrap_width)
-            draw_product_block(c, col2_x, current_y, col2["product"], col2["directions"], max_width=wrap_width)
-
-
-            current_y -= cell_height
-
-        # 🟥 Grid lines (draw once across full table)
-        c.setLineWidth(0.2)
-        c.setStrokeColorRGB(0, 0, 0)  # subtle purple
-
-        # Vertical lines
-        center_line_x = col1_x + wrap_width + 10  # right edge of Column 1
-        c.line(left_margin + 50, table_start_y + 25, left_margin + 50, current_y + 10)
-        c.line(center_line_x, table_start_y + 25, center_line_x, current_y + 10)
-
-        # Horizontal lines
-        line_y = table_start_y
-        for height in row_heights[:-1]:  # skip last to avoid bottom edge
-            line_y -= height
-            c.line(col1_x - 65, line_y + 10, col2_x + wrap_width + 10, line_y + 10)
-        c.line(col1_x - 65, table_start_y + 10, col2_x + wrap_width + 10, table_start_y + 10)
-
-        # Footer
-        c.setFont("Helvetica", 10)
-
-        footer_text = "©2020 CORIUM CORRECTIVE 360° - ALL RIGHTS RESERVED"
-        text_width = c.stringWidth(footer_text, "Helvetica", 10)
-        center_x = (width - text_width) / 2
-        c.drawString(center_x, 15, footer_text)
-
-        c.save()
-        print(f"✅ 2-column prescription saved to: {file_path}")
-        return file_path
 
 
     def on_prescription_select(self, event):
@@ -437,3 +248,15 @@ class PrescriptionsPage:
             if path and os.path.exists(path):
                 self.render_pdf_to_preview(path)
 
+
+    def _update_scroll_region(self, event):
+        self.scroll_canvas.configure(scrollregion=self.scroll_canvas.bbox("all"))
+
+
+    def _on_mousewheel(self, event):
+        self.scroll_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+
+
+    def _bind_mousewheel_events(self):
+        self.scroll_canvas.bind("<Enter>", lambda e: self.scroll_canvas.bind_all("<MouseWheel>", self._on_mousewheel))
+        self.scroll_canvas.bind("<Leave>", lambda e: self.scroll_canvas.unbind_all("<MouseWheel>"))
