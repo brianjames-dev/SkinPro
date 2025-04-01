@@ -10,6 +10,9 @@ from reportlab.pdfgen import canvas
 from datetime import datetime
 import textwrap
 from prescriptions.pdf_generators.pdf_2col import Pdf2ColGenerator
+from prescriptions.pdf_generators.pdf_3col import Pdf3ColGenerator
+from prescriptions.pdf_generators.pdf_4col import Pdf4ColGenerator
+
 
 
 class PrescriptionsPage:
@@ -21,9 +24,12 @@ class PrescriptionsPage:
         self.appointment_id = None
         self.current_prescription_id = None
         self.pdf_2col = Pdf2ColGenerator()
+        self.pdf_3col = Pdf3ColGenerator()
+        self.pdf_4col = Pdf4ColGenerator()
+
+
 
         self.prescription_paths = {}  # {iid: filepath}
-
 
         # Main container
         main_frame = ctk.CTkFrame(parent)
@@ -87,7 +93,6 @@ class PrescriptionsPage:
         # Bind mouse wheel events for scrolling
         self._bind_mousewheel_events()
 
-
         # Button Column on the Right
         button_column = ctk.CTkFrame(main_frame)
         button_column.grid(row=0, column=2, sticky="ns", padx=(5, 0))
@@ -97,7 +102,6 @@ class PrescriptionsPage:
             ("New Prescription", self.create_prescription),
             ("Edit Prescription", self.edit_prescription),
             ("Delete Prescription", self.delete_prescription),
-            ("Select Template", self.select_template),
             ("Preview PDF", self.preview_prescription),
             ("Print Prescription", self.print_prescription),
             ("Set Alert", self.set_alert)
@@ -131,11 +135,22 @@ class PrescriptionsPage:
                 {"product": "Retinol Cream", "directions": "Apply a thin layer of Rejuvenating Cream to the entire face, avoiding eyes and lips. Use only at night and follow with moisturizer to reduce dryness."},
                 {"product": "Overnight Mask", "directions": "On nights when retinol is not used, apply the Soothing Zinc Gel Mask as the final step. Leave on overnight and rinse off in the morning."}
             ],
+            "Col3": [
+                {"product": "Cleanse", "directions": "Use the AQ1 Deep Pore Cleanser in the evening, especially if you have worn makeup or SPF. Perform a double cleanse by starting with Skin Prep, then follow with the cleanser to ensure full removal."},
+                {"product": "Mask", "directions": "Apply the Quench Mask 2–3 times a week. Leave on for 10–15 minutes while avoiding eye and lip areas. Rinse thoroughly with cool water and pat dry. Follow with hydrating products immediately."},
+                {"product": "Serum", "directions": "Use the Nourishing C&E Serum in the evening, focusing on areas showing pigmentation or sun damage. Allow 5 minutes to absorb before proceeding to next step."},
+                {"product": "Night Cream", "directions": "Massage the Night Cream with Collagen & Elastin into the skin using upward strokes. This step is essential to support skin elasticity and deep hydration overnight."},
+                {"product": "Spot Treatment", "directions": "Apply BP-9 Cream only on active breakouts or red inflamed areas. Do not overuse as it may cause dryness or irritation. Spot use only, not full-face."},
+                {"product": "Hydrating Mist", "directions": "Spritz Hydra-Cool Gel Mist after cleansing and before applying serum. This helps to prep the skin and enhance absorption of active ingredients."},
+                {"product": "Retinol Cream", "directions": "Apply a thin layer of Rejuvenating Cream to the entire face, avoiding eyes and lips. Use only at night and follow with moisturizer to reduce dryness."},
+                {"product": "Overnight Mask", "directions": "On nights when retinol is not used, apply the Soothing Zinc Gel Mask as the final step. Leave on overnight and rinse off in the morning."}
+            ],
             "Col1_Header": "Morning",
-            "Col2_Header": "Night"
+            "Col2_Header": "Afternoon",
+            "Col3_Header": "Evening"
         }
 
-        path = self.pdf_2col.generate(client_name, start_date, data)
+        path = self.pdf_3col.generate(client_name, start_date, data)
         self.render_pdf_to_preview(path)
         self.add_prescription_to_list(datetime.today().strftime("%m/%d/%Y"), "2-column", path)
 
@@ -151,10 +166,6 @@ class PrescriptionsPage:
 
     def delete_prescription(self):
         print("🗑️ Delete prescription")
-
-
-    def select_template(self):
-        print("📄 Choose template")
 
 
     def preview_prescription(self):
@@ -217,7 +228,7 @@ class PrescriptionsPage:
             if pages:
                 image = pages[0]
 
-                # Scale image to width=500, keep aspect ratio (Letter ratio is ~1.294)
+                # Scale image to width=464, keep aspect ratio (Letter ratio is ~1.294)
                 display_width = 464
                 aspect_ratio = image.height / image.width
                 display_height = int(display_width * aspect_ratio)

@@ -3,6 +3,7 @@ from reportlab.pdfgen import canvas
 import os
 
 class Pdf2ColGenerator:
+    
     def __init__(self, output_dir="prescriptions"):
         self.output_dir = os.path.join(os.getcwd(), output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
@@ -96,7 +97,7 @@ class Pdf2ColGenerator:
         # === Column Setup ===
         c.setFont("Helvetica", 10)
         col_spacing = 20
-        col_width = (width - 2 * left_margin - col_spacing) / 2
+        col_width = (width - 2 * left_margin - col_spacing + 10) / 2
         wrap_width = col_width - 40
         col1_x = left_margin + 60
         col2_x = left_margin + 40 + col_width
@@ -105,7 +106,7 @@ class Pdf2ColGenerator:
         header_y = top_margin - 190
         col1_header = steps_dict.get("Col1_Header", "Column 1")
         col2_header = steps_dict.get("Col2_Header", "Column 2")
-        c.drawString(col1_x + 90, header_y, col1_header.upper())
+        c.drawString(col1_x + 100, header_y, col1_header.upper())
         c.drawString(col2_x + 90, header_y, col2_header.upper())
 
         # === Word Wrapping Helper ===

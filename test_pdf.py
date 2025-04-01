@@ -1,72 +1,70 @@
 # -*- coding: utf-8 -*-
-
-
 if __name__ == "__main__":
     import os
     from datetime import datetime
-    from tabs._5_prescriptions_page import PrescriptionsPage  # adjust this if needed
+    import webbrowser
+    from prescriptions.pdf_generators.pdf_2col import Pdf2ColGenerator
+    from prescriptions.pdf_generators.pdf_3col import Pdf3ColGenerator
+    from prescriptions.pdf_generators.pdf_4col import Pdf4ColGenerator
 
-    def quick_test():
-        client_name = "Brian James"
-        start_date = "03/28/2025"
-        steps = {
-            "Col1": [
-                {"product": "Cleanse", "directions": "Use the Ultra Foaming Gel Cleanser with lukewarm water, massaging gently for at least 60 seconds to ensure all debris and buildup are thoroughly removed before patting dry with a clean towel."},
-                {"product": "Tone", "directions": "Apply the Balancing Toner generously using a cotton round, making sure to press gently into the skin rather than rubbing, especially around sensitive areas like the cheeks and forehead."},
-                {"product": "Serum", "directions": "Dispense 1 to 2 pumps of the Growth Factor serum and distribute evenly over the face and neck. Allow the product to absorb fully before layering additional products."},
-                {"product": "Moisturizer", "directions": "Use the Advanced Hydra Serum and press into the skin using the palms of your hands. Focus on drier areas and don’t forget to apply to the jawline and neck."},
-                {"product": "SPF", "directions": "Apply a generous amount of Tinted Defense sunscreen 15 minutes before sun exposure. Be sure to reapply throughout the day, especially if perspiring or after towel drying."},
-                {"product": "Eye Cream", "directions": "Gently tap a pea-sized amount of the Intensive Eye Cream around the entire orbital bone using your ring finger to avoid tugging on the delicate eye area."},
-                {"product": "Lip Treatment", "directions": "Apply the Lip Balm after all other steps. Reapply as needed throughout the day to maintain hydration and protection from environmental stressors."},
-                {"product": "Neck Cream", "directions": "Apply the Neck & Decollete Serum in upward sweeping motions. Use morning and night for best results and avoid applying to freshly exfoliated skin."}
-            ],
-            "Col2": [
-                {"product": "Cleanse", "directions": "Use the AQ1 Deep Pore Cleanser in the evening, especially if you have worn makeup or SPF. Perform a double cleanse by starting with Skin Prep, then follow with the cleanser to ensure full removal."},
-                {"product": "Mask", "directions": "Apply the Quench Mask 2–3 times a week. Leave on for 10–15 minutes while avoiding eye and lip areas. Rinse thoroughly with cool water and pat dry. Follow with hydrating products immediately."},
-                {"product": "Serum", "directions": "Use the Nourishing C&E Serum in the evening, focusing on areas showing pigmentation or sun damage. Allow 5 minutes to absorb before proceeding to next step."},
-                {"product": "Night Cream", "directions": "Massage the Night Cream with Collagen & Elastin into the skin using upward strokes. This step is essential to support skin elasticity and deep hydration overnight."},
-                {"product": "Spot Treatment", "directions": "Apply BP-9 Cream only on active breakouts or red inflamed areas. Do not overuse as it may cause dryness or irritation. Spot use only, not full-face."},
-                {"product": "Hydrating Mist", "directions": "Spritz Hydra-Cool Gel Mist after cleansing and before applying serum. This helps to prep the skin and enhance absorption of active ingredients."},
-                {"product": "Retinol Cream", "directions": "Apply a thin layer of Rejuvenating Cream to the entire face, avoiding eyes and lips. Use only at night and follow with moisturizer to reduce dryness."},
-                {"product": "Overnight Mask", "directions": "On nights when retinol is not used, apply the Soothing Zinc Gel Mask as the final step. Leave on overnight and rinse off in the morning."}
-            ],
-            "Col1_Header": "Morning",
-            "Col2_Header": "Night"
-        }
+    client_name = "Brian James"
+    start_date = "03/28/2025"
 
-        # steps = {
-        #     "Col1": [
-        #         "Cleanse\nUse the Ultra Foaming Gel Cleanser with lukewarm water for 60 seconds.",
-        #         "Tone\nApply Balancing Toner gently with a cotton round.",
-        #         "Serum\nApply 1–2 pumps of Growth Factor serum to face and neck.",
-        #         "Moisturizer\nPress Hydra Serum into skin, focusing on dry areas.",
-        #         "SPF\nApply Tinted Defense sunscreen 15 minutes before sun.",
-        #         "Eye Cream\nUse a pea-sized amount around eyes with ring finger.",
-        #         "Lip Treatment\nApply Lip Balm. Reapply as needed for hydration.",
-        #         "Neck Cream\nUse Neck & Decollete Serum with upward motions."
-        #     ],
-        #     "Col2": [
-        #         "Cleanse\nUse AQ1 Cleanser to remove makeup and SPF.",
-        #         "Mask\nApply Quench Mask 2–3 times a week for 15 minutes.",
-        #         "Serum\nApply C&E Serum to areas with pigmentation.",
-        #         "Night Cream\nMassage Night Cream with upward strokes.",
-        #         "Spot Treatment\nApply BP-9 Cream to breakouts only.",
-        #         "Hydrating Mist\nSpritz Mist after cleansing to prep skin.",
-        #         "Retinol Cream\nApply Rejuvenating Cream at night only.",
-        #         "Overnight Mask\nUse Zinc Gel Mask overnight if no retinol."
-        #     ]
-        # }
+    # === Long Descriptions for 2-column ===
+    steps_2col = {
+        "Col1": [
+            {"product": "Cleanse", "directions": "Use the Ultra Foaming Gel Cleanser with lukewarm water, massaging for at least 60 seconds before rinsing off completely."},
+            {"product": "Tone", "directions": "Apply Balancing Toner generously using a cotton round, patting into the skin gently."},
+            {"product": "Serum", "directions": "Dispense 1-2 pumps of Growth Factor serum and apply evenly across face and neck."},
+            {"product": "Moisturizer", "directions": "Use the Advanced Hydra Serum and press into skin, especially on dry patches."},
+            {"product": "SPF", "directions": "Apply Tinted Defense sunscreen 15 minutes before exposure and reapply regularly."},
+            {"product": "Eye Cream", "directions": "Use a pea-sized amount of Intensive Eye Cream around the orbital bone."},
+            {"product": "Lip Treatment", "directions": "Apply the Lip Balm after other steps, reapply as needed."},
+            {"product": "Neck Cream", "directions": "Apply Neck & Decollete Serum using upward motions morning and night."}
+        ],
+        "Col2": [
+            {"product": "Cleanse", "directions": "Double cleanse with Skin Prep followed by AQ1 Deep Pore Cleanser to remove buildup."},
+            {"product": "Mask", "directions": "Apply Quench Mask 2–3 times a week, leave on for 10–15 mins, then rinse."},
+            {"product": "Serum", "directions": "Apply Nourishing C&E Serum focusing on sun-damaged areas."},
+            {"product": "Night Cream", "directions": "Massage Night Cream into skin to support overnight hydration."},
+            {"product": "Spot Treatment", "directions": "Apply BP-9 only to breakout-prone or inflamed areas."},
+            {"product": "Hydrating Mist", "directions": "Spritz after cleansing to enhance absorption of serums."},
+            {"product": "Retinol Cream", "directions": "Apply a thin layer of Rejuvenating Cream at night."},
+            {"product": "Overnight Mask", "directions": "Use Zinc Gel Mask as last step on non-retinol nights."}
+        ],
+        "Col1_Header": "Morning",
+        "Col2_Header": "Night"
+    }
 
-        # Initialize a dummy instance of the class
-        dummy_page = PrescriptionsPage(parent=None, conn=None, main_app=None)
+    # === Medium Descriptions for 3-column ===
+    steps_3col = {
+        "Col1": [{"product": "Morning Cleanse", "directions": "Use  with lukewarm water, massaging for at least 60 seconds before rinsing."}] * 8,
+        "Col2": [{"product": "Tone", "directions": "Apply Balancing Toner generously using a cotton round, patting into the skin gently."}] * 8,
+        "Col3": [{"product": "Serum", "directions": "Dispense 1-2 pumps of Growth Factor serum and apply evenly across face and neck."}] * 8,
+        "Col1_Header": "Morning",
+        "Col2_Header": "Midday",
+        "Col3_Header": "Night"
+    }
 
-        # Call the PDF generator directly
-        output_path = dummy_page.generate_2_column_pdf(client_name, start_date, steps)
+    # === Short Descriptions for 4-column ===
+    steps_4col = {
+        "Col1": [{"product": "Morning Cleanse", "directions": "Use  with lukewarm water, massage for 60 seconds."}] * 8,
+        "Col2": [{"product": "Tone", "directions": "Apply generously using a cotton round, pat into skin gently."}] * 8,
+        "Col3": [{"product": "Serum", "directions": "1-2 pumps of Growth Factor serum and apply evenly"}] * 8,
+        "Col4": [{"product": "Moisturizer", "directions": "Use the Advanced Hydra Serum and press into skin."}] * 8,
+        "Col1_Header": "Monday",
+        "Col2_Header": "Wednesday",
+        "Col3_Header": "Friday",
+        "Col4_Header": "Weekend"
+    }
 
-        import webbrowser
-        webbrowser.open(output_path)
+    # Generate and open all PDFs
+    paths = [
+        Pdf2ColGenerator().generate(client_name, start_date, steps_2col),
+        Pdf3ColGenerator().generate(client_name, start_date, steps_3col),
+        Pdf4ColGenerator().generate(client_name, start_date, steps_4col)
+    ]
 
-
-        print(f"\n✅ PDF successfully created at:\n{output_path}\n")
-
-    quick_test()
+    for path in paths:
+        webbrowser.open(path)
+        print(f"✅ PDF created at: {path}")
