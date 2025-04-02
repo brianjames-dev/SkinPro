@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 if __name__ == "__main__":
     import os
-    from datetime import datetime
+    import datetime
     import webbrowser
     from prescriptions.pdf_generators.pdf_2col import Pdf2ColGenerator
     from prescriptions.pdf_generators.pdf_3col import Pdf3ColGenerator

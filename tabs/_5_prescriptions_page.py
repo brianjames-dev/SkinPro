@@ -12,7 +12,7 @@ import textwrap
 from prescriptions.pdf_generators.pdf_2col import Pdf2ColGenerator
 from prescriptions.pdf_generators.pdf_3col import Pdf3ColGenerator
 from prescriptions.pdf_generators.pdf_4col import Pdf4ColGenerator
-
+from prescriptions.pdf_generators.prescription_entry_popup import PrescriptionEntryPopup
 
 
 class PrescriptionsPage:
@@ -26,8 +26,6 @@ class PrescriptionsPage:
         self.pdf_2col = Pdf2ColGenerator()
         self.pdf_3col = Pdf3ColGenerator()
         self.pdf_4col = Pdf4ColGenerator()
-
-
 
         self.prescription_paths = {}  # {iid: filepath}
 
@@ -112,47 +110,28 @@ class PrescriptionsPage:
 
 
     def create_prescription(self):
-        client_name = "Brian James"
-        start_date = "03/28/2025"
-        data = {
-            "Col1": [
-                {"product": "Cleanse", "directions": "Use the Ultra Foaming Gel Cleanser with lukewarm water, massaging gently for at least 60 seconds to ensure all debris and buildup are thoroughly removed before patting dry with a clean towel."},
-                {"product": "Tone", "directions": "Apply the Balancing Toner generously using a cotton round, making sure to press gently into the skin rather than rubbing, especially around sensitive areas like the cheeks and forehead."},
-                {"product": "Serum", "directions": "Dispense 1 to 2 pumps of the Growth Factor serum and distribute evenly over the face and neck. Allow the product to absorb fully before layering additional products."},
-                {"product": "Moisturizer", "directions": "Use the Advanced Hydra Serum and press into the skin using the palms of your hands. Focus on drier areas and don’t forget to apply to the jawline and neck."},
-                {"product": "SPF", "directions": "Apply a generous amount of Tinted Defense sunscreen 15 minutes before sun exposure. Be sure to reapply throughout the day, especially if perspiring or after towel drying."},
-                {"product": "Eye Cream", "directions": "Gently tap a pea-sized amount of the Intensive Eye Cream around the entire orbital bone using your ring finger to avoid tugging on the delicate eye area."},
-                {"product": "Lip Treatment", "directions": "Apply the Lip Balm after all other steps. Reapply as needed throughout the day to maintain hydration and protection from environmental stressors."},
-                {"product": "Neck Cream", "directions": "Apply the Neck & Decollete Serum in upward sweeping motions. Use morning and night for best results and avoid applying to freshly exfoliated skin."}
-            ],
-            "Col2": [
-                {"product": "Cleanse", "directions": "Use the AQ1 Deep Pore Cleanser in the evening, especially if you have worn makeup or SPF. Perform a double cleanse by starting with Skin Prep, then follow with the cleanser to ensure full removal."},
-                {"product": "Mask", "directions": "Apply the Quench Mask 2–3 times a week. Leave on for 10–15 minutes while avoiding eye and lip areas. Rinse thoroughly with cool water and pat dry. Follow with hydrating products immediately."},
-                {"product": "Serum", "directions": "Use the Nourishing C&E Serum in the evening, focusing on areas showing pigmentation or sun damage. Allow 5 minutes to absorb before proceeding to next step."},
-                {"product": "Night Cream", "directions": "Massage the Night Cream with Collagen & Elastin into the skin using upward strokes. This step is essential to support skin elasticity and deep hydration overnight."},
-                {"product": "Spot Treatment", "directions": "Apply BP-9 Cream only on active breakouts or red inflamed areas. Do not overuse as it may cause dryness or irritation. Spot use only, not full-face."},
-                {"product": "Hydrating Mist", "directions": "Spritz Hydra-Cool Gel Mist after cleansing and before applying serum. This helps to prep the skin and enhance absorption of active ingredients."},
-                {"product": "Retinol Cream", "directions": "Apply a thin layer of Rejuvenating Cream to the entire face, avoiding eyes and lips. Use only at night and follow with moisturizer to reduce dryness."},
-                {"product": "Overnight Mask", "directions": "On nights when retinol is not used, apply the Soothing Zinc Gel Mask as the final step. Leave on overnight and rinse off in the morning."}
-            ],
-            "Col3": [
-                {"product": "Cleanse", "directions": "Use the AQ1 Deep Pore Cleanser in the evening, especially if you have worn makeup or SPF. Perform a double cleanse by starting with Skin Prep, then follow with the cleanser to ensure full removal."},
-                {"product": "Mask", "directions": "Apply the Quench Mask 2–3 times a week. Leave on for 10–15 minutes while avoiding eye and lip areas. Rinse thoroughly with cool water and pat dry. Follow with hydrating products immediately."},
-                {"product": "Serum", "directions": "Use the Nourishing C&E Serum in the evening, focusing on areas showing pigmentation or sun damage. Allow 5 minutes to absorb before proceeding to next step."},
-                {"product": "Night Cream", "directions": "Massage the Night Cream with Collagen & Elastin into the skin using upward strokes. This step is essential to support skin elasticity and deep hydration overnight."},
-                {"product": "Spot Treatment", "directions": "Apply BP-9 Cream only on active breakouts or red inflamed areas. Do not overuse as it may cause dryness or irritation. Spot use only, not full-face."},
-                {"product": "Hydrating Mist", "directions": "Spritz Hydra-Cool Gel Mist after cleansing and before applying serum. This helps to prep the skin and enhance absorption of active ingredients."},
-                {"product": "Retinol Cream", "directions": "Apply a thin layer of Rejuvenating Cream to the entire face, avoiding eyes and lips. Use only at night and follow with moisturizer to reduce dryness."},
-                {"product": "Overnight Mask", "directions": "On nights when retinol is not used, apply the Soothing Zinc Gel Mask as the final step. Leave on overnight and rinse off in the morning."}
-            ],
-            "Col1_Header": "Morning",
-            "Col2_Header": "Afternoon",
-            "Col3_Header": "Evening"
-        }
+        PrescriptionEntryPopup(self.main_app, self.handle_prescription_submission)
 
-        path = self.pdf_3col.generate(client_name, start_date, data)
-        self.render_pdf_to_preview(path)
-        self.add_prescription_to_list(datetime.today().strftime("%m/%d/%Y"), "2-column", path)
+
+    def handle_prescription_submission(self, pdf_path, data):
+        from datetime import datetime
+
+        # Grab current date as string
+        start_date = datetime.today().strftime("%m/%d/%Y")
+        num_columns = sum(1 for key in data if key.startswith("Col") and "_Header" in key)
+
+        # Create Treeview item
+        iid = self.prescription_list.insert(
+            "", "end",
+            values=(start_date, f"{num_columns} Column{'s' if num_columns > 1 else ''}")
+        )
+
+        # Track the PDF path
+        self.prescription_paths[iid] = pdf_path
+
+        # Auto-select and preview it
+        self.prescription_list.selection_set(iid)
+        self.render_pdf_to_preview(pdf_path)
 
 
     def add_prescription_to_list(self, date, template, path):
@@ -211,6 +190,7 @@ class PrescriptionsPage:
 
         except Exception as e:
             print(f"❌ Failed to load PDF for popup: {e}")
+
 
     def print_prescription(self):
         print("🖨️ Print prescription")
