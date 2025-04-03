@@ -3,7 +3,6 @@ from reportlab.pdfgen import canvas
 import os
 
 class Pdf2ColGenerator:
-    
     def __init__(self, output_dir="prescriptions"):
         self.output_dir = os.path.join(os.getcwd(), output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
@@ -111,13 +110,9 @@ class Pdf2ColGenerator:
 
         # === Word Wrapping Helper ===
         def draw_product_block(c, x, y, product, directions, max_width, font_size=10, line_height=12, dry_run=False):
-            # Measure product name
             c.setFont("Helvetica", font_size)
-            product_text = f"{product}:"
-            product_width = c.stringWidth(product_text, "Helvetica", font_size)
 
             # Split directions into wrapped lines
-            c.setFont("Helvetica", font_size)
             lines = []
             for raw_line in directions.split("\n"):
                 words = raw_line.split()
@@ -132,19 +127,24 @@ class Pdf2ColGenerator:
                 if line:
                     lines.append(line)
 
-            if not dry_run:
-                # Draw product name (bold + underlined)
-                c.setFont("Helvetica", font_size)
-                c.drawString(x, y, product_text)
-                c.setLineWidth(0.6)
-                c.line(x, y - 2, x + product_width, y - 2)
+            lines_above = 0  # This tracks if we draw the product name
 
-                # Draw wrapped directions
+            if not dry_run:
+                if product.strip():  # Only draw product line if not empty
+                    product_text = f"{product.strip()}:"
+                    product_width = c.stringWidth(product_text, "Helvetica", font_size)
+                    c.setFont("Helvetica", font_size)
+                    c.drawString(x, y, product_text)
+                    c.setLineWidth(0.6)
+                    c.line(x, y - 2, x + product_width, y - 2)
+                    lines_above = 1
+
+                # Draw wrapped directions under the product (or at the top if no product)
                 c.setFont("Helvetica", font_size)
                 for idx, line in enumerate(lines):
-                    c.drawString(x, y - ((idx + 1) * line_height), line)
+                    c.drawString(x, y - ((idx + lines_above) * line_height), line)
 
-            return 1 + len(lines)  # 1 line for product + direction lines
+            return lines_above + len(lines)  # Total vertical lines used
         
         # === Table Rows with Wrapped Content ===
         c.setFont("Helvetica", 10)
@@ -156,7 +156,7 @@ class Pdf2ColGenerator:
 
         # Store where table starts and ends for vertical lines
         row_height = 12
-        min_lines = 4  # minimum lines per cell
+        min_lines = 3  # minimum lines per cell
         table_start_y = table_top
         current_y = table_top
 
@@ -175,14 +175,15 @@ class Pdf2ColGenerator:
 
         total_table_height = sum(row_heights)
 
-        # === Watermark Behind Table ===
+        # === Watermark at Fixed Position ===
         watermark_path = "icons/corium_logo.webp"
         aspect_ratio = 1200 / 930
         watermark_width = 500
         watermark_height = watermark_width / aspect_ratio
 
+        # Option 1: Centered on full page
         watermark_x = (width - watermark_width) / 2
-        watermark_y = table_top - (total_table_height / 2) - watermark_height / 2
+        watermark_y = 125
 
         c.saveState()
         c.setFillAlpha(0.15)

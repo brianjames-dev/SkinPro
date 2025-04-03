@@ -3,7 +3,6 @@ from reportlab.pdfgen import canvas
 import os
 
 class Pdf3ColGenerator:
-
     def __init__(self, output_dir="prescriptions"):
         self.output_dir = os.path.join(os.getcwd(), output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
@@ -92,8 +91,8 @@ class Pdf3ColGenerator:
         # === Drawing Function ===
         def draw_product_block(c, x, y, product, directions, max_width, font_size=10, line_height=12, dry_run=False):
             c.setFont("Helvetica", font_size)
-            product_text = f"{product}:"
-            product_width = c.stringWidth(product_text, "Helvetica", font_size)
+
+            # Wrap directions text
             lines = []
             for raw_line in directions.split("\n"):
                 words = raw_line.split()
@@ -107,17 +106,26 @@ class Pdf3ColGenerator:
                         line = word
                 if line:
                     lines.append(line)
+
+            lines_above = 0  # Whether we draw the product line
+
             if not dry_run:
-                c.drawString(x, y, product_text)
-                c.setLineWidth(0.6)
-                c.line(x, y - 2, x + product_width, y - 2)
+                if product.strip():
+                    product_text = f"{product.strip()}:"
+                    product_width = c.stringWidth(product_text, "Helvetica", font_size)
+                    c.drawString(x, y, product_text)
+                    c.setLineWidth(0.6)
+                    c.line(x, y - 2, x + product_width, y - 2)
+                    lines_above = 1
+
                 for idx, line in enumerate(lines):
-                    c.drawString(x, y - ((idx + 1) * line_height), line)
-            return 1 + len(lines)
+                    c.drawString(x, y - ((idx + lines_above) * line_height), line)
+
+            return lines_above + len(lines)
 
         # === Table Rows ===
         row_height = 12
-        min_lines = 4
+        min_lines = 3
         table_top = header_y - 15
         current_y = table_top
         col1_data = steps_dict.get("Col1", [])
@@ -136,13 +144,16 @@ class Pdf3ColGenerator:
             cell_height = max(max(h1, h2, h3), min_lines) * row_height + 5
             row_heights.append(cell_height)
 
-        # === Watermark ===
+        # === Watermark at Fixed Position ===
         watermark_path = "icons/corium_logo.webp"
         aspect_ratio = 1200 / 930
         watermark_width = 500
         watermark_height = watermark_width / aspect_ratio
+
+        # Option 1: Centered on full page
         watermark_x = (width - watermark_width) / 2
-        watermark_y = table_top - (sum(row_heights) / 2) - watermark_height / 2
+        watermark_y = 125
+
         c.saveState()
         c.setFillAlpha(0.15)
         c.drawImage(watermark_path, watermark_x, watermark_y, width=watermark_width, height=watermark_height, mask='auto')
