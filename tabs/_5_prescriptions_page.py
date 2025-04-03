@@ -114,8 +114,6 @@ class PrescriptionsPage:
 
 
     def handle_prescription_submission(self, pdf_path, data):
-        from datetime import datetime
-
         # Grab current date as string
         start_date = datetime.today().strftime("%m/%d/%Y")
         num_columns = sum(1 for key in data if key.startswith("Col") and "_Header" in key)
