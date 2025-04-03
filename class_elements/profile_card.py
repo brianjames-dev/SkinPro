@@ -30,7 +30,6 @@ class ProfileCard:
             image=self.profile_image,
             text="",
             fg_color="transparent",
-            hover_color="#242424",
             width=w, height=h,
             border_width=0,
             command=self.change_profile_picture  # Upload & open settings
@@ -38,7 +37,7 @@ class ProfileCard:
         self.profile_button.grid(row=0, column=0, padx=(0, 10), ipadx=0, ipady=0, sticky="nsew")
 
         # Label for the client's name
-        self.name_label = ctk.CTkLabel(self.profile_frame, text="No Client Selected", font=("Arial", 16), anchor="w")
+        self.name_label = ctk.CTkLabel(self.profile_frame, text="No Client Selected", font=("Arial", 16), anchor="w", fg_color="transparent", text_color="#F7EFE5")
         self.name_label.grid(row=0, column=1, sticky="w")
 
     def load_client(self, client_id):

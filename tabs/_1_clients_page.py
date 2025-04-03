@@ -2,7 +2,8 @@ from tkinter import ttk
 import customtkinter as ctk
 from PIL import Image
 from class_elements.profile_card import ProfileCard
-from class_elements.treeview_styling import style_treeview
+# from class_elements.treeview_styling_dark import style_treeview_dark
+from class_elements.treeview_styling_light import style_treeview_light
 from class_elements.ctk_popup import ConfirmationPopup
 import os
 
@@ -26,7 +27,7 @@ class ClientsPage:
         search_label.grid(row=0, column=0, sticky="w", padx=10)
 
         # Search Entry
-        self.name_entry = ctk.CTkEntry(search_frame, width=300, placeholder_text="Enter client name", border_width=0)
+        self.name_entry = ctk.CTkEntry(search_frame, width=300, placeholder_text="Enter client name")
         self.name_entry.grid(row=0, column=1, sticky="ew")
 
         # Add Client Button
@@ -37,8 +38,6 @@ class ClientsPage:
             text="",
             width=24,
             height=24,
-            fg_color="transparent",
-            hover_color="#555555",
             command=self.add_client_button
         )
         add_client_button.grid(row=0, column=2, padx=5)
@@ -51,7 +50,7 @@ class ClientsPage:
         table_frame.pack(fill="both", expand=True, pady=(0, 10))
 
         # Apply Treeview Styling
-        style_treeview("Clients.Treeview")
+        style_treeview_light("Clients.Treeview")
 
         # Treeview Widget
         columns = ("Name", "Gender", "Birthdate", "Phone #", "Email", "Address")
@@ -85,9 +84,7 @@ class ClientsPage:
         self.no_results_label = ctk.CTkLabel(
             table_frame,
             text="",
-            bg_color="#1E1E1E",
             font=("Arial", 24),
-            text_color="white",
             anchor="center"
         )
         self.no_results_label.place(relx=0.5, rely=0.5, anchor="center")

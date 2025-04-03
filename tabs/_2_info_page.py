@@ -38,7 +38,7 @@ class InfoPage:
         form_frame.columnconfigure(1, weight=1)
 
         # Frame for Full Name (entry), Gender, Birthdate
-        name_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        name_frame = ctk.CTkFrame(form_frame)
         name_frame.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
         name_frame.columnconfigure(0, weight=2)  # Full Name entry box
         name_frame.columnconfigure(1, weight=0)  # Gender label
@@ -56,31 +56,31 @@ class InfoPage:
 
         # Row 1: Full Name, Gender, Birthdate
         ctk.CTkLabel(form_frame, text="Full Name").grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        self.full_name_entry = ctk.CTkEntry(name_frame, border_width=0, placeholder_text=full_name_placeholder)
+        self.full_name_entry = ctk.CTkEntry(name_frame, placeholder_text=full_name_placeholder)
         self.full_name_entry.grid(row=0, column=0, sticky="ew")
 
         ctk.CTkLabel(name_frame, text="Gender").grid(row=0, column=1, sticky="w", padx=(20, 5))
-        self.gender_entry = ctk.CTkComboBox(name_frame, values=["Female", "Male"], border_width=0)
+        self.gender_entry = ctk.CTkComboBox(name_frame, values=["Female", "Male"])
         self.gender_entry.grid(row=0, column=2, sticky="ew")
         self.gender_entry.configure(variable=self.gender_var, text_color="#9a9a99")
         self.gender_entry.set("Select Gender")  # Assuming it should have a default value
 
         ctk.CTkLabel(name_frame, text="Birthdate").grid(row=0, column=3, sticky="w", padx=(20, 5))
-        self.birthdate_entry = ctk.CTkEntry(name_frame, border_width=0, placeholder_text=birthdate_placeholder)
+        self.birthdate_entry = ctk.CTkEntry(name_frame, placeholder_text=birthdate_placeholder)
         self.birthdate_entry.grid(row=0, column=4, sticky="ew")
 
         # Row 2: Address 1
         ctk.CTkLabel(form_frame, text="Address 1").grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        self.address1_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=address1_placeholder)
+        self.address1_entry = ctk.CTkEntry(form_frame, placeholder_text=address1_placeholder)
         self.address1_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 3: Address 2
         ctk.CTkLabel(form_frame, text="Address 2").grid(row=2, column=0, sticky="w", padx=5, pady=5)
-        self.address2_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=address2_placeholder)
+        self.address2_entry = ctk.CTkEntry(form_frame, placeholder_text=address2_placeholder)
         self.address2_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
         # Frame for City, State, Zip
-        address_tri_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        address_tri_frame = ctk.CTkFrame(form_frame)
         address_tri_frame.grid(row=3, column=1, sticky="ew", padx=5, pady=5)
         address_tri_frame.columnconfigure(0, weight=3)  # City entry box
         address_tri_frame.columnconfigure(1, weight=0)  # State label
@@ -90,12 +90,11 @@ class InfoPage:
 
         # Row 4: City, State, Zip
         ctk.CTkLabel(form_frame, text="City").grid(row=3, column=0, sticky="w", padx=5, pady=5)
-        self.city_entry = ctk.CTkEntry(address_tri_frame, border_width=0, placeholder_text=city_placeholder)
+        self.city_entry = ctk.CTkEntry(address_tri_frame, placeholder_text=city_placeholder)
         self.city_entry.grid(row=3, column=0, sticky="ew")
 
         ctk.CTkLabel(address_tri_frame, text="State").grid(row=3, column=1, sticky="w", padx=(20, 5))
         self.state_entry = ctk.CTkComboBox(address_tri_frame, 
-                                           border_width=0,
                                            values=["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", 
                                                    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
                                                    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
@@ -106,11 +105,11 @@ class InfoPage:
         self.state_entry.set("Select State")  # Assuming it should have a default value
 
         ctk.CTkLabel(address_tri_frame, text="Zip").grid(row=3, column=3, sticky="w", padx=(20, 5))
-        self.zip_entry = ctk.CTkEntry(address_tri_frame, border_width=0, placeholder_text=zip_placeholder)
+        self.zip_entry = ctk.CTkEntry(address_tri_frame, placeholder_text=zip_placeholder)
         self.zip_entry.grid(row=3, column=4, sticky="ew")
 
         # Frame for Email, Cell Phone, Referred by
-        contacts_tri_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        contacts_tri_frame = ctk.CTkFrame(form_frame)
         contacts_tri_frame.grid(row=4, column=1, sticky="ew", padx=5, pady=5)
         contacts_tri_frame.columnconfigure(0, weight=1)  # Email entry box
         contacts_tri_frame.columnconfigure(1, weight=0)  # Cell Phone label
@@ -120,15 +119,15 @@ class InfoPage:
 
         # Row 5: Email, Cell Phone, Referred by
         ctk.CTkLabel(form_frame, text="Email").grid(row=4, column=0, sticky="w", padx=5, pady=5)
-        self.email_entry = ctk.CTkEntry(contacts_tri_frame, border_width=0, placeholder_text=email_placeholder)
+        self.email_entry = ctk.CTkEntry(contacts_tri_frame, placeholder_text=email_placeholder)
         self.email_entry.grid(row=4, column=0, sticky="ew")
        
         ctk.CTkLabel(contacts_tri_frame, text="Phone #").grid(row=4, column=1, sticky="w", padx=(20, 5))
-        self.phone_entry = ctk.CTkEntry(contacts_tri_frame, border_width=0, placeholder_text=phone_placeholder)
+        self.phone_entry = ctk.CTkEntry(contacts_tri_frame, placeholder_text=phone_placeholder)
         self.phone_entry.grid(row=4, column=2, sticky="ew")
 
         ctk.CTkLabel(contacts_tri_frame, text="Referred by").grid(row=4, column=3, sticky="w", padx=(20, 5))
-        self.referred_by_combobox = ctk.CTkComboBox(contacts_tri_frame, values=[], border_width=0)
+        self.referred_by_combobox = ctk.CTkComboBox(contacts_tri_frame, values=[])
         self.referred_by_combobox.grid(row=4, column=4, sticky="ew")
         self.referred_by_combobox.configure(text_color="#9a9a99")
         self.referred_by_combobox.set("Referred by...")
@@ -142,32 +141,32 @@ class InfoPage:
 
         # Row 6: Allergies
         ctk.CTkLabel(form_frame, text="Allergies").grid(row=6, column=0, sticky="w", padx=5, pady=5)
-        self.allergies_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=allergies_placeholder)
+        self.allergies_entry = ctk.CTkEntry(form_frame, placeholder_text=allergies_placeholder)
         self.allergies_entry.grid(row=6, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 7: Health Conditions
         ctk.CTkLabel(form_frame, text="Health Conditions").grid(row=7, column=0, sticky="w", padx=5, pady=5)
-        self.health_conditions_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=health_conditions_placeholder)
+        self.health_conditions_entry = ctk.CTkEntry(form_frame, placeholder_text=health_conditions_placeholder)
         self.health_conditions_entry.grid(row=7, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 8: Medications
         ctk.CTkLabel(form_frame, text="Medications").grid(row=8, column=0, sticky="w", padx=5, pady=5)
-        self.medications_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=medications_placeholder)
+        self.medications_entry = ctk.CTkEntry(form_frame, placeholder_text=medications_placeholder)
         self.medications_entry.grid(row=8, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 9: Area to be Treated
         ctk.CTkLabel(form_frame, text="Area to be Treated").grid(row=9, column=0, sticky="w", padx=5, pady=5)
-        self.treatment_areas_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=treatment_areas_placeholder)
+        self.treatment_areas_entry = ctk.CTkEntry(form_frame, placeholder_text=treatment_areas_placeholder)
         self.treatment_areas_entry.grid(row=9, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 10: Current Product Use
         ctk.CTkLabel(form_frame, text="Current Product Use").grid(row=10, column=0, sticky="w", padx=5, pady=5)
-        self.current_products_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=current_products_placeholder)
+        self.current_products_entry = ctk.CTkEntry(form_frame, placeholder_text=current_products_placeholder)
         self.current_products_entry.grid(row=10, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 11: Skin Conditions
         ctk.CTkLabel(form_frame, text="Skin Conditions").grid(row=11, column=0, sticky="w", padx=5, pady=5)
-        self.skin_conditions_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=skin_conditions_placeholder)
+        self.skin_conditions_entry = ctk.CTkEntry(form_frame, placeholder_text=skin_conditions_placeholder)
         self.skin_conditions_entry.grid(row=11, column=1, padx=5, pady=5, sticky="ew")
 
         # Separator
@@ -176,7 +175,7 @@ class InfoPage:
 
         # Row 12: Other Notes
         ctk.CTkLabel(form_frame, text="Other Notes").grid(row=13, column=0, sticky="w", padx=5, pady=5)
-        self.other_notes_entry = ctk.CTkEntry(form_frame, border_width=0, placeholder_text=other_notes_placeholder)
+        self.other_notes_entry = ctk.CTkEntry(form_frame, placeholder_text=other_notes_placeholder)
         self.other_notes_entry.grid(row=13, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 13: Desired Improvement + Save
@@ -187,7 +186,7 @@ class InfoPage:
 
         ctk.CTkLabel(final_frame, text="Desired Improvement").grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
-        self.desired_improvement_entry = ctk.CTkEntry(final_frame, border_width=0, placeholder_text=desired_improvement_placeholder)
+        self.desired_improvement_entry = ctk.CTkEntry(final_frame, placeholder_text=desired_improvement_placeholder)
         self.desired_improvement_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")  # ✅ Ensure it expands
 
         self.save_button = ctk.CTkButton(

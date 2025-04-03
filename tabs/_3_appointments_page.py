@@ -2,7 +2,8 @@ import customtkinter as ctk
 from tkinter import ttk, filedialog, messagebox
 import tkinter as tk
 from class_elements.profile_card import ProfileCard
-from class_elements.treeview_styling import style_treeview
+# from class_elements.treeview_styling_dark import style_treeview_dark
+from class_elements.treeview_styling_light import style_treeview_light
 from datetime import datetime
 from PIL import Image
 import re
@@ -45,8 +46,7 @@ class AppointmentsPage:
             variable=self.client_var, 
             values=[], 
             command=self.on_client_selected, 
-            width=180,
-            border_width=0
+            width=180
         )
         self.client_combobox.grid(row=0, column=1, sticky="w", padx=2, pady=2)  # Stretch across grid
         self.client_combobox.configure(text_color="#9a9a99")
@@ -71,8 +71,6 @@ class AppointmentsPage:
 
         self.create_button = ctk.CTkButton(create_frame, 
                                            text="",
-                                           fg_color="transparent",
-                                           hover_color="#555555",
                                            image=add_appt,
                                            command=self.create_appointment, 
                                            width=24)
@@ -84,8 +82,6 @@ class AppointmentsPage:
 
         self.update_button = ctk.CTkButton(button_frame, 
                                            text="",
-                                           fg_color="transparent",
-                                           hover_color="#555555",
                                            image=edit_appt, 
                                            command=self.update_appointment, 
                                            width=24)
@@ -93,8 +89,6 @@ class AppointmentsPage:
 
         self.photos_button = ctk.CTkButton(button_frame, 
                                         text="",
-                                        fg_color="transparent",
-                                        hover_color="#555555",  # Red hover color for delete
                                         image=add_imgs, 
                                         command=self.add_photos, 
                                         width=24)
@@ -106,7 +100,6 @@ class AppointmentsPage:
 
         self.delete_button = ctk.CTkButton(delete_frame, 
                                         text="",
-                                        fg_color="transparent",
                                         hover_color="#FF4444",  # Red hover color for delete
                                         image=delete_appt, 
                                         command=self.delete_appointment, 
@@ -118,7 +111,7 @@ class AppointmentsPage:
         treeview_frame.grid(row=1, column=0, columnspan=4, sticky="nsew", padx=(0, 5), pady=(0, 10))
 
         # Apply treeview styling
-        style_treeview("Appointments.Treeview")
+        style_treeview_light("Appointments.Treeview")
 
         # Treeview widget for appointments
         columns = ("date", "type", "treatment", "price", "photos")
@@ -148,7 +141,7 @@ class AppointmentsPage:
         self.appointments_table.bind("<ButtonRelease-1>", self.on_appointment_select)
 
         # Create Details Frame
-        self.details_frame = ctk.CTkFrame(main_frame)
+        self.details_frame = ctk.CTkFrame(main_frame, fg_color="#251254")
         self.details_frame.grid(row=0, rowspan=2, column=4, sticky="nsew", padx=(10, 0), pady=(0, 10))
         self.details_frame.grid_propagate(False)  # ✅ Prevent auto-expanding
 
@@ -158,13 +151,11 @@ class AppointmentsPage:
         self.details_frame.rowconfigure(1, weight=1)  # Allow the textboxes to expand vertically
 
         # Create Label/Textbox for "All Appointment Notes"
-        self.notes_label = ctk.CTkLabel(self.details_frame, text="Treatment Notes", font=("Arial", 16))
+        self.notes_label = ctk.CTkLabel(self.details_frame, text="Treatment Notes", font=("Arial", 16), fg_color="transparent", text_color="#F7EFE5")
         self.notes_label.grid(row=0, column=0, sticky="w", padx=10, pady=5)
         self.all_notes_textbox = tk.Text(self.details_frame,  
                                          font=("Arial", 10), 
                                          wrap="word", 
-                                         fg="white", 
-                                         bg="#1E1E1E", 
                                          bd=0, 
                                          border=0, 
                                          borderwidth=0, 

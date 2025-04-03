@@ -6,8 +6,11 @@ from splash_screen import SplashScreen
 from img_load_threading import ImageLoaderThread
 
 if __name__ == "__main__":
-    ctk.set_appearance_mode("Dark")
-    ctk.set_default_color_theme("blue")
+    # ctk.set_appearance_mode("dark")
+    # ctk.set_default_color_theme("blue")
+    ctk.set_appearance_mode("Light")
+    ctk.set_default_color_theme("class_elements/corium_theme.json")
+
 
     # 🔹 Initialize database & image cache (NO IMAGE LOADING YET)
     conn = init_database()

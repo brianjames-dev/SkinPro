@@ -3,7 +3,8 @@ from tkinter import ttk
 from tkinter import filedialog
 from PIL import Image, ImageTk
 from customtkinter import CTkImage
-from class_elements.treeview_styling import style_treeview
+# from class_elements.treeview_styling_dark import style_treeview_dark
+from class_elements.treeview_styling_light import style_treeview_light
 import os
 
 
@@ -49,7 +50,7 @@ class PhotosPage:
         treeview_frame.grid(row=0, column=0, rowspan=3, sticky="nsew", padx=(0, 5))
 
         # Apply treeview styling
-        style_treeview("Photos.Treeview", rowheight=55)
+        style_treeview_light("Photos.Treeview", rowheight=55)
 
         # Grid layout in treeview_frame
         treeview_frame.rowconfigure(0, weight=1)
@@ -66,8 +67,8 @@ class PhotosPage:
         self.photo_list.grid(row=0, column=0, sticky="nsew")
         self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)            # Set Before Image
         self.photo_list.bind("<Control-ButtonRelease-1>", self.set_after_image)     # Set After Image
-        self.photo_list.tag_configure("before_highlight", background="#0080FF")  # Before highlight color
-        self.photo_list.tag_configure("after_highlight", background="green")   # Before highlight color
+        self.photo_list.tag_configure("before_highlight", background="#563A9C")  # Before highlight color
+        self.photo_list.tag_configure("after_highlight", background="#ffd485")   # Before highlight color
 
         # Add vertical scrollbar
         scrollbar = ttk.Scrollbar(treeview_frame, orient="vertical", command=self.photo_list.yview, style="Vertical.TScrollbar")
@@ -75,23 +76,23 @@ class PhotosPage:
         self.photo_list.configure(yscrollcommand=scrollbar.set)
 
         # Before Image Preview Pane (Middle Column)
-        before_frame = ctk.CTkFrame(main_frame, width=300, height=400, fg_color="#0080FF")
+        before_frame = ctk.CTkFrame(main_frame, width=300, height=400, fg_color="#563A9C")
         before_frame.grid(row=0, column=1, columnspan=3, sticky="nsew", padx=(5, 5))
 
-        ctk.CTkLabel(before_frame, text="Before", font=("Arial", 16)).pack()
-        self.before_label = ctk.CTkLabel(before_frame, text="<No Image Selected>", width=300, height=400, fg_color="gray")
+        ctk.CTkLabel(before_frame, text="Before", font=("Arial", 16), fg_color="transparent").pack()
+        self.before_label = ctk.CTkLabel(before_frame, text="<No Image Selected>", width=300, height=400)
         self.before_label.pack(pady=(0, 5))
 
         # After Image Preview Pane (Right Column)
-        after_frame = ctk.CTkFrame(main_frame, width=300, height=400, fg_color="green")
+        after_frame = ctk.CTkFrame(main_frame, width=300, height=400, fg_color="#ffd485")
         after_frame.grid(row=0, column=4, columnspan=3, sticky="nsew", padx=(5, 0))
 
-        ctk.CTkLabel(after_frame, text="After", font=("Arial", 16)).pack()
-        self.after_label = ctk.CTkLabel(after_frame, text="<No Image Selected>", width=300, height=400, fg_color="gray")
+        ctk.CTkLabel(after_frame, text="After", font=("Arial", 16), fg_color="transparent").pack()
+        self.after_label = ctk.CTkLabel(after_frame, text="<No Image Selected>", width=300, height=400)
         self.after_label.pack(pady=(0, 5))
 
         # Navigation Buttons & Date Label (Before Image)
-        self.before_nav_frame = ctk.CTkFrame(main_frame, fg_color="#2b2b2b")
+        self.before_nav_frame = ctk.CTkFrame(main_frame)
         self.before_nav_frame.grid(row=1, column=2, sticky="ew", pady=(5, 5))
 
         self.before_left_button = ctk.CTkButton(self.before_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "before"))
@@ -104,7 +105,7 @@ class PhotosPage:
         self.before_right_button.pack(side="right")
 
         # Navigation Buttons & Date Label (After Image)
-        self.after_nav_frame = ctk.CTkFrame(main_frame, fg_color="#2b2b2b")
+        self.after_nav_frame = ctk.CTkFrame(main_frame)
         self.after_nav_frame.grid(row=1, column=5, sticky="ew", pady=(5, 5))
 
         self.after_left_button = ctk.CTkButton(self.after_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "after"))
@@ -119,26 +120,26 @@ class PhotosPage:
         # Photo Description Box (Before Image)
         self.before_desc_frame = ctk.CTkFrame(main_frame)
         self.before_desc_frame.grid(row=2, column=1, columnspan=3, sticky="nsew", padx=(5, 5))
-        self.before_header_frame = ctk.CTkFrame(self.before_desc_frame, fg_color="#333333")
+        self.before_header_frame = ctk.CTkFrame(self.before_desc_frame)
         self.before_header_frame.pack(fill="both", padx=10) 
 
         ctk.CTkLabel(self.before_header_frame, text="Description", font=("Arial", 14)).pack(side="left", pady=(5,0))
         self.before_save_button = ctk.CTkButton(self.before_header_frame, text="Save", width=60, height=20, command=self.save_before_description, state="disabled", fg_color="#696969", text_color="white")
         self.before_save_button.pack(side="right")
-        self.before_desc_textbox = ctk.CTkTextbox(self.before_desc_frame, height=60, wrap="word", corner_radius=0, fg_color="#1e1e1e")
+        self.before_desc_textbox = ctk.CTkTextbox(self.before_desc_frame, height=60, wrap="word", corner_radius=0)
         self.before_desc_textbox.pack(fill="both", expand=True)
         self.before_desc_textbox.bind("<KeyRelease>", self.on_before_text_change)
 
         # Photo Description Box (After Image)
         self.after_desc_frame = ctk.CTkFrame(main_frame)
         self.after_desc_frame.grid(row=2, column=4, columnspan=3, sticky="nsew", padx=(5, 0))
-        self.after_header_frame = ctk.CTkFrame(self.after_desc_frame, fg_color="#333333")
+        self.after_header_frame = ctk.CTkFrame(self.after_desc_frame)
         self.after_header_frame.pack(fill="both", padx=10) 
 
         ctk.CTkLabel(self.after_header_frame, text="Description", font=("Arial", 14)).pack(side="left", pady=(5,0))
         self.after_save_button = ctk.CTkButton(self.after_header_frame, text="Save", width=60, height=20, command=self.save_after_description, state="disabled", fg_color="#696969", text_color="white")
         self.after_save_button.pack(side="right") 
-        self.after_desc_textbox = ctk.CTkTextbox(self.after_desc_frame, height=60, wrap="word", corner_radius=0, fg_color="#1e1e1e")
+        self.after_desc_textbox = ctk.CTkTextbox(self.after_desc_frame, height=60, wrap="word", corner_radius=0)
         self.after_desc_textbox.pack(fill="both", expand=True)
         self.after_desc_textbox.bind("<KeyRelease>", self.on_after_text_change)
 
@@ -256,7 +257,7 @@ class PhotosPage:
 
         if current_text and current_text != self.before_original_text:
             # print("🟢 Text changed! Enabling Save button.")
-            self.before_save_button.configure(state="normal", text="Save", fg_color="#3B8ED0")
+            self.before_save_button.configure(state="normal", text="Save", fg_color="#563A9C")
         else:
             # print("🔴 No change detected. Disabling Save button.")
             self.before_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
@@ -271,7 +272,7 @@ class PhotosPage:
 
         if current_text and current_text != self.after_original_text:
             # print("🟢 Text changed! Enabling Save button.")
-            self.after_save_button.configure(state="normal", text="Save", fg_color="#3B8ED0")
+            self.after_save_button.configure(state="normal", text="Save", fg_color="#563A9C")
         else:
             # print("🔴 No change detected. Disabling Save button.")
             self.after_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")

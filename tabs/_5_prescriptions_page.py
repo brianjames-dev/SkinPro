@@ -2,7 +2,8 @@ import customtkinter as ctk
 from customtkinter import CTkImage
 from tkinter import ttk
 from PIL import Image, ImageTk
-from class_elements.treeview_styling import style_treeview
+# from class_elements.treeview_styling_dark import style_treeview_dark
+from class_elements.treeview_styling_light import style_treeview_light
 import os
 from pdf2image import convert_from_path
 from reportlab.lib.pagesizes import letter
@@ -44,7 +45,7 @@ class PrescriptionsPage:
         treeview_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
 
         # Apply treeview styling
-        style_treeview("Prescriptions.Treeview")
+        style_treeview_light("Prescriptions.Treeview")
 
         # Grid layout in treeview_frame
         treeview_frame.rowconfigure(0, weight=1)
@@ -71,7 +72,7 @@ class PrescriptionsPage:
         ctk.CTkLabel(display_frame, text="Current Prescription", font=("Arial", 16)).pack()
 
         # === Scrollable Frame for PDF Preview ===
-        self.scroll_canvas = ctk.CTkCanvas(display_frame, bg="#1e1e1e", highlightthickness=0)
+        self.scroll_canvas = ctk.CTkCanvas(display_frame, highlightthickness=0)
         self.scroll_canvas.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
         # Scrollbar
@@ -82,7 +83,7 @@ class PrescriptionsPage:
         self.scroll_canvas.configure(yscrollcommand=scrollbar.set)
 
         # Internal frame inside canvas
-        self.preview_inner_frame = ctk.CTkFrame(self.scroll_canvas, fg_color="#1e1e1e")
+        self.preview_inner_frame = ctk.CTkFrame(self.scroll_canvas)
         self.scroll_window = self.scroll_canvas.create_window((0, 0), window=self.preview_inner_frame, anchor="nw")
 
         # Bind the <Configure> event to update the scroll region
