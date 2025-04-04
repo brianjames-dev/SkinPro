@@ -3,7 +3,6 @@ from tkinter import ttk
 from tkinter import filedialog
 from PIL import Image, ImageTk
 from customtkinter import CTkImage
-# from class_elements.treeview_styling_dark import style_treeview_dark
 from class_elements.treeview_styling_light import style_treeview_light
 import os
 
@@ -79,7 +78,7 @@ class PhotosPage:
         before_frame = ctk.CTkFrame(main_frame, width=300, height=400, fg_color="#563A9C")
         before_frame.grid(row=0, column=1, columnspan=3, sticky="nsew", padx=(5, 5))
 
-        ctk.CTkLabel(before_frame, text="Before", font=("Arial", 16), fg_color="transparent").pack()
+        ctk.CTkLabel(before_frame, text="Before", font=("Helvetica", 16, "bold"), fg_color="transparent", text_color="#ebebeb").pack()
         self.before_label = ctk.CTkLabel(before_frame, text="<No Image Selected>", width=300, height=400)
         self.before_label.pack(pady=(0, 5))
 
@@ -87,7 +86,7 @@ class PhotosPage:
         after_frame = ctk.CTkFrame(main_frame, width=300, height=400, fg_color="#ffd485")
         after_frame.grid(row=0, column=4, columnspan=3, sticky="nsew", padx=(5, 0))
 
-        ctk.CTkLabel(after_frame, text="After", font=("Arial", 16), fg_color="transparent").pack()
+        ctk.CTkLabel(after_frame, text="After", font=("Helvetica", 16, "bold"), fg_color="transparent", text_color="#ebebeb").pack()
         self.after_label = ctk.CTkLabel(after_frame, text="<No Image Selected>", width=300, height=400)
         self.after_label.pack(pady=(0, 5))
 
@@ -98,7 +97,7 @@ class PhotosPage:
         self.before_left_button = ctk.CTkButton(self.before_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "before"))
         self.before_left_button.pack(side="left")
 
-        self.before_date_label = ctk.CTkLabel(self.before_nav_frame, text="                   ", font=("Arial", 12, "bold"))
+        self.before_date_label = ctk.CTkLabel(self.before_nav_frame, text="                   ", font=("Helvetica", 12, "bold"))
         self.before_date_label.pack(side="left", expand=True)
 
         self.before_right_button = ctk.CTkButton(self.before_nav_frame, text="", image=fwd_arrow, width=30, command=lambda: self.navigate_image(1, "before"))
@@ -111,33 +110,33 @@ class PhotosPage:
         self.after_left_button = ctk.CTkButton(self.after_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "after"))
         self.after_left_button.pack(side="left")
 
-        self.after_date_label = ctk.CTkLabel(self.after_nav_frame, text="                   ", font=("Arial", 12, "bold"))
+        self.after_date_label = ctk.CTkLabel(self.after_nav_frame, text="                   ", font=("Helvetica", 12, "bold"))
         self.after_date_label.pack(side="left", expand=True)
 
         self.after_right_button = ctk.CTkButton(self.after_nav_frame, text="", image=fwd_arrow, width=30, command=lambda: self.navigate_image(1, "after"))
         self.after_right_button.pack(side="right")
 
         # Photo Description Box (Before Image)
-        self.before_desc_frame = ctk.CTkFrame(main_frame)
+        self.before_desc_frame = ctk.CTkFrame(main_frame, fg_color="#563A9C")
         self.before_desc_frame.grid(row=2, column=1, columnspan=3, sticky="nsew", padx=(5, 5))
-        self.before_header_frame = ctk.CTkFrame(self.before_desc_frame)
+        self.before_header_frame = ctk.CTkFrame(self.before_desc_frame, fg_color="#563A9C")
         self.before_header_frame.pack(fill="both", padx=10) 
 
-        ctk.CTkLabel(self.before_header_frame, text="Description", font=("Arial", 14)).pack(side="left", pady=(5,0))
-        self.before_save_button = ctk.CTkButton(self.before_header_frame, text="Save", width=60, height=20, command=self.save_before_description, state="disabled", fg_color="#696969", text_color="white")
+        ctk.CTkLabel(self.before_header_frame, text="Description", font=("Helvetica", 14, "bold"), fg_color="transparent", text_color="#ebebeb").pack(side="left", pady=(5,0))
+        self.before_save_button = ctk.CTkButton(self.before_header_frame, text="Save", width=60, height=20, command=self.save_before_description, state="disabled", fg_color="#696969", text_color="#ebebeb")
         self.before_save_button.pack(side="right")
-        self.before_desc_textbox = ctk.CTkTextbox(self.before_desc_frame, height=60, wrap="word", corner_radius=0)
+        self.before_desc_textbox = ctk.CTkTextbox(self.before_desc_frame, height=60, wrap="word", corner_radius=0,)
         self.before_desc_textbox.pack(fill="both", expand=True)
         self.before_desc_textbox.bind("<KeyRelease>", self.on_before_text_change)
 
         # Photo Description Box (After Image)
-        self.after_desc_frame = ctk.CTkFrame(main_frame)
+        self.after_desc_frame = ctk.CTkFrame(main_frame, fg_color="#563A9C")
         self.after_desc_frame.grid(row=2, column=4, columnspan=3, sticky="nsew", padx=(5, 0))
-        self.after_header_frame = ctk.CTkFrame(self.after_desc_frame)
+        self.after_header_frame = ctk.CTkFrame(self.after_desc_frame, fg_color="#563A9C")
         self.after_header_frame.pack(fill="both", padx=10) 
 
-        ctk.CTkLabel(self.after_header_frame, text="Description", font=("Arial", 14)).pack(side="left", pady=(5,0))
-        self.after_save_button = ctk.CTkButton(self.after_header_frame, text="Save", width=60, height=20, command=self.save_after_description, state="disabled", fg_color="#696969", text_color="white")
+        ctk.CTkLabel(self.after_header_frame, text="Description", font=("Helvetica", 14, "bold"), fg_color="transparent", text_color="#ebebeb").pack(side="left", pady=(5,0))
+        self.after_save_button = ctk.CTkButton(self.after_header_frame, text="Save", width=60, height=20, command=self.save_after_description, state="disabled", fg_color="#696969", text_color="#ebebeb")
         self.after_save_button.pack(side="right") 
         self.after_desc_textbox = ctk.CTkTextbox(self.after_desc_frame, height=60, wrap="word", corner_radius=0)
         self.after_desc_textbox.pack(fill="both", expand=True)
@@ -160,10 +159,10 @@ class PhotosPage:
             self.before_image_index = self.photo_paths.index(file_path)  # Track index
             self.load_image(file_path, self.before_label, "before")
 
-            # ✅ Reset save button state for Before
+            # Reset save button state for Before
             self.before_save_button.configure(state="disabled", text="Save", fg_color="#696969")
 
-            # ✅ Only update highlights if an After image was actually set (Prevent green auto-highlighting)
+            # Only update highlights if an After image was actually set (Prevent green auto-highlighting)
             if self.after_image_index != -1:
                 self.highlight_images_in_treeview()
 
@@ -185,13 +184,13 @@ class PhotosPage:
         file_path = self.photo_file_paths.get(photo_id)
 
         if file_path and os.path.exists(file_path):
-            self.after_image_index = self.photo_paths.index(file_path)  # ✅ Always allow selection
+            self.after_image_index = self.photo_paths.index(file_path)  # Always allow selection
             self.load_image(file_path, self.after_label, "after")
 
-            # ✅ Reset save button state for After
+            # Reset save button state for After
             self.after_save_button.configure(state="disabled", text="Save", fg_color="#696969")
 
-            # ✅ Apply highlighting in treeview
+            # Apply highlighting in treeview
             self.highlight_images_in_treeview()
             print(f"🟢 Selected After Image: {file_path} (Index: {self.after_image_index})")
         else:
@@ -216,10 +215,10 @@ class PhotosPage:
             self.conn.commit()
             print(f"✅ Saved description for Before Image (Photo ID: {photo_id})")
 
-            # ✅ Store new description as the original
+            # Store new description as the original
             self.before_original_text = new_description
 
-            # ✅ Disable Save button after saving
+            # Disable Save button after saving
             self.before_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
 
 
@@ -241,10 +240,10 @@ class PhotosPage:
             self.conn.commit()
             print(f"✅ Saved description for After Image (Photo ID: {photo_id})")
 
-            # ✅ Store new description as the original
+            # Store new description as the original
             self.after_original_text = new_description
 
-            # ✅ Disable Save button after saving
+            # Disable Save button after saving
             self.after_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
 
 

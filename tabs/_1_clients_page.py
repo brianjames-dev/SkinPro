@@ -2,7 +2,6 @@ from tkinter import ttk
 import customtkinter as ctk
 from PIL import Image
 from class_elements.profile_card import ProfileCard
-# from class_elements.treeview_styling_dark import style_treeview_dark
 from class_elements.treeview_styling_light import style_treeview_light
 from class_elements.ctk_popup import ConfirmationPopup
 import os
@@ -19,11 +18,11 @@ class ClientsPage:
         main_frame.pack(fill="both", expand=True, padx=10)
 
         # Frame for Search Bar
-        search_frame = ctk.CTkFrame(main_frame)
+        search_frame = ctk.CTkFrame(main_frame, fg_color="#563A9C")
         search_frame.pack(fill="x", pady=(0, 10))
 
         # Search Label
-        search_label = ctk.CTkLabel(search_frame, text="Search by Name:", font=("Arial", 14))
+        search_label = ctk.CTkLabel(search_frame, text="Search by Name:", font=("Helvetica", 14, "bold"), fg_color="transparent", text_color="#ebebeb")
         search_label.grid(row=0, column=0, sticky="w", padx=10)
 
         # Search Entry
@@ -40,7 +39,7 @@ class ClientsPage:
             height=24,
             command=self.add_client_button
         )
-        add_client_button.grid(row=0, column=2, padx=5)
+        add_client_button.grid(row=0, column=2, padx=10)
 
         # Configure the columns in the search_frame
         search_frame.columnconfigure(1, weight=1)  # Make the entry box expand
@@ -84,7 +83,7 @@ class ClientsPage:
         self.no_results_label = ctk.CTkLabel(
             table_frame,
             text="",
-            font=("Arial", 24),
+            font=("Helvetica", 24),
             anchor="center"
         )
         self.no_results_label.place(relx=0.5, rely=0.5, anchor="center")

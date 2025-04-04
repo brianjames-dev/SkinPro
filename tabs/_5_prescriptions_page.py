@@ -2,7 +2,6 @@ import customtkinter as ctk
 from customtkinter import CTkImage
 from tkinter import ttk
 from PIL import Image, ImageTk
-# from class_elements.treeview_styling_dark import style_treeview_dark
 from class_elements.treeview_styling_light import style_treeview_light
 import os
 from pdf2image import convert_from_path
@@ -65,31 +64,30 @@ class PrescriptionsPage:
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.prescription_list.configure(yscrollcommand=scrollbar.set)
 
-        # Prescription Display Area (Editable or PDF Preview Placeholder)
-        display_frame = ctk.CTkFrame(main_frame)
+        # === Prescription Display Area (Editable or PDF Preview Placeholder) ===
+        display_frame = ctk.CTkFrame(main_frame, fg_color="#563A9C")
         display_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 5))
 
-        ctk.CTkLabel(display_frame, text="Current Prescription", font=("Arial", 16)).pack()
+        ctk.CTkLabel(display_frame, text="Current Prescription", font=("Helvetica", 16, "bold"),
+                    fg_color="transparent", text_color="#ebebeb").pack()
 
         # === Scrollable Frame for PDF Preview ===
         self.scroll_canvas = ctk.CTkCanvas(display_frame, highlightthickness=0)
-        self.scroll_canvas.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        self.scroll_canvas.pack(fill="both", expand=True, padx=5, pady=(0, 5))
 
-        # Scrollbar
+        # Hidden Scrollbar (not placed in layout)
         scrollbar = ctk.CTkScrollbar(display_frame, orientation="vertical", command=self.scroll_canvas.yview)
-        scrollbar.place(relx=1, rely=0, relheight=1, anchor="ne")
+        scrollbar.configure(border_spacing=0)
 
-        # Configure canvas
+        # Still connect canvas to scrollbar for yview tracking
         self.scroll_canvas.configure(yscrollcommand=scrollbar.set)
 
-        # Internal frame inside canvas
+        # === Internal Frame inside Canvas ===
         self.preview_inner_frame = ctk.CTkFrame(self.scroll_canvas)
         self.scroll_window = self.scroll_canvas.create_window((0, 0), window=self.preview_inner_frame, anchor="nw")
 
-        # Bind the <Configure> event to update the scroll region
+        # === Scroll Region & Mouse Events ===
         self.preview_inner_frame.bind("<Configure>", self._update_scroll_region)
-
-        # Bind mouse wheel events for scrolling
         self._bind_mousewheel_events()
 
         # Button Column on the Right
@@ -167,7 +165,7 @@ class PrescriptionsPage:
         popup.title("Full Size PDF Preview")
 
         popup.geometry("850x1100")  # Or adjust to your desired full-size dimensions
-        popup.configure(fg_color="#1e1e1e")
+        popup.configure(fg_color="#ebebeb")
 
         # Lock interaction to this window only
         popup.grab_set()
@@ -219,7 +217,7 @@ class PrescriptionsPage:
                 for widget in self.preview_inner_frame.winfo_children():
                     widget.destroy()
 
-                label = ctk.CTkLabel(self.preview_inner_frame, image=ctk_image, text="", fg_color="#1e1e1e")
+                label = ctk.CTkLabel(self.preview_inner_frame, image=ctk_image, text="", fg_color="#ebebeb")
                 label.image = ctk_image  # Keep a reference
                 label.pack()
 

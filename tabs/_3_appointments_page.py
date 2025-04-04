@@ -2,7 +2,6 @@ import customtkinter as ctk
 from tkinter import ttk, filedialog, messagebox
 import tkinter as tk
 from class_elements.profile_card import ProfileCard
-# from class_elements.treeview_styling_dark import style_treeview_dark
 from class_elements.treeview_styling_light import style_treeview_light
 from datetime import datetime
 from PIL import Image
@@ -31,12 +30,12 @@ class AppointmentsPage:
         main_frame.rowconfigure(1, weight=1)    # Allow frames to stretch vertically
 
         # Create Frame for search box
-        search_frame = ctk.CTkFrame(main_frame)
+        search_frame = ctk.CTkFrame(main_frame, fg_color="#563A9C")
         search_frame.grid(row=0, column=0, sticky="nw", padx=(0, 0), pady=(0, 10))
         search_frame.columnconfigure(1, weight=1)  # Ensure the combobox expands properly
 
         # Create search label
-        search_label = ctk.CTkLabel(search_frame, text="Select Client:", font=("Arial", 14))
+        search_label = ctk.CTkLabel(search_frame, text="Change Client:", font=("Helvetica", 14, "bold"), fg_color="transparent", text_color="#ebebeb")
         search_label.grid(row=0, column=0, sticky="w", padx=10)
 
         # Update the Combobox to Match Styling
@@ -48,8 +47,8 @@ class AppointmentsPage:
             command=self.on_client_selected, 
             width=180
         )
-        self.client_combobox.grid(row=0, column=1, sticky="w", padx=2, pady=2)  # Stretch across grid
-        self.client_combobox.configure(text_color="#9a9a99")
+        self.client_combobox.grid(row=0, column=1, sticky="w", padx=5, pady=2)  # Stretch across grid
+        self.client_combobox.configure(text_color="#797e82")
 
         # Keybinds for combobox functionality
         self.client_combobox.bind("<KeyRelease>", self.filter_clients)
@@ -141,9 +140,9 @@ class AppointmentsPage:
         self.appointments_table.bind("<ButtonRelease-1>", self.on_appointment_select)
 
         # Create Details Frame
-        self.details_frame = ctk.CTkFrame(main_frame, fg_color="#251254")
+        self.details_frame = ctk.CTkFrame(main_frame, fg_color="#563A9C")
         self.details_frame.grid(row=0, rowspan=2, column=4, sticky="nsew", padx=(10, 0), pady=(0, 10))
-        self.details_frame.grid_propagate(False)  # ✅ Prevent auto-expanding
+        self.details_frame.grid_propagate(False)  # Prevent auto-expanding
 
         # Configure grid inside details_frame
         self.details_frame.columnconfigure(0, weight=1, minsize=50)  # Minimum width
@@ -151,16 +150,16 @@ class AppointmentsPage:
         self.details_frame.rowconfigure(1, weight=1)  # Allow the textboxes to expand vertically
 
         # Create Label/Textbox for "All Appointment Notes"
-        self.notes_label = ctk.CTkLabel(self.details_frame, text="Treatment Notes", font=("Arial", 16), fg_color="transparent", text_color="#F7EFE5")
+        self.notes_label = ctk.CTkLabel(self.details_frame, text="Treatment Notes", font=("Helvetica", 16, "bold"), fg_color="transparent", text_color="#ebebeb")
         self.notes_label.grid(row=0, column=0, sticky="w", padx=10, pady=5)
         self.all_notes_textbox = tk.Text(self.details_frame,  
-                                         font=("Arial", 10), 
+                                         font=("Helvetica", 10), 
                                          wrap="word", 
                                          bd=0, 
                                          border=0, 
                                          borderwidth=0, 
                                          highlightthickness=0)
-        self.all_notes_textbox.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=(0, 1))
+        self.all_notes_textbox.grid(row=1, column=0, columnspan=2, sticky="nsew")
         self.all_notes_textbox.configure(state="disabled")  # Disable editing
 
     def on_client_selected(self, selected_client):
@@ -225,23 +224,23 @@ class AppointmentsPage:
 
         if not current_text or current_text == "No matches found":
             self.client_combobox.set("Select a client...")  # Reset placeholder
-            self.client_combobox.configure(text_color="#9a9a99")
+            self.client_combobox.configure(text_color="#797e82")
 
     def clear_placeholder(self, event=None):
         """Clear the placeholder text when the user clicks or focuses on the combobox."""
         if self.client_var.get() == "Select a client...":  # Only clear if it's the placeholder
             self.client_combobox.set("")  # Clear text to allow typing
-            self.client_combobox.configure(text_color="white")
+            self.client_combobox.configure(text_color="#797e82")
 
     def load_client_appointments(self, client_id):
         """Load appointments for the selected client into the Treeview."""
         # If client_id changed, reset the combobox to placeholder otherwise retain white text color
         if self.client_id != client_id:
             self.client_combobox.set("Select a client...")
-            self.client_combobox.configure(text_color="#9a9a99")
+            self.client_combobox.configure(text_color="#797e82")
 
         else:
-            self.client_combobox.configure(text_color="white")
+            self.client_combobox.configure(text_color="#000000")
 
         # STORE CURRENT CLIENT ID
         self.client_id = client_id  
@@ -290,10 +289,10 @@ class AppointmentsPage:
             return
 
         # Configure Text Styles (Headers: 11px, Notes: 10px)
-        self.all_notes_textbox.tag_configure("header", font=("Arial", 11, "bold"))
-        self.all_notes_textbox.tag_configure("body", font=("Arial", 10))
-        self.all_notes_textbox.tag_configure("divider", font=("Arial", 6))
-        self.all_notes_textbox.tag_configure("highlight", background="#0080ff")  # Highlighted selection
+        self.all_notes_textbox.tag_configure("header", font=("Helvetica", 11, "bold"))
+        self.all_notes_textbox.tag_configure("body", font=("Helvetica", 10))
+        self.all_notes_textbox.tag_configure("divider", font=("Helvetica", 6))
+        self.all_notes_textbox.tag_configure("highlight", background="#563A9C")  # Highlighted selection
 
         # Enable Editing & Clear Existing Notes
         self.all_notes_textbox.configure(state="normal")
@@ -401,9 +400,9 @@ class AppointmentsPage:
         self.all_notes_textbox.delete("1.0", "end")
 
         # Configure Text Styles (Headers: 14px, Notes: 12px)
-        self.all_notes_textbox.tag_configure("header", font=("Arial", 11, "bold"))
-        self.all_notes_textbox.tag_configure("body", font=("Arial", 10))
-        self.all_notes_textbox.tag_configure("divider", font=("Arial", 6))
+        self.all_notes_textbox.tag_configure("header", font=("Helvetica", 11, "bold"))
+        self.all_notes_textbox.tag_configure("body", font=("Helvetica", 10))
+        self.all_notes_textbox.tag_configure("divider", font=("Helvetica", 6))
 
         # Compile formatted notes with dynamic dividers
         for date, treatment, notes in all_notes:
@@ -432,7 +431,7 @@ class AppointmentsPage:
 
         # Reset Appointments ComboBox to Placeholder
         self.client_combobox.set("Select a client...")
-        self.client_combobox.configure(text_color="gray")  # Ensure placeholder color
+        self.client_combobox.configure(text_color="#797e82")  # Ensure placeholder color
 
     def sort_appointments_treeview(self, column):
         """Sort the appointments TreeView by column."""
@@ -486,7 +485,7 @@ class AppointmentsPage:
 
         # Row 0 [appt_window]: Create pop-up main frame
         self.pop_main_frame = ctk.CTkFrame(self.appointment_window)
-        self.pop_main_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
+        self.pop_main_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
         ###########################################################
         ### ---------- POP_MAIN_FRAME CONTENTS BELOW ---------- ###
@@ -499,28 +498,28 @@ class AppointmentsPage:
 
         # Row 0 [pop_main_frame]: DATE Label/Entry
         ctk.CTkLabel(self.pop_main_frame, text="Date", anchor="w", width=70).grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.date_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.date_entry = ctk.CTkEntry(self.pop_main_frame, placeholder_text="MM/DD/YYYY")
         self.date_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         self.date_entry.bind("<Return>", lambda event: (self.format_date(), self.focus_next_widget(event)))
         self.date_entry.bind("<FocusOut>", lambda event: self.format_date())
 
         # Row 0 [pop_main_frame]: TYPE Label/Entry
         ctk.CTkLabel(self.pop_main_frame, text="Type", anchor="w", width=70).grid(row=0, column=2, padx=5, pady=5, sticky="w")
-        self.type_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.type_entry = ctk.CTkEntry(self.pop_main_frame, placeholder_text="Facial, etc.")
         self.type_entry.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
         self.type_entry.bind("<Return>", lambda event: self.focus_next_widget(event))
         self.type_entry.bind("<FocusOut>")
 
         # Row 0 [pop_main_frame]: PRICE Label/Entry
         ctk.CTkLabel(self.pop_main_frame, text="Price", anchor="w", width=70).grid(row=0, column=4, padx=5, pady=5, sticky="w")
-        self.price_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.price_entry = ctk.CTkEntry(self.pop_main_frame, placeholder_text="$0.00")
         self.price_entry.grid(row=0, column=5, padx=5, pady=5, sticky="ew")
         self.price_entry.bind("<Return>", lambda event: (self.format_price(), self.focus_next_widget(event)))
         self.price_entry.bind("<FocusOut>", lambda event: self.format_price())
 
         # Row 1 [pop_main_frame]: TREATMENT Label/Entry
         ctk.CTkLabel(self.pop_main_frame, text="Treatment", anchor="w", width=102).grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.treatment_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.treatment_entry = ctk.CTkEntry(self.pop_main_frame, placeholder_text="Treatment Name")
         self.treatment_entry.grid(row=1, column=1, columnspan=5, padx=5, pady=5, sticky="ew")
 
         ###########################################################
@@ -537,12 +536,12 @@ class AppointmentsPage:
 
         # Row 1 [notes_frame]: NOTES Label/Textbox
         self.notes_label = ctk.CTkLabel(self.notes_frame, text="Notes").grid(row=0, column=0, sticky="w", padx=5)
-        self.current_notes_textbox = ctk.CTkTextbox(self.notes_frame, corner_radius=0, wrap="word", fg_color="#1E1E1E")
+        self.current_notes_textbox = ctk.CTkTextbox(self.notes_frame, corner_radius=0, wrap="word", fg_color="#ebebeb")
         self.current_notes_textbox.grid(row=1, column=0, sticky="nsew")
 
         # Row 2 [appt_window]: Save Button
-        self.save_button = ctk.CTkButton(self.appointment_window, text="Save", command=self.save_new_appointment)
-        self.save_button.grid(row=2, column=0, pady=(5, 10))
+        self.save_button = ctk.CTkButton(self.notes_frame, text="Save", command=self.save_new_appointment)
+        self.save_button.grid(row=2, column=0, pady=10)
 
 
     def save_new_appointment(self):
@@ -631,7 +630,7 @@ class AppointmentsPage:
 
         # Row 0 [appt_window]: Create pop-up main frame
         self.pop_main_frame = ctk.CTkFrame(self.appointment_window)
-        self.pop_main_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
+        self.pop_main_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
         ###########################################################
         ### ---------- POP_MAIN_FRAME CONTENTS BELOW ---------- ###
@@ -644,7 +643,7 @@ class AppointmentsPage:
 
         # Row 0 [pop_main_frame]: DATE Label/Entry
         ctk.CTkLabel(self.pop_main_frame, text="Date", anchor="w", width=70).grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.date_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.date_entry = ctk.CTkEntry(self.pop_main_frame, placeholder_text="MM/DD/YYYY")
         self.date_entry.insert(0, date)
         self.date_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         self.date_entry.bind("<Return>", lambda event: (self.format_date(), self.focus_next_widget(event)))
@@ -652,7 +651,7 @@ class AppointmentsPage:
 
         # Row 0 [pop_main_frame]: TYPE Label/Entry
         ctk.CTkLabel(self.pop_main_frame, text="Type", anchor="w", width=70).grid(row=0, column=2, padx=5, pady=5, sticky="w")
-        self.type_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.type_entry = ctk.CTkEntry(self.pop_main_frame, placeholder_text="Facial, etc.")
         self.type_entry.insert(0, type)
         self.type_entry.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
         self.type_entry.bind("<Return>", lambda event: self.focus_next_widget(event))
@@ -660,7 +659,7 @@ class AppointmentsPage:
 
         # Row 0 [pop_main_frame]: PRICE Label/Entry
         ctk.CTkLabel(self.pop_main_frame, text="Price", anchor="w", width=70).grid(row=0, column=4, padx=5, pady=5, sticky="w")
-        self.price_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.price_entry = ctk.CTkEntry(self.pop_main_frame, placeholder_text="$0.00")
         self.price_entry.insert(0, price)
         self.price_entry.grid(row=0, column=5, padx=5, pady=5, sticky="ew")
         self.price_entry.bind("<Return>", lambda event: (self.format_price(), self.focus_next_widget(event)))
@@ -668,7 +667,7 @@ class AppointmentsPage:
 
         # Row 1 [pop_main_frame]: TREATMENT Label/Entry
         ctk.CTkLabel(self.pop_main_frame, text="Treatment", anchor="w", width=102).grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.treatment_entry = ctk.CTkEntry(self.pop_main_frame)
+        self.treatment_entry = ctk.CTkEntry(self.pop_main_frame, placeholder_text="Treatment Name")
         self.treatment_entry.insert(0, treatment)
         self.treatment_entry.grid(row=1, column=1, columnspan=5, padx=5, pady=5, sticky="ew")
 
@@ -686,13 +685,13 @@ class AppointmentsPage:
 
         # Row 1 [notes_frame]: NOTES Label/Textbox
         self.notes_label = ctk.CTkLabel(self.notes_frame, text="Notes").grid(row=0, column=0, sticky="w", padx=5)
-        self.current_notes_textbox = ctk.CTkTextbox(self.notes_frame, corner_radius=0, wrap="word", fg_color="#1E1E1E")
+        self.current_notes_textbox = ctk.CTkTextbox(self.notes_frame, corner_radius=0, wrap="word", fg_color="#ebebeb")
         self.current_notes_textbox.insert("1.0", treatment_notes)
         self.current_notes_textbox.grid(row=1, column=0, sticky="nsew")
 
         # Row 2 [appt_window]: Save Button
-        self.save_button = ctk.CTkButton(self.appointment_window, text="Update", command=lambda: self.save_updated_appointment(appointment_id))
-        self.save_button.grid(row=2, column=0, pady=(5, 10))
+        self.save_button = ctk.CTkButton(self.notes_frame, text="Update", command=lambda: self.save_updated_appointment(appointment_id))
+        self.save_button.grid(row=2, column=0, pady=10)
 
     def save_updated_appointment(self, appointment_id):
         """Save the updated appointment details."""
@@ -905,15 +904,19 @@ class AppointmentsPage:
         confirmation.grab_set()  # Prevent interactions with main app until pop-up is closed
         confirmation.focus_force()  # Immediately focus the pop-up window
 
+        # Main frame
+        main_frame = ctk.CTkFrame(confirmation)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
         # Confirmation Message
         ctk.CTkLabel(
-            confirmation, 
+            main_frame, 
             text="Are you sure you want to delete this appointment?",
-            font=("Arial", 14), wraplength=300
+            font=("Helvetica", 14), wraplength=300
         ).pack(pady=10)
 
         # Buttons Frame
-        button_frame = ctk.CTkFrame(confirmation, fg_color="transparent")
+        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         button_frame.pack(pady=10)
 
         # Cancel Button (Closes Pop-up)

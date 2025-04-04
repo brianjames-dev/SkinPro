@@ -62,7 +62,7 @@ class InfoPage:
         ctk.CTkLabel(name_frame, text="Gender").grid(row=0, column=1, sticky="w", padx=(20, 5))
         self.gender_entry = ctk.CTkComboBox(name_frame, values=["Female", "Male"])
         self.gender_entry.grid(row=0, column=2, sticky="ew")
-        self.gender_entry.configure(variable=self.gender_var, text_color="#9a9a99")
+        self.gender_entry.configure(variable=self.gender_var, text_color="#797e82")
         self.gender_entry.set("Select Gender")  # Assuming it should have a default value
 
         ctk.CTkLabel(name_frame, text="Birthdate").grid(row=0, column=3, sticky="w", padx=(20, 5))
@@ -101,7 +101,7 @@ class InfoPage:
                                                    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
                                                    "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"])
         self.state_entry.grid(row=3, column=2, sticky="ew")
-        self.state_entry.configure(variable=self.state_var, text_color="#9a9a99")
+        self.state_entry.configure(variable=self.state_var, text_color="#797e82")
         self.state_entry.set("Select State")  # Assuming it should have a default value
 
         ctk.CTkLabel(address_tri_frame, text="Zip").grid(row=3, column=3, sticky="w", padx=(20, 5))
@@ -129,7 +129,7 @@ class InfoPage:
         ctk.CTkLabel(contacts_tri_frame, text="Referred by").grid(row=4, column=3, sticky="w", padx=(20, 5))
         self.referred_by_combobox = ctk.CTkComboBox(contacts_tri_frame, values=[])
         self.referred_by_combobox.grid(row=4, column=4, sticky="ew")
-        self.referred_by_combobox.configure(text_color="#9a9a99")
+        self.referred_by_combobox.configure(text_color="#797e82")
         self.referred_by_combobox.set("Referred by...")
         self.referred_by_combobox.bind("<KeyRelease>", lambda event: self.update_referred_by_suggestions())
         self.referred_by_combobox.bind("<FocusIn>", self.clear_referred_placeholder)
@@ -187,18 +187,18 @@ class InfoPage:
         ctk.CTkLabel(final_frame, text="Desired Improvement").grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
         self.desired_improvement_entry = ctk.CTkEntry(final_frame, placeholder_text=desired_improvement_placeholder)
-        self.desired_improvement_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")  # ✅ Ensure it expands
+        self.desired_improvement_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")  # Ensure it expands
 
         self.save_button = ctk.CTkButton(
             final_frame, text="Save",
             command=self.save_client_data,
             fg_color="#696969",
-            text_color="white",
+            text_color="#ebebeb",
             state="disabled"
         )
         self.save_button.grid(row=0, column=2, padx=5, pady=5, sticky="ne")
 
-        # ✅ Bind tracing to handle both save button enabling & text color updates
+        # Bind tracing to handle both save button enabling & text color updates
         self.gender_var.trace_add("write", lambda *args: self.handle_combobox_change(self.gender_entry))
         self.state_var.trace_add("write", lambda *args: self.handle_combobox_change(self.state_entry))
         self.referred_var.trace_add("write", lambda *args: self.handle_combobox_change(self.referred_by_combobox))
@@ -256,7 +256,7 @@ class InfoPage:
     def populate_client_info(self, client_id):
         """Fetch client data from the database and populate the fields, including health information."""
 
-        # ✅ Step 1: Remove Existing Traces
+        # Step 1: Remove Existing Traces
         try:
             if self.gender_var.trace_info():
                 self.gender_var.trace_remove("write", self.gender_var.trace_info()[0][1])
@@ -304,7 +304,7 @@ class InfoPage:
                 self.full_name_entry.configure(placeholder_text=full_name_placeholder)
 
             self.gender_entry.set(gender if gender else "Select Gender")
-            self.gender_entry.configure(text_color="white" if gender else "#9a9a99")
+            self.gender_entry.configure(text_color="#000000" if gender else "#797e82")
 
             self.birthdate_entry.delete(0, "end")
             if birthdate:
@@ -331,7 +331,7 @@ class InfoPage:
                 self.city_entry.configure(placeholder_text=city_placeholder)
 
             self.state_entry.set(state if state else "Select State")
-            self.state_entry.configure(text_color="white" if state else "#9a9a99")
+            self.state_entry.configure(text_color="#000000" if state else "#797e82")
             
             self.zip_entry.delete(0, "end")
             if zip:
@@ -353,10 +353,10 @@ class InfoPage:
 
             if referred_by:
                 self.referred_by_combobox.set(referred_by)
-                self.referred_by_combobox.configure(text_color="white")
+                self.referred_by_combobox.configure(text_color="#000000")
             else:
                 self.referred_by_combobox.set("Referred by...")
-                self.referred_by_combobox.configure(text_color="#9a9a99")
+                self.referred_by_combobox.configure(text_color="#797e82")
                 
         if health_result:
             (
@@ -414,17 +414,17 @@ class InfoPage:
             else:
                 self.desired_improvement_entry.configure(placeholder_text=desired_improvement_placeholder)
         
-            # ✅ Step 3: Set Combobox Values (Without Triggering Save Button)
+            # Step 3: Set Combobox Values (Without Triggering Save Button)
             self.gender_var.set(gender if gender else "Select Gender")
             self.state_var.set(state if state else "Select State")
             # self.referred_var.set(referred if referred_by else "Unknown")
 
-        # ✅ Step 4: Manually Reattach Tracing (Fix for Traces Not Triggering)
+        # Step 4: Manually Reattach Tracing (Fix for Traces Not Triggering)
         self.gender_var.trace_add("write", lambda *args: self.handle_combobox_change(self.gender_entry))
         self.state_var.trace_add("write", lambda *args: self.handle_combobox_change(self.state_entry))
         self.referred_var.trace_add("write", lambda *args: self.handle_combobox_change(self.referred_by_combobox))
 
-        # ✅ Step 5: Disable Save Button (No edits have been made yet)
+        # Step 5: Disable Save Button (No edits have been made yet)
         self.save_button.configure(state="disabled", text="Save", fg_color="#696969")
 
     def clear_info(self):
@@ -504,20 +504,20 @@ class InfoPage:
         """Enable the save button when an entry is changed."""
         if hasattr(self, "save_button") and self.save_button:
             if self.save_button.cget("state") == "normal":
-                return  # ✅ Prevent duplicate triggers
+                return  # Prevent duplicate triggers
     
             print(f"🔄 Save button enabled")  # Debugging output
-            self.save_button.configure(state="normal", text="Save", fg_color="#3B8ED0")  # Re-enable
+            self.save_button.configure(state="normal", text="Save", fg_color="#563A9C")  # Re-enable
 
     def save_client_data(self):
         """Save or update client information in the database."""
-        # ✅ Step 1: Get client_id from ProfileCard
+        # Step 1: Get client_id from ProfileCard
         if hasattr(self.main_app, "profile_card"):
-            self.client_id = self.main_app.profile_card.client_id  # 🔥 Use the stored client_id
+            self.client_id = self.main_app.profile_card.client_id  # Use the stored client_id
 
         print(f"\n🔎 DEBUG: Checking client_id before saving: {self.client_id}")
 
-        # ✅ Step 2: Collect data from the form
+        # Step 2: Collect data from the form
         full_name = self.full_name_entry.get().strip()
         gender = self.gender_entry.get().strip()
         birthdate = self.birthdate_entry.get().strip()
@@ -530,7 +530,7 @@ class InfoPage:
         zip = self.zip_entry.get().strip()
         referred_by = self.referred_by_combobox.get().strip()
 
-        # ✅ Health Info
+        # Health Info
         allergies = self.allergies_entry.get().strip()
         health_conditions = self.health_conditions_entry.get().strip()
         medications = self.medications_entry.get().strip()
@@ -540,36 +540,36 @@ class InfoPage:
         other_notes = self.other_notes_entry.get().strip()
         desired_improvement = self.desired_improvement_entry.get().strip()
 
-        # ✅ Ensure a full name is provided
+        # Ensure a full name is provided
         if not full_name.strip():  
             print("Error: Full Name is required!")
             return
 
         try:
-            if self.client_id == -1:  # ✅ If it's a new client
+            if self.client_id == -1:  # If it's a new client
                 print(f"🆕 Inserting new client: {full_name}")
 
-                # ✅ Insert the new client into the `clients` table
+                # Insert the new client into the `clients` table
                 self.cursor.execute("""
                     INSERT INTO clients (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by))
 
-                # ✅ Get the newly inserted client_id
+                # Get the newly inserted client_id
                 self.client_id = self.cursor.lastrowid
                 print(f"🆕 Assigned new client_id: {self.client_id}")
 
-                # ✅ Insert new Health Info
+                # Insert new Health Info
                 self.cursor.execute("""
                     INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
                         current_products, skin_conditions, other_notes, desired_improvement) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
 
-            else:  # ✅ If updating an existing client
+            else:  # If updating an existing client
                 print(f"✏️ Updating client ID: {self.client_id} ({full_name}) in the database...")
                 
-                # ✅ Update client info in the `clients` table
+                # Update client info in the `clients` table
                 self.cursor.execute("""
                     UPDATE clients 
                     SET full_name = ?, gender = ?, birthdate = ?, phone = ?, email = ?, 
@@ -577,12 +577,12 @@ class InfoPage:
                     WHERE id = ?
                 """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by, self.client_id))
 
-                # ✅ Check if health info exists for this client
+                # Check if health info exists for this client
                 self.cursor.execute("SELECT COUNT(*) FROM client_health_info WHERE client_id = ?", (self.client_id,))
                 health_info_exists = self.cursor.fetchone()[0]
 
                 if health_info_exists:
-                    # ✅ Update existing Health Info
+                    # Update existing Health Info
                     self.cursor.execute("""
                         UPDATE client_health_info 
                         SET allergies = ?, health_conditions = ?, medications = ?, treatment_areas = ?, 
@@ -590,27 +590,27 @@ class InfoPage:
                         WHERE client_id = ?
                     """, (allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement, self.client_id))
                 else:
-                    # ✅ Insert new Health Info (if missing)
+                    # Insert new Health Info (if missing)
                     self.cursor.execute("""
                         INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
                             current_products, skin_conditions, other_notes, desired_improvement) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
 
-            # ✅ Step 4: Commit changes
+            # Step 4: Commit changes
             self.conn.commit()
             print(f"💾 Changes committed to the database.")
 
-            # ✅ Step 5: Refresh TreeView in ClientsPage and select the updated/new client
+            # Step 5: Refresh TreeView in ClientsPage and select the updated/new client
             if hasattr(self.main_app, "tabs") and "Clients" in self.main_app.tabs:
                 print("🔄 Refreshing Client List in TreeView...")
                 self.main_app.tabs["Clients"].load_clients()  # 🔥 Reload all clients in TreeView
 
-                # ✅ Select and bring the client into view
+                # Select and bring the client into view
                 self.main_app.tabs["Clients"].client_list.selection_set(str(self.client_id))
                 self.main_app.tabs["Clients"].client_list.see(str(self.client_id))  # 🔥 Jump to selected client
 
-            # ✅ Step 6: Finalize Temporary Profile Picture
+            # Step 6: Finalize Temporary Profile Picture
             temp_profile_path = "images/clients/temp_profile.png"
             final_profile_path = f"images/clients/{full_name.replace(' ', '_')}.png"
 
@@ -623,15 +623,15 @@ class InfoPage:
                     (final_profile_path, self.client_id))
                 self.conn.commit()
 
-            # ✅ Step 6: Refresh ProfileCard Full Name
+            # Step 6: Refresh ProfileCard Full Name
             if hasattr(self.main_app, "profile_card"):
                 print("🔄 Updating ProfileCard Name...")
                 self.main_app.profile_card.client_id = self.client_id
                 self.main_app.profile_card.full_name = full_name
                 self.main_app.profile_card.name_label.configure(text=full_name)
 
-            # ✅ Step 7: Disable save button and change label after successful save
-            self.save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
+            # Step 7: Disable save button and change label after successful save
+            self.save_button.configure(state="disabled", text="Saved!", fg_color="#696969", text_color="#ebebeb")
 
         except Exception as e:
             print(f"❌ Database error: {e}")
@@ -646,24 +646,24 @@ class InfoPage:
             self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
             return
 
-        # ✅ Prevent formatting an already formatted date
+        # Prevent formatting an already formatted date
         if re.fullmatch(r"\d{2}/\d{2}/\d{4}", raw_date):  
             return  # ✅ Exit early if it's already in MM/DD/YYYY format
 
-        # ✅ Remove any non-numeric characters (e.g., dashes, dots, spaces)
+        # Remove any non-numeric characters (e.g., dashes, dots, spaces)
         cleaned_date = re.sub(r"\D", "", raw_date)  
 
-        # ✅ Convert formats like 12101992 to 12/10/1992
+        # Convert formats like 12101992 to 12/10/1992
         if len(cleaned_date) == 8:
             formatted_date = f"{cleaned_date[:2]}/{cleaned_date[2:4]}/{cleaned_date[4:]}"
         
         else:
-            # ✅ Try parsing various formats
+            # Try parsing various formats
             for fmt in ["%m-%d-%Y", "%m.%d.%Y", "%m/%d/%Y"]:
                 try:
                     parsed_date = datetime.strptime(raw_date, fmt)
                     formatted_date = parsed_date.strftime("%m/%d/%Y")
-                    break  # ✅ Exit loop on success
+                    break  # Exit loop on success
                 except ValueError:
                     formatted_date = None  # Keep None if no format matches
 
@@ -673,15 +673,15 @@ class InfoPage:
                 self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
                 return
 
-        # ✅ Insert formatted date
+        # Insert formatted date
         self.birthdate_entry.delete(0, "end")
         self.birthdate_entry.insert(0, formatted_date)
         print(f"✅ Formatted Birthdate: {formatted_date}")
     
     def handle_phone_input(self, event=None):
         """Format phone number and move to the next widget."""
-        self.format_phone_number()  # ✅ Format number once
-        self.focus_next_widget(event)  # ✅ Move focus to next field
+        self.format_phone_number()  # Format number once
+        self.focus_next_widget(event)  # Move focus to next field
 
     def format_phone_number(self, event=None):
         """Format phone number as (XXX) XXX-XXXX, preserving country code if entered with '+'. 
@@ -695,34 +695,34 @@ class InfoPage:
         country_code = ""
         phone_number = raw_input
 
-        # ✅ Detect country code only if `+` is present
+        # Detect country code only if `+` is present
         if raw_input.startswith("+"):
             match = re.match(r"(\+\d+)\s*(\d+)", raw_input)
             if match:
                 country_code = match.group(1)  # Extract country code (e.g., +1, +44, etc.)
                 phone_number = match.group(2)  # Extract the rest of the number
 
-        # ✅ Remove all non-digit characters (except `+` in the country code)
+        # Remove all non-digit characters (except `+` in the country code)
         digits = re.sub(r"\D", "", phone_number)
 
         formatted_number = raw_input  # Default to input if no formatting is applied
 
-        # ✅ If exactly 7 digits, format as XXX-XXXX
+        # If exactly 7 digits, format as XXX-XXXX
         if len(digits) == 7:
             formatted_number = f"{digits[:3]}-{digits[3:]}"
 
-        # ✅ If at least 10 digits, format as (XXX) XXX-XXXX
+        # If at least 10 digits, format as (XXX) XXX-XXXX
         elif len(digits) >= 10:
             formatted_number = f"({digits[:3]}) {digits[3:6]}-{digits[6:10]}"
 
-            # ✅ If extra digits exist (extensions, etc.), append them
+            # If extra digits exist (extensions, etc.), append them
             if len(digits) > 10:
                 formatted_number += f" {digits[10:]}"
 
-            # ✅ Prepend country code if present
+            # Prepend country code if present
             formatted_number = f"{country_code} {formatted_number}".strip()
 
-        # ✅ Prevent triggering reformat on already formatted text
+        # Prevent triggering reformat on already formatted text
         if self.phone_entry.get() != formatted_number:
             self.phone_entry.delete(0, "end")
             self.phone_entry.insert(0, formatted_number)
@@ -732,26 +732,26 @@ class InfoPage:
     def clear_referred_placeholder(self, event=None):
         """Clear the placeholder text when the user clicks inside the combobox."""
         if self.referred_by_combobox.get() == "Referred by...":
-            self.referred_by_combobox.set("")  # ✅ Clear placeholder text
-            self.referred_by_combobox.configure(text_color="white")  # ✅ Change to normal text color
+            self.referred_by_combobox.set("")  # Clear placeholder text
+            self.referred_by_combobox.configure(text_color="#000000")  # Change to normal text color
 
     def restore_referred_placeholder(self, event=None):
         """Restore the 'Referred by...' placeholder if no valid selection is made."""
         current_text = self.referred_by_combobox.get().strip()
 
         if not current_text or current_text == "No matches found":
-            self.referred_by_combobox.set("Referred by...")  # ✅ Restore placeholder text
-            self.referred_by_combobox.configure(text_color="#9a9a99")  # ✅ Restore gray color
+            self.referred_by_combobox.set("Referred by...")  # Restore placeholder text
+            self.referred_by_combobox.configure(text_color="#797e82")  # Restore gray color
 
     def update_combobox_color(self, widget):
         """Ensure the selected combobox value appears in white text."""
         selected_value = widget.get().strip()
 
-        # ✅ Ensure white text when an actual selection is made
+        # Ensure white text when an actual selection is made
         if selected_value and selected_value not in ["Select Gender", "Select State", "Referred by..."]:
-            widget.configure(text_color="white")  # ✅ Make text white
+            widget.configure(text_color="#000000")  # Make text black
 
     def handle_combobox_change(self, widget):
         """Update text color and enable save button when a combobox value is selected."""
-        self.enable_save_button()  # ✅ Enable the save button
-        self.update_combobox_color(widget)  # ✅ Update text color
+        self.enable_save_button()  # Enable the save button
+        self.update_combobox_color(widget)  # Update text color

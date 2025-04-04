@@ -34,10 +34,10 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
 
 
         # --- Date Entry Frame (above button row) ---
-        self.date_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.date_frame.grid(row=0, column=0, sticky="w", padx=10, pady=5)
+        self.date_frame = ctk.CTkFrame(self.main_frame, fg_color="#563A9C")
+        self.date_frame.grid(row=0, column=0, sticky="w", padx=10, pady=10)
 
-        ctk.CTkLabel(self.date_frame, text="Start Date:", text_color="white").pack(side="left", padx=(0, 5))
+        ctk.CTkLabel(self.date_frame, text="Start Date:", text_color="#ebebeb", fg_color="transparent").pack(side="left", padx=(0, 5))
         self.date_entry = ctk.CTkEntry(self.date_frame, width=120, placeholder_text="MM/DD/YYYY")
         self.date_entry.pack(side="left")
 
@@ -76,15 +76,15 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             widget.grid_forget()
 
         total_grid_cols = 2 * self.num_cols + 1
-        ctk.CTkLabel(self.table_frame, text="", fg_color="#2b2b2b").grid(row=0, column=0, padx=5, pady=5)
+        ctk.CTkLabel(self.table_frame, text="", fg_color="transparent").grid(row=0, column=0, padx=5, pady=5)
 
         for row in range(self.num_rows):
             label_row = row * 3 + 1
             ctk.CTkLabel(
                 self.table_frame,
                 text=f"STEP {row + 1}",
-                text_color="white",
-                fg_color="#2b2b2b"
+                text_color="#000000",
+                fg_color="transparent"
             ).grid(row=label_row, column=0, rowspan=2, sticky="n", padx=(10, 5), pady=(10, 0))
 
         ttk.Separator(self.table_frame, orient="vertical").grid(
