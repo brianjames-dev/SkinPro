@@ -23,17 +23,21 @@ class SplashScreen(ctk.CTkToplevel):
         self.progress_bar.set(0)  # Start at 0%
 
         # Frame for Progress and Timer Labels (Side-by-Side)
-        label_frame = ctk.CTkFrame(self, fg_color="#F7EFE5")  # Transparent frame
+        label_frame = ctk.CTkFrame(self, fg_color="#dbdbdb")
         label_frame.pack(pady=5, padx=40, fill="x")  # Align with progress bar width
 
         # Progress Label (Left)
-        self.progress_label = ctk.CTkLabel(label_frame, text="Starting up...", font=("Arial", 14),
-                                           fg_color="#F7EFE5")
+        self.progress_label = ctk.CTkLabel(label_frame, text="Starting up...", 
+                                           font=("Helvetica", 14),
+                                           fg_color="#dbdbdb",
+                                           corner_radius=0)
         self.progress_label.pack(side="left", padx=10)
 
         # Timer Label (Right)
-        self.timer_label = ctk.CTkLabel(label_frame, text="Elapsed Time: 0s", font=("Arial", 12),
-                                        fg_color="#F7EFE5")
+        self.timer_label = ctk.CTkLabel(label_frame, text="Elapsed Time: 0s", 
+                                        font=("Helvetica", 12),
+                                        fg_color="#dbdbdb",
+                                        corner_radius=0)
         self.timer_label.pack(side="right", padx=10)
 
         # Timer Variables
