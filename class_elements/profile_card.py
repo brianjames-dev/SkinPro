@@ -37,14 +37,14 @@ class ProfileCard:
         self.profile_button.grid(row=0, column=0, padx=(0, 10), ipadx=0, ipady=0, sticky="nsew")
 
         # Label for the client's name
-        self.name_label = ctk.CTkLabel(self.profile_frame, text="No Client Selected", font=("Arial", 16), anchor="w", fg_color="transparent", text_color="#F7EFE5")
+        self.name_label = ctk.CTkLabel(self.profile_frame, text="No Client Selected", font=("Helvetica", 20), anchor="w", fg_color="transparent", text_color="#ebebeb")
         self.name_label.grid(row=0, column=1, sticky="w")
 
     def load_client(self, client_id):
         """Load client details and apply saved zoom/shift to profile picture."""
         self.client_id = client_id
 
-        # ✅ If no client ID is given, reset to default state
+        # If no client ID is given, reset to default state
         if client_id is None:
             print("🔄 Resetting Profile Card to default state...")
             self.client_id = None
@@ -57,9 +57,9 @@ class ProfileCard:
 
             # Reset name label
             self.name_label.configure(text=self.full_name)
-            return  # ✅ Exit early
+            return  # Exit early
     
-        # ✅ Fetch profile_picture, full_name from `clients`, and zoom/shift from `client_images`
+        # Fetch profile_picture, full_name from `clients`, and zoom/shift from `client_images`
         self.cursor.execute("""
             SELECT c.full_name, c.profile_picture, COALESCE(ci.zoom, 100), COALESCE(ci.shift, 0)
             FROM clients c
@@ -71,7 +71,7 @@ class ProfileCard:
 
         if not client_data:  # No data found
             print(f"⚠ No saved client found for ID: {client_id}. Using default.")
-            self.full_name = "Unknown Client"  # ✅ Fix: Assign default name
+            self.full_name = "Unknown Client"  # Assign default name
             self.profile_path = "icons/add_photo.png"
             self.zoom = 100
             self.shift = 0
@@ -79,15 +79,15 @@ class ProfileCard:
             self.full_name, self.profile_path, self.zoom, self.shift = client_data
             print(f"🟢 Loaded Client: {self.full_name} | Image: {self.profile_path} | Zoom: {self.zoom}, Shift: {self.shift}")
 
-        # ✅ Update Name Label with Selected Client’s Name
-        self.name_label.configure(text=self.full_name)  # ✅ Now self.full_name is always set
+        # Update Name Label with Selected Client’s Name
+        self.name_label.configure(text=self.full_name)  # Now self.full_name is always set
 
-        # ✅ Ensure profile image exists, otherwise fallback to default
+        # Ensure profile image exists, otherwise fallback to default
         if not self.profile_path or not os.path.exists(self.profile_path):
             print(f"⚠ Image path not found: {self.profile_path}. Using default profile picture.")
             self.profile_path = "icons/add_photo.png"
 
-        # ✅ Load and apply circular transformation only for real images
+        # Load and apply circular transformation only for real images
         try:
             if self.profile_path == "icons/add_photo.png":
                 self.profile_image = ctk.CTkImage(Image.open(self.profile_path), size=(w, h))
@@ -96,9 +96,9 @@ class ProfileCard:
                 self.profile_image = ctk.CTkImage(processed_image, size=(w, h))
         except Exception as e:
             print(f"❌ Error processing image: {e}")
-            self.profile_image = ctk.CTkImage(Image.open("icons/add_photo.png"), size=(w, h))  # ✅ Fix: Ensure valid image object
+            self.profile_image = ctk.CTkImage(Image.open("icons/add_photo.png"), size=(w, h))  # Ensure valid image object
 
-        # ✅ Update UI
+        # Update UI
         self.profile_button.configure(image=self.profile_image)
 
     def apply_changes(self):
@@ -111,14 +111,14 @@ class ProfileCard:
 
         # **Step 1: Determine Save Path (Temp or Final)**
         if self.client_id == -1:  
-            save_path = "images/profile_pics/temp_profile.png"  # ✅ Temporary location for new clients
+            save_path = "images/profile_pics/temp_profile.png"  # Temporary location for new clients
         else:
-            # ✅ Fetch Client's Full Name for File Naming
+            # Fetch Client's Full Name for File Naming
             self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
             result = self.cursor.fetchone()
 
             if result:
-                full_name = result[0].replace(" ", "_")  # ✅ Replace spaces with underscores
+                full_name = result[0].replace(" ", "_")  # Replace spaces with underscores
                 save_path = f"images/profile_pics/{full_name}_id_{self.client_id}.png"
             else:
                 print(f"⚠ ERROR: No full_name found for client_id {self.client_id}. Using default name.")
@@ -134,12 +134,12 @@ class ProfileCard:
             print("⚠ Temporary client: Profile picture will be finalized upon save.")
             self.profile_path = save_path
 
-            # ✅ Update ProfileCard UI Immediately
+            # Update ProfileCard UI Immediately
             self.profile_image = ctk.CTkImage(Image.open(save_path), size=(w, h))
-            self.profile_button.configure(image=self.profile_image)  # ✅ Update UI
+            self.profile_button.configure(image=self.profile_image)  # Update UI
 
             self.popup.destroy()
-            return  # ✅ Exit early, don't store in database yet
+            return  # Exit early, don't store in database yet
     
         # **Step 4: Update profile picture path in `clients` table**
         cursor = self.conn.cursor()
@@ -154,20 +154,20 @@ class ProfileCard:
         existing_entry = cursor.fetchone()
 
         if existing_entry:
-            # ✅ Update existing entry
+            # Update existing entry
             cursor.execute("""
                 UPDATE client_images 
                 SET zoom = ?, shift = ? 
                 WHERE client_id = ?""", 
                 (self.zoom, self.shift, self.client_id))
         else:
-            # ✅ Insert new entry
+            # Insert new entry
             cursor.execute("""
                 INSERT INTO client_images (client_id, zoom, shift) 
                 VALUES (?, ?, ?)""", 
                 (self.client_id, self.zoom, self.shift))
 
-        # ✅ Commit changes to the database
+        # Commit changes to the database
         self.conn.commit()
         print(f"💾 Profile picture saved at {save_path} for Client ID {self.client_id}")
 
@@ -271,7 +271,7 @@ class ProfileCard:
             # Crop picture (left, top, right, bottom)
             cropped_image = image.crop((crop_x, crop_y, crop_x + crop_size, crop_y + crop_size))
 
-        # **🔹 Step 1: Use a High-Resolution Mask**
+        # **Step 1: Use a High-Resolution Mask**
         upscale_factor = 4  # Increase resolution for smooth edges
         mask_size = (w * upscale_factor, h * upscale_factor)  
         mask = Image.new("L", mask_size, 0)  
@@ -280,10 +280,10 @@ class ProfileCard:
         # Draw an anti-aliased circle on a larger mask
         draw.ellipse((0, 0, mask_size[0], mask_size[1]), fill=255)  
 
-        # **🔹 Step 2: Resize Mask Down to Prevent Blocky Edges**
+        # **Step 2: Resize Mask Down to Prevent Blocky Edges**
         mask = mask.resize((w, h), Image.LANCZOS)  
 
-        # **🔹 Step 3: Resize and apply circular mask**
+        # **Step 3: Resize and apply circular mask**
         circular_image = ImageOps.fit(cropped_image, (w, h), centering=(0.5, 0.5))
         circular_image.putalpha(mask) 
 
