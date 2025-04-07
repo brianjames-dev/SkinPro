@@ -147,7 +147,34 @@ class PrescriptionsPage:
 
 
     def delete_prescription(self):
-        print("🗑️ Delete prescription")
+        selected = self.prescription_list.selection()
+        if not selected:
+            print("❌ No prescription selected for deletion.")
+            return
+
+        iid = selected[0]
+        pdf_path = self.prescription_paths.get(iid)
+
+        # Optional: confirm deletion
+        confirm = CTkMessagebox(title="Delete?", message="Are you sure you want to delete this prescription?", icon="warning", option_1="Yes", option_2="Cancel")
+        if confirm.get() != "Yes":
+            return
+
+        try:
+            if pdf_path and os.path.exists(pdf_path):
+                os.remove(pdf_path)
+                print(f"🗑️ Deleted file: {pdf_path}")
+
+            # Delete from database
+            self.cursor.execute("DELETE FROM prescriptions WHERE file_path = ?", (pdf_path,))
+            self.conn.commit()
+
+            # Remove from Treeview and internal dict
+            self.prescription_list.delete(iid)
+            del self.prescription_paths[iid]
+
+        except Exception as e:
+            print(f"❌ Failed to delete prescription: {e}")
 
 
     def preview_prescription(self):
@@ -196,7 +223,24 @@ class PrescriptionsPage:
 
 
     def print_prescription(self):
-        print("🖨️ Print prescription")
+        selected = self.prescription_list.selection()
+        if not selected:
+            print("❌ No prescription selected.")
+            return
+
+        iid = selected[0]
+        pdf_path = self.prescription_paths.get(iid)
+
+        if not pdf_path or not os.path.exists(pdf_path):
+            print("❌ PDF file not found.")
+            return
+
+        try:
+            # For Windows
+            os.startfile(pdf_path, "print")
+            print("🖨️ Sent to printer.")
+        except Exception as e:
+            print(f"❌ Failed to print: {e}")
 
 
     def set_alert(self):
