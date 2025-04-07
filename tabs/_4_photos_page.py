@@ -83,7 +83,7 @@ class PhotosPage:
         self.before_label.pack(pady=(0, 5))
 
         # After Image Preview Pane (Right Column)
-        after_frame = ctk.CTkFrame(main_frame, width=300, height=400, fg_color="#ffd485")
+        after_frame = ctk.CTkFrame(main_frame, width=300, height=400, fg_color="#251254")
         after_frame.grid(row=0, column=4, columnspan=3, sticky="nsew", padx=(5, 0))
 
         ctk.CTkLabel(after_frame, text="After", font=("Helvetica", 16, "bold"), fg_color="transparent", text_color="#ebebeb").pack()
@@ -125,8 +125,8 @@ class PhotosPage:
         ctk.CTkLabel(self.before_header_frame, text="Description", font=("Helvetica", 14, "bold"), fg_color="transparent", text_color="#ebebeb").pack(side="left", pady=(5,0))
         self.before_save_button = ctk.CTkButton(self.before_header_frame, text="Save", width=60, height=20, command=self.save_before_description, state="disabled", fg_color="#696969", text_color="#ebebeb")
         self.before_save_button.pack(side="right")
-        self.before_desc_textbox = ctk.CTkTextbox(self.before_desc_frame, height=60, wrap="word", corner_radius=0,)
-        self.before_desc_textbox.pack(fill="both", expand=True)
+        self.before_desc_textbox = ctk.CTkTextbox(self.before_desc_frame, height=60, wrap="word", corner_radius=7)
+        self.before_desc_textbox.pack(fill="both", expand=True, padx=5, pady=(0, 5))
         self.before_desc_textbox.bind("<KeyRelease>", self.on_before_text_change)
 
         # Photo Description Box (After Image)
@@ -138,8 +138,8 @@ class PhotosPage:
         ctk.CTkLabel(self.after_header_frame, text="Description", font=("Helvetica", 14, "bold"), fg_color="transparent", text_color="#ebebeb").pack(side="left", pady=(5,0))
         self.after_save_button = ctk.CTkButton(self.after_header_frame, text="Save", width=60, height=20, command=self.save_after_description, state="disabled", fg_color="#696969", text_color="#ebebeb")
         self.after_save_button.pack(side="right") 
-        self.after_desc_textbox = ctk.CTkTextbox(self.after_desc_frame, height=60, wrap="word", corner_radius=0)
-        self.after_desc_textbox.pack(fill="both", expand=True)
+        self.after_desc_textbox = ctk.CTkTextbox(self.after_desc_frame, height=60, wrap="word", corner_radius=7)
+        self.after_desc_textbox.pack(fill="both", expand=True, padx=5, pady=(0, 5))
         self.after_desc_textbox.bind("<KeyRelease>", self.on_after_text_change)
 
 
