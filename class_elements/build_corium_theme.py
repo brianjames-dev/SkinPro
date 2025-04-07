@@ -117,9 +117,9 @@ theme = {
     "CTkTextbox": {
         "fg_color": SOFT_WHITE,
         "text_color": TEXT_COLOR,
-        "border_color": TRANSPARENT,
-        "border_width": 0,
-        "corner_radius": 10,
+        "border_color": DARK_PURPLE,
+        "border_width": 1,
+        "corner_radius": 0,
         "scrollbar_button_color": DARK_PURPLE,
         "scrollbar_button_hover_color": HOVER_PURPLE
     },
