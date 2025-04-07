@@ -123,8 +123,10 @@ def create_tables(cursor):
         appointment_id INTEGER,
         form_type TEXT,
         file_path TEXT NOT NULL,
-        notes TEXT,
-        FOREIGN KEY (client_id) REFERENCES clients(id), ON DELETE CASCADE,
+        data_json TEXT,
+        FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
         FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
     )
     """)
+
+print("✅ Prescriptions table created or already exists.")
