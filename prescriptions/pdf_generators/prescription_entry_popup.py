@@ -11,13 +11,27 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
     MAX_COLS = 4
     MAX_ROWS = 10
 
-    def __init__(self, parent, on_submit_callback):
+    def __init__(self, parent, on_submit_callback, client_id, cursor):
         super().__init__(parent)
         self.on_submit_callback = on_submit_callback
+        self.client_id = client_id
+        self.cursor = cursor
         self.title("New Prescription")
-        self.geometry("530x255")
-        self.configure(fg_color="#1e1e1e")
+        self.geometry("535x275")
         self.grab_set()
+
+        # 🌟 Fetch the client's name
+        self.client_name = "Unknown Client"
+        try:
+            self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
+            result = self.cursor.fetchone()
+            if result:
+                self.client_name = result[0]
+        except Exception as e:
+            print(f"❌ Error fetching client name: {e}")
+
+        # (Optional) Show the client name in the UI
+        print(f"📋 Creating prescription for: {self.client_name}")
 
         self.num_rows = 1
         self.num_cols = 2
@@ -29,21 +43,56 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         # Grid configuration for layout stretching
         self.main_frame.columnconfigure(0, weight=1)    # Allow full width
         self.main_frame.rowconfigure(0, weight=0)       # Date row
-        self.main_frame.rowconfigure(1, weight=0)       # Button row
-        self.main_frame.rowconfigure(2, weight=1)       # Table row (can stretch vertically)
+        self.main_frame.rowconfigure(1, weight=0)       # Separator row
+        self.main_frame.rowconfigure(2, weight=0)       # Button row
+        self.main_frame.rowconfigure(3, weight=1)       # Table row (can stretch vertically)
 
+        # === Combined Container Frame for Client + Date ===
+        self.client_date_wrapper = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.client_date_wrapper.grid(row=0, column=0, sticky="w", padx=10, pady=10)
+        self.client_date_wrapper.columnconfigure((0, 1), weight=0)  # Prevent stretch
 
-        # --- Date Entry Frame (above button row) ---
-        self.date_frame = ctk.CTkFrame(self.main_frame, fg_color="#563A9C")
-        self.date_frame.grid(row=0, column=0, sticky="w", padx=10, pady=10)
+        # === 🟣 Client Bubble ===
+        self.client_bubble = ctk.CTkFrame(self.client_date_wrapper, fg_color="#563A9C")
+        self.client_bubble.grid(row=0, column=0, padx=(0, 10), pady=0, sticky="w")
 
-        ctk.CTkLabel(self.date_frame, text="Start Date:", text_color="#ebebeb", fg_color="transparent").pack(side="left", padx=(0, 5))
-        self.date_entry = ctk.CTkEntry(self.date_frame, width=120, placeholder_text="MM/DD/YYYY")
-        self.date_entry.pack(side="left")
+        self.client_label = ctk.CTkLabel(
+            self.client_bubble,
+            text=f"Client: {self.client_name}",
+            font=("Helvetica", 12, "bold"),
+            text_color="#ebebeb",
+            fg_color="transparent"
+        )
+        self.client_label.pack(padx=10, pady=2)  # Internal bubble padding
+
+        # === 🌿 Date Bubble ===
+        self.date_bubble = ctk.CTkFrame(self.client_date_wrapper, fg_color="#563A9C")
+        self.date_bubble.grid(row=0, column=1, padx=(0, 0), pady=0, sticky="w")
+
+        date_label = ctk.CTkLabel(
+            self.date_bubble,
+            text="Start Date:",
+            font=("Helvetica", 12, "bold"),
+            text_color="#ebebeb",
+            fg_color="transparent"
+        )
+        date_label.pack(side="left", padx=(10, 5), pady=0)
+
+        self.date_entry = ctk.CTkEntry(
+            self.date_bubble,
+            width=120,
+            placeholder_text="MM/DD/YYYY",
+            corner_radius=10
+        )
+        self.date_entry.pack(side="left", padx=(0, 10), pady=2)
+
+        # Separator
+        separator = ttk.Separator(self.main_frame, orient="horizontal")
+        separator.grid(row=1, column=0, columnspan=1, sticky="ew", padx=5)
 
         # --- Button frame (above table) ---
         self.button_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.button_frame.grid(row=1, column=0, sticky="w", padx=5, pady=5)  # Align to left, spacing below
+        self.button_frame.grid(row=2, column=0, sticky="w", padx=5, pady=5)  # Align to left, spacing below
 
         button_width = 85
         ctk.CTkButton(self.button_frame, text="Add Row", command=self.add_row, width=button_width).pack(side="left", padx=5)
@@ -53,8 +102,8 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         ctk.CTkButton(self.button_frame, text="Create", command=self.on_create, width=button_width).pack(side="left", padx=5)
 
         # --- Table frame (below buttons) ---
-        self.table_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.table_frame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+        self.table_frame = ctk.CTkFrame(self.main_frame, fg_color="#b3b3b3")
+        self.table_frame.grid(row=3, column=0, sticky="nsew", padx=5, pady=5)
 
         self.pre_generate_widgets()
         self.build_table()
@@ -67,7 +116,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             col_info["header"] = header
             for row in range(self.MAX_ROWS):
                 product = ctk.CTkEntry(self.table_frame, placeholder_text="Product(s)", width=200)
-                directions = ctk.CTkTextbox(self.table_frame, height=50, width=200)
+                directions = ctk.CTkTextbox(self.table_frame, height=50, width=200, corner_radius=0)
                 col_info["entries"].append((product, directions))
             self.column_data.append(col_info)
 
@@ -84,7 +133,8 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
                 self.table_frame,
                 text=f"STEP {row + 1}",
                 text_color="#000000",
-                fg_color="transparent"
+                fg_color="transparent",
+                font=("Helvetica", 12, "bold"),
             ).grid(row=label_row, column=0, rowspan=2, sticky="n", padx=(10, 5), pady=(10, 0))
 
         ttk.Separator(self.table_frame, orient="vertical").grid(
@@ -119,9 +169,9 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             )
 
     def resize_popup(self):
-        base_width = 530
-        base_height = 255
-        col_padding = 225
+        base_width = 535
+        base_height = 275
+        col_padding = 223
         row_padding = 105
         new_width = base_width + (self.num_cols - 2) * col_padding
         new_height = base_height + (self.num_rows - 1) * row_padding
@@ -167,7 +217,6 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         print("✅ Collected Prescription:")
         pprint.pprint(steps_dict)
 
-        client_name = "New Client"
         start_date = self.date_entry.get().strip()
 
         if self.num_cols == 2:
@@ -180,7 +229,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             print("❌ Unsupported column count.")
             return
 
-        pdf_path = generator.generate(client_name, start_date, steps_dict)
+        pdf_path = generator.generate(self.client_name, start_date, steps_dict)
         print(f"✅ PDF generated at: {pdf_path}")
 
         if self.on_submit_callback:
