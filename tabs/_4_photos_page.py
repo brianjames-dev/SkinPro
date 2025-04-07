@@ -64,10 +64,10 @@ class PhotosPage:
         self.photo_list.column("appt_date", width=50, anchor="center")
         self.photo_list.column("type", width=65, anchor="center")
         self.photo_list.grid(row=0, column=0, sticky="nsew")
-        self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)            # Set Before Image
-        self.photo_list.bind("<Control-ButtonRelease-1>", self.set_after_image)     # Set After Image
-        self.photo_list.tag_configure("before_highlight", background="#563A9C")  # Before highlight color
-        self.photo_list.tag_configure("after_highlight", background="#ffd485")   # Before highlight color
+        self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)         # Set Before Image
+        self.photo_list.bind("<Control-ButtonRelease-1>", self.set_after_image)  # Set After Image
+        self.photo_list.tag_configure("before_highlight", background="#563A9C", foreground="#ebebeb")  # Before highlight color
+        self.photo_list.tag_configure("after_highlight", background="#251254", foreground="#ebebeb")   # After highlight color
 
         # Add vertical scrollbar
         scrollbar = ttk.Scrollbar(treeview_frame, orient="vertical", command=self.photo_list.yview, style="Vertical.TScrollbar")
@@ -423,21 +423,21 @@ class PhotosPage:
 
             # print(f"🖼️ Debug: Adding Photo ID {photo_id} | Path: {file_path} | Date: {appt_date} | Type: {type}")
 
-            # ✅ Store the valid thumbnail reference
+            # Store the valid thumbnail reference
             self.photo_file_paths[photo_id] = file_path  
             self.photo_paths.append(file_path)
 
-            # ✅ Retrieve cached thumbnail first
+            # Retrieve cached thumbnail first
             thumbnail = self.image_cache.get_thumbnail(file_path)
 
             if thumbnail is None:
-                # ✅ Add task to worker thread to generate the thumbnail asynchronously
+                # Add task to worker thread to generate the thumbnail asynchronously
                 self.image_loader.add_task(file_path, photo_id)
             else:
-                # ✅ Use cached thumbnail immediately
+                # Use cached thumbnail immediately
                 self.main_app.after(0, lambda: self.update_ui_with_thumbnail(photo_id, thumbnail))
 
-            # ✅ Store the valid thumbnail reference
+            # Store the valid thumbnail reference
             self.thumbnails[str(photo_id)] = thumbnail if thumbnail else None  
 
             # Insert row into Treeview
@@ -470,8 +470,9 @@ class PhotosPage:
             if after_photo_id is not None:
                 self.photo_list.item(str(after_photo_id), tags=("after_highlight",))
 
-        # Deselect all items to prevent default selection highlight
-        self.photo_list.selection_remove(self.photo_list.selection())
+        # Fully clear selection and focus to avoid default style conflict
+        self.photo_list.selection_set(())
+        self.photo_list.focus("")
 
 
     def update_ui_with_thumbnail(self, photo_id, thumbnail):

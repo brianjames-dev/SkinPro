@@ -14,6 +14,8 @@ from prescriptions.pdf_generators.pdf_2col import Pdf2ColGenerator
 from prescriptions.pdf_generators.pdf_3col import Pdf3ColGenerator
 from prescriptions.pdf_generators.pdf_4col import Pdf4ColGenerator
 from prescriptions.pdf_generators.prescription_entry_popup import PrescriptionEntryPopup
+from PdfRenderThread import PdfRenderWorker
+import json
 
 
 class PrescriptionsPage:
@@ -23,6 +25,7 @@ class PrescriptionsPage:
         self.main_app = main_app
         self.appointment_id = None
         self.current_prescription_id = None
+        self.pdf_render_worker = PdfRenderWorker(self.display_rendered_pdf)
         self.pdf_2col = Pdf2ColGenerator()
         self.pdf_3col = Pdf3ColGenerator()
         self.pdf_4col = Pdf4ColGenerator()
@@ -53,11 +56,12 @@ class PrescriptionsPage:
         # Style and Treeview
         self.prescription_list = ttk.Treeview(treeview_frame, selectmode="browse", show="headings", style="Prescriptions.Treeview")
         self.prescription_list["columns"] = ("date", "template")
-        self.prescription_list.heading("date", text="Date")
+        self.prescription_list.heading("date", text="Start Date")
         self.prescription_list.heading("template", text="Template")
         self.prescription_list.column("date", width=90, anchor="center")
         self.prescription_list.column("template", width=90, anchor="center")
         self.prescription_list.grid(row=0, column=0, sticky="nsew")
+        self.prescription_list.bind("<<TreeviewSelect>>", self.on_prescription_select)
 
         # Scrollbar for Treeview
         scrollbar = ttk.Scrollbar(treeview_frame, orient="vertical", command=self.prescription_list.yview, style="Vertical.TScrollbar")
@@ -119,22 +123,73 @@ class PrescriptionsPage:
 
 
     def handle_prescription_submission(self, pdf_path, data):
-        # Grab current date as string
         start_date = datetime.today().strftime("%m/%d/%Y")
         num_columns = sum(1 for key in data if key.startswith("Col") and "_Header" in key)
+        form_type = f"{num_columns}-column"
+        client_id = getattr(self.main_app.profile_card, "client_id", None)
 
-        # Create Treeview item
+        if not client_id:
+            print("❌ No client selected.")
+            return
+
+        # Store in DB
+        self.cursor.execute("""
+            INSERT INTO prescriptions (client_id, form_type, file_path, data_json)
+            VALUES (?, ?, ?, ?)
+        """, (
+            client_id,
+            form_type,
+            pdf_path,
+            json.dumps(data)  # Store full prescription data
+        ))
+
+        # Get the inserted row ID
+        prescription_id = self.cursor.lastrowid
+
+        self.conn.commit()
+
+        # Add to Treeview
         iid = self.prescription_list.insert(
             "", "end",
-            values=(start_date, f"{num_columns} Column{'s' if num_columns > 1 else ''}")
+            iid=str(prescription_id),
+            values=(start_date, form_type)
         )
-
-        # Track the PDF path
-        self.prescription_paths[iid] = pdf_path
-
-        # Auto-select and preview it
+        self.prescription_paths[str(prescription_id)] = pdf_path
         self.prescription_list.selection_set(iid)
         self.render_pdf_to_preview(pdf_path)
+
+
+    def load_prescriptions_for_client(self, client_id):
+        self.prescription_list.delete(*self.prescription_list.get_children())
+        self.prescription_paths.clear()
+
+        self.cursor.execute("""
+            SELECT id, form_type, file_path FROM prescriptions
+            WHERE client_id = ?
+            ORDER BY id DESC
+        """, (client_id,))
+        prescriptions = self.cursor.fetchall()
+
+        for pres in prescriptions:
+            pres_id, form_type, file_path = pres
+
+            # Example: use file creation/modification time as "date" column value
+            if os.path.exists(file_path):
+                created_date = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%m/%d/%Y")
+            else:
+                created_date = "Unknown"
+
+            iid = self.prescription_list.insert(
+                "", "end",
+                iid=str(pres_id),
+                values=(created_date, form_type)
+            )
+            self.prescription_paths[iid] = file_path
+        
+        children = self.prescription_list.get_children()
+        if children:
+            self.prescription_list.selection_set(children[0])
+            self.on_prescription_select(None)
 
 
     def add_prescription_to_list(self, date, template, path):
@@ -152,29 +207,47 @@ class PrescriptionsPage:
             print("❌ No prescription selected for deletion.")
             return
 
-        iid = selected[0]
+        iid = selected[0]  # This is the DB ID as a string
         pdf_path = self.prescription_paths.get(iid)
 
-        # Optional: confirm deletion
-        confirm = CTkMessagebox(title="Delete?", message="Are you sure you want to delete this prescription?", icon="warning", option_1="Yes", option_2="Cancel")
+        confirm = CTkMessagebox(
+            title="Delete?",
+            message="Are you sure you want to delete this prescription?",
+            icon="warning",
+            option_1="Yes",
+            option_2="Cancel"
+        )
         if confirm.get() != "Yes":
             return
 
         try:
+            # Delete the file
             if pdf_path and os.path.exists(pdf_path):
                 os.remove(pdf_path)
                 print(f"🗑️ Deleted file: {pdf_path}")
 
-            # Delete from database
-            self.cursor.execute("DELETE FROM prescriptions WHERE file_path = ?", (pdf_path,))
+            # Delete from database using ID
+            self.cursor.execute("DELETE FROM prescriptions WHERE id = ?", (iid,))
             self.conn.commit()
 
             # Remove from Treeview and internal dict
             self.prescription_list.delete(iid)
-            del self.prescription_paths[iid]
+            if iid in self.prescription_paths:
+                del self.prescription_paths[iid]
+
+            print("✅ Prescription deleted successfully.")
+
+            # Clear preview image if deleted one was currently shown
+            for widget in self.preview_inner_frame.winfo_children():
+                widget.destroy()
 
         except Exception as e:
             print(f"❌ Failed to delete prescription: {e}")
+        
+        remaining = self.prescription_list.get_children()
+        if remaining:
+            self.prescription_list.selection_set(remaining[0])
+            self.on_prescription_select(None)
 
 
     def preview_prescription(self):
@@ -192,6 +265,7 @@ class PrescriptionsPage:
 
         # Open popout window
         self.open_pdf_popup(pdf_path)
+
 
     def open_pdf_popup(self, pdf_path):
         popup = ctk.CTkToplevel()
@@ -248,34 +322,26 @@ class PrescriptionsPage:
   
 
     def render_pdf_to_preview(self, pdf_path):
-        try:
-            # Convert only the first page to an image
-            pages = convert_from_path(pdf_path, dpi=150, first_page=1, last_page=1)
+        # Launch threaded PDF rendering to keep UI responsive
+        self.pdf_render_worker.render_async(pdf_path)
 
-            if pages:
-                image = pages[0]
 
-                # Scale image to width=464, keep aspect ratio (Letter ratio is ~1.294)
-                display_width = 464
-                aspect_ratio = image.height / image.width
-                display_height = int(display_width * aspect_ratio)
+    def display_rendered_pdf(self, image):
+        # Must run UI updates on main thread
+        def update():
+            ctk_image = CTkImage(light_image=image, size=image.size)
 
-                # Resize CTkImage
-                ctk_image = CTkImage(light_image=image, size=(display_width, display_height))
+            # Clear previous image
+            for widget in self.preview_inner_frame.winfo_children():
+                widget.destroy()
 
-                # Clear previous image
-                for widget in self.preview_inner_frame.winfo_children():
-                    widget.destroy()
+            label = ctk.CTkLabel(self.preview_inner_frame, image=ctk_image, text="", fg_color="#ebebeb")
+            label.image = ctk_image
+            label.pack()
 
-                label = ctk.CTkLabel(self.preview_inner_frame, image=ctk_image, text="", fg_color="#ebebeb")
-                label.image = ctk_image  # Keep a reference
-                label.pack()
+            print("✅ PDF rendered in background and updated UI.")
 
-                print("✅ PDF rendered inside scrollable frame.")
-            else:
-                print("⚠️ No pages found in PDF.")
-        except Exception as e:
-            print(f"❌ Failed to render PDF: {e}")
+        self.main_app.after(0, update)
 
 
     def on_prescription_select(self, event):
@@ -284,7 +350,7 @@ class PrescriptionsPage:
             iid = selected[0]
             path = self.prescription_paths.get(iid)
             if path and os.path.exists(path):
-                self.render_pdf_to_preview(path)
+                self.pdf_render_worker.render_async(path)
 
 
     def _update_scroll_region(self, event):

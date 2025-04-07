@@ -292,7 +292,7 @@ class AppointmentsPage:
         self.all_notes_textbox.tag_configure("header", font=("Helvetica", 11, "bold"))
         self.all_notes_textbox.tag_configure("body", font=("Helvetica", 10))
         self.all_notes_textbox.tag_configure("divider", font=("Helvetica", 6))
-        self.all_notes_textbox.tag_configure("highlight", background="#563A9C")  # Highlighted selection
+        self.all_notes_textbox.tag_configure("highlight", background="#563A9C", foreground="#ebebeb")  # Highlighted selection
 
         # Enable Editing & Clear Existing Notes
         self.all_notes_textbox.configure(state="normal")

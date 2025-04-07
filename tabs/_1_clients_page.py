@@ -242,6 +242,7 @@ class ClientsPage:
         self.main_app.tabs["Info"].populate_client_info(self.client_id)
         self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
         self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
+        self.main_app.tabs["Prescriptions"].load_prescriptions_for_client(self.client_id)
 
         # Update Profile Card if it exists
         if hasattr(self.main_app, "profile_card"):
