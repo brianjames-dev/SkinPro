@@ -18,7 +18,7 @@ class ClientApp(ctk.CTk):
         self.conn = conn  # Save the database connection
         self.cursor = self.conn.cursor()
         self.image_cache = image_cache  # Store image cache reference
-        self.image_loader = image_loader  # ✅ Now `self.image_loader` exists in ClientApp
+        self.image_loader = image_loader  # Now `self.image_loader` exists in ClientApp
         self.selected_client_id = None  # Store selected client ID
 
         # Hide the UI until everything is preloaded
