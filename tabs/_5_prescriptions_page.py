@@ -9,6 +9,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from datetime import datetime
 import textwrap
+from CTkMessagebox import CTkMessagebox
 from prescriptions.pdf_generators.pdf_2col import Pdf2ColGenerator
 from prescriptions.pdf_generators.pdf_3col import Pdf3ColGenerator
 from prescriptions.pdf_generators.pdf_4col import Pdf4ColGenerator
@@ -20,7 +21,6 @@ class PrescriptionsPage:
         self.conn = conn
         self.cursor = conn.cursor() if conn else None
         self.main_app = main_app
-        self.client_id = None
         self.appointment_id = None
         self.current_prescription_id = None
         self.pdf_2col = Pdf2ColGenerator()
@@ -109,7 +109,13 @@ class PrescriptionsPage:
 
 
     def create_prescription(self):
-        PrescriptionEntryPopup(self.main_app, self.handle_prescription_submission)
+        client_id = getattr(self.main_app.profile_card, "client_id", None)
+        if not client_id:
+            ctk.CTkLabel(self.main_app, text="No client selected.", text_color="red").pack(pady=10)
+            return
+
+        cursor = self.conn.cursor()
+        PrescriptionEntryPopup(self.main_app, self.handle_prescription_submission, client_id, cursor)
 
 
     def handle_prescription_submission(self, pdf_path, data):
