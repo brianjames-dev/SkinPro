@@ -49,7 +49,7 @@ class PhotosPage:
         treeview_frame.grid(row=0, column=0, rowspan=3, sticky="nsew", padx=(0, 5))
 
         # Apply treeview styling
-        style_treeview_light("Photos.Treeview", rowheight=55)
+        style_treeview_light("Photos.Treeview", rowheight=55, font=("Helvetica", 8))
 
         # Grid layout in treeview_frame
         treeview_frame.rowconfigure(0, weight=1)
@@ -61,8 +61,8 @@ class PhotosPage:
         self.photo_list.heading("appt_date", text="Date")
         self.photo_list.heading("type", text="Type")
         self.photo_list.column("#0", width=85, stretch=False)  # Use the implicit first column for thumbnails
-        self.photo_list.column("appt_date", width=50, anchor="center")
-        self.photo_list.column("type", width=65, anchor="center")
+        self.photo_list.column("appt_date", width=55, anchor="center")
+        self.photo_list.column("type", width=60, anchor="center")
         self.photo_list.grid(row=0, column=0, sticky="nsew")
         self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)         # Set Before Image
         self.photo_list.bind("<Control-ButtonRelease-1>", self.set_after_image)  # Set After Image
@@ -350,7 +350,7 @@ class PhotosPage:
         if frame_type == "before":
             new_index = self.before_image_index + direction
 
-            # ✅ Prevent wrap-around (stay within range)
+            # Prevent wrap-around (stay within range)
             if new_index < 0 or new_index >= len(self.photo_paths):
                 print("⚠ Cannot navigate further in this direction.")
                 return  # Stay at the current image
@@ -362,7 +362,7 @@ class PhotosPage:
         elif frame_type == "after":
             new_index = self.after_image_index + direction
 
-            # ✅ Prevent wrap-around (stay within range)
+            # Prevent wrap-around (stay within range)
             if new_index < 0 or new_index >= len(self.photo_paths):
                 print("⚠ Cannot navigate further in this direction.")
                 return  # Stay at the current image

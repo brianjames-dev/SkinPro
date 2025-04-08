@@ -366,13 +366,13 @@ class AppointmentsPage:
                     if jump_to_index:
                         end_index = f"{jump_to_index.split('.')[0]}.end"
                         self.all_notes_textbox.tag_add("highlight", jump_to_index, end_index)
-                        # print(f"✅ Highlighted note at index: {jump_to_index}")
+                        # print(f" Highlighted note at index: {jump_to_index}")
 
         # Scroll to first matching note (if found) & ensure it appears at the **top**
         if jump_to_index:
             # print(f"{float(jump_to_index.split('.')[0])} / {float(self.all_notes_textbox.index('end').split('.')[0])} = {float(jump_to_index.split('.')[0]) / float(self.all_notes_textbox.index('end').split('.')[0])}")
             self.all_notes_textbox.yview_moveto((float(jump_to_index.split('.')[0]) - 2) / float(self.all_notes_textbox.index('end').split('.')[0]))
-            # print(f"✅ Jumped to note at index: {jump_to_index}")
+            # print(f" Jumped to note at index: {jump_to_index}")
 
         # Disable Editing Again
         self.all_notes_textbox.configure(state="disabled")
@@ -642,7 +642,7 @@ class AppointmentsPage:
         self.pop_main_frame.rowconfigure((0, 1, 2), weight=1)
 
         # Row 0 [pop_main_frame]: DATE Label/Entry
-        ctk.CTkLabel(self.pop_main_frame, text="Date", anchor="w", width=70).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        ctk.CTkLabel(self.pop_main_frame, text="Date", anchor="w", width=70, fg_color="#dbdbdb").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.date_entry = ctk.CTkEntry(self.pop_main_frame, placeholder_text="MM/DD/YYYY")
         self.date_entry.insert(0, date)
         self.date_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
@@ -676,7 +676,7 @@ class AppointmentsPage:
         ###########################################################
 
         # Row 1 [appt_window]: Create NOTES Frame
-        self.notes_frame = ctk.CTkFrame(self.appointment_window)
+        self.notes_frame = ctk.CTkFrame(self.appointment_window, fg_color="#dbdbdb")
         self.notes_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
 
        # Ensure the notes frame stretches properly
@@ -684,7 +684,7 @@ class AppointmentsPage:
         self.notes_frame.grid_columnconfigure(0, weight=1)
 
         # Row 1 [notes_frame]: NOTES Label/Textbox
-        self.notes_label = ctk.CTkLabel(self.notes_frame, text="Notes").grid(row=0, column=0, sticky="w", padx=5)
+        self.notes_label = ctk.CTkLabel(self.notes_frame, text="Notes", fg_color="transparent").grid(row=0, column=0, sticky="w", padx=5)
         self.current_notes_textbox = ctk.CTkTextbox(self.notes_frame, corner_radius=0, wrap="word", fg_color="#ebebeb")
         self.current_notes_textbox.insert("1.0", treatment_notes)
         self.current_notes_textbox.grid(row=1, column=0, sticky="nsew")
@@ -758,7 +758,7 @@ class AppointmentsPage:
         """Retrieve the appointment ID based on the TreeView selection."""
         try:
             selected_date = self.appointments_table.item(treeview_item)["values"][0]  # Date is the first column
-            if not isinstance(selected_date, str):  # ✅ Ensure it's a string
+            if not isinstance(selected_date, str):  # Ensure it's a string
                 selected_date = str(selected_date)
 
             self.cursor.execute("SELECT id FROM appointments WHERE client_id = ? AND date = ?", 
@@ -793,7 +793,7 @@ class AppointmentsPage:
 
         # Prevent re-formatting if already in correct format
         if re.fullmatch(r"\d{2}/\d{2}/\d{4}", cleaned_date):  
-            return  # ✅ Exit early if already MM/DD/YYYY
+            return  # Exit early if already MM/DD/YYYY
 
         formatted_date = None  # Initialize
 
@@ -913,7 +913,7 @@ class AppointmentsPage:
             main_frame, 
             text="Are you sure you want to delete this appointment?",
             font=("Helvetica", 14), wraplength=300
-        ).pack(pady=10)
+        ).pack(pady=(25, 10))
 
         # Buttons Frame
         button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
@@ -1021,7 +1021,7 @@ class AppointmentsPage:
         print(f"✅ Inserted Photo - Client: {self.client_id}, Appt: {appointment_id}, Date: {appt_date}, Path: {new_path}, Type: {type}")
 
         # Refresh photos list on the Photos Page
-        if "Photos" in self.main_app.tabs:  # ✅ Access PhotosPage from `self.tabs`
+        if "Photos" in self.main_app.tabs:  # Access PhotosPage from `self.tabs`
             self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
 
         # 🔄 Refresh the appointments table to show the updated "Yes" in the photos_taken column

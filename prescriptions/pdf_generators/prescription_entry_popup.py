@@ -1,26 +1,30 @@
 import customtkinter as ctk
 from tkinter import ttk
+from tkinter import messagebox
 from prescriptions.pdf_generators.pdf_2col import Pdf2ColGenerator
 from prescriptions.pdf_generators.pdf_3col import Pdf3ColGenerator
 from prescriptions.pdf_generators.pdf_4col import Pdf4ColGenerator
-import datetime
+from datetime import datetime
 import pprint
+import re
 
 
 class PrescriptionEntryPopup(ctk.CTkToplevel):
     MAX_COLS = 4
     MAX_ROWS = 10
 
-    def __init__(self, parent, on_submit_callback, client_id, cursor):
+    def __init__(self, parent, on_submit_callback, client_id, cursor, initial_data=None, original_path=None):
         super().__init__(parent)
         self.on_submit_callback = on_submit_callback
         self.client_id = client_id
         self.cursor = cursor
+        self.initial_data = initial_data
+        self.original_path = original_path
+        self.already_prefilled = False
         self.title("New Prescription")
-        self.geometry("535x275")
         self.grab_set()
 
-        # 🌟 Fetch the client's name
+        # Fetch the client's name
         self.client_name = "Unknown Client"
         try:
             self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
@@ -33,8 +37,14 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         # (Optional) Show the client name in the UI
         print(f"📋 Creating prescription for: {self.client_name}")
 
-        self.num_rows = 1
-        self.num_cols = 2
+        if self.initial_data:
+            self.num_cols = sum(1 for key in self.initial_data if key.startswith("Col") and "_Header" in key)
+            col_key = "Col1"
+            self.num_rows = len(self.initial_data.get(col_key, []))
+        else:
+            self.num_rows = 1
+            self.num_cols = 2
+
         self.column_data = []
 
         self.main_frame = ctk.CTkFrame(self)
@@ -65,7 +75,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         )
         self.client_label.pack(padx=10, pady=2)  # Internal bubble padding
 
-        # === 🌿 Date Bubble ===
+        # === Date Bubble ===
         self.date_bubble = ctk.CTkFrame(self.client_date_wrapper, fg_color="#563A9C")
         self.date_bubble.grid(row=0, column=1, padx=(0, 0), pady=0, sticky="w")
 
@@ -85,6 +95,13 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             corner_radius=10
         )
         self.date_entry.pack(side="left", padx=(0, 10), pady=2)
+        self.date_entry.bind("<FocusOut>", lambda e: self.format_date())
+        self.date_entry.bind("<Return>", lambda e: self.format_date())
+        self.date_entry.bind("<Tab>", lambda e: self.format_date())
+
+        if not self.initial_data:
+            today = datetime.today().strftime("%m/%d/%Y")
+            self.date_entry.insert(0, today)
 
         # Separator
         separator = ttk.Separator(self.main_frame, orient="horizontal")
@@ -99,7 +116,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         ctk.CTkButton(self.button_frame, text="Add Column", command=self.add_column, width=button_width).pack(side="left", padx=5)
         ctk.CTkButton(self.button_frame, text="Delete Row", command=self.delete_row, width=button_width).pack(side="left", padx=5)
         ctk.CTkButton(self.button_frame, text="Delete Column", command=self.delete_column, width=button_width).pack(side="left", padx=5)
-        ctk.CTkButton(self.button_frame, text="Create", command=self.on_create, width=button_width).pack(side="left", padx=5)
+        ctk.CTkButton(self.button_frame, text="Save", command=self.on_create, width=button_width).pack(side="left", padx=5)
 
         # --- Table frame (below buttons) ---
         self.table_frame = ctk.CTkFrame(self.main_frame, fg_color="#b3b3b3")
@@ -107,6 +124,8 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
 
         self.pre_generate_widgets()
         self.build_table()
+        self.resize_popup()
+
 
     def pre_generate_widgets(self):
         self.column_data.clear()
@@ -119,6 +138,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
                 directions = ctk.CTkTextbox(self.table_frame, height=50, width=200, corner_radius=0)
                 col_info["entries"].append((product, directions))
             self.column_data.append(col_info)
+
 
     def build_table(self):
         for widget in self.table_frame.winfo_children():
@@ -167,6 +187,11 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             ttk.Separator(self.table_frame, orient="horizontal").grid(
                 row=sep_row, column=0, columnspan=total_grid_cols, sticky="ew", padx=10, pady=(0, 5)
             )
+        
+        if self.initial_data and not self.already_prefilled:
+            self.prefill_from_data(self.initial_data)
+            self.already_prefilled = True
+
 
     def resize_popup(self):
         base_width = 535
@@ -177,11 +202,13 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         new_height = base_height + (self.num_rows - 1) * row_padding
         self.geometry(f"{new_width}x{new_height}")
 
+
     def add_row(self):
         if self.num_rows < self.MAX_ROWS:
             self.num_rows += 1
             self.resize_popup()
             self.build_table()
+
 
     def add_column(self):
         if self.num_cols < self.MAX_COLS:
@@ -189,17 +216,20 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             self.resize_popup()
             self.build_table()
 
+
     def delete_row(self):
         if self.num_rows > 1:
             self.num_rows -= 1
             self.resize_popup()
             self.build_table()
 
+
     def delete_column(self):
         if self.num_cols > 2:
             self.num_cols -= 1
             self.resize_popup()
             self.build_table()
+
 
     def on_create(self):
         steps_dict = {}
@@ -218,6 +248,11 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         pprint.pprint(steps_dict)
 
         start_date = self.date_entry.get().strip()
+        steps_dict["start_date"] = start_date
+
+        if not self.validate_date_format(start_date):
+            messagebox.showerror("Invalid Date", "Please enter the date in MM/DD/YYYY format.")
+            return
 
         if self.num_cols == 2:
             generator = Pdf2ColGenerator()
@@ -236,3 +271,78 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             self.on_submit_callback(pdf_path, steps_dict)
 
         self.destroy()
+
+
+    def prefill_from_data(self, data):
+        if "start_date" in data:
+            self.date_entry.insert(0, data["start_date"])
+
+        # Set headers
+        for col_index in range(self.num_cols):
+            header_key = f"Col{col_index + 1}_Header"
+            if header_key in data:
+                self.column_data[col_index]["header"].insert(0, data[header_key])
+
+        # Set rows
+        for row_index in range(self.num_rows):
+            for col_index in range(self.num_cols):
+                col_key = f"Col{col_index + 1}"
+                if col_key in data and row_index < len(data[col_key]):
+                    product = data[col_key][row_index].get("product", "")
+                    directions = data[col_key][row_index].get("directions", "")
+
+                    product_entry, direction_box = self.column_data[col_index]["entries"][row_index]
+                    product_entry.insert(0, product)
+                    direction_box.insert("1.0", directions)
+
+
+    def validate_date_format(self, date_str):
+        """
+        Validates that the date is in MM/DD/YYYY format and is a real date.
+        """
+        try:
+            # Check format via datetime for real calendar validation
+            datetime.datetime.strptime(date_str, "%m/%d/%Y")
+            return True
+        except ValueError:
+            return False
+    
+    def format_date(self):
+        """Format the date entry to MM/DD/YYYY upon hitting Enter or leaving the field."""
+        raw_date = self.date_entry.get().strip()
+
+        if not raw_date:
+            self.date_entry.delete(0, "end")
+            return
+
+        cleaned_date = re.sub(r"[^0-9/.-]", "", raw_date)
+
+        if re.fullmatch(r"\d{2}/\d{2}/\d{4}", cleaned_date):
+            return  # ✅ Already valid
+
+        formatted_date = None
+
+        try:
+            if len(re.sub(r"\D", "", cleaned_date)) == 8:
+                formatted_date = f"{cleaned_date[:2]}/{cleaned_date[2:4]}/{cleaned_date[4:]}"
+            else:
+                for fmt in ["%m-%d-%Y", "%m.%d.%Y", "%m/%d/%Y"]:
+                    try:
+                        parsed_date = datetime.strptime(cleaned_date, fmt)
+                        formatted_date = parsed_date.strftime("%m/%d/%Y")
+                        break
+                    except ValueError:
+                        formatted_date = None
+
+            if not formatted_date:
+                raise ValueError("Invalid date format")
+
+        except ValueError:
+            print("⚠ Invalid date entered. Resetting to placeholder.")
+            self.date_entry.delete(0, "end")
+            self.date_entry.insert(0, raw_date)
+            return
+
+        self.date_entry.delete(0, "end")
+        self.date_entry.insert(0, formatted_date)
+        print(f"✅ Formatted Date: {formatted_date}")

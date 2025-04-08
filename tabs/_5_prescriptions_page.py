@@ -62,6 +62,7 @@ class PrescriptionsPage:
         self.prescription_list.column("template", width=90, anchor="center")
         self.prescription_list.grid(row=0, column=0, sticky="nsew")
         self.prescription_list.bind("<<TreeviewSelect>>", self.on_prescription_select)
+        self.prescription_list.bind("<Double-1>", self.edit_prescription)
 
         # Scrollbar for Treeview
         scrollbar = ttk.Scrollbar(treeview_frame, orient="vertical", command=self.prescription_list.yview, style="Vertical.TScrollbar")
@@ -123,7 +124,7 @@ class PrescriptionsPage:
 
 
     def handle_prescription_submission(self, pdf_path, data):
-        start_date = datetime.today().strftime("%m/%d/%Y")
+        start_date = data.get("start_date") or datetime.today().strftime("%m/%d/%Y")
         num_columns = sum(1 for key in data if key.startswith("Col") and "_Header" in key)
         form_type = f"{num_columns}-column"
         client_id = getattr(self.main_app.profile_card, "client_id", None)
@@ -134,13 +135,14 @@ class PrescriptionsPage:
 
         # Store in DB
         self.cursor.execute("""
-            INSERT INTO prescriptions (client_id, form_type, file_path, data_json)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO prescriptions (client_id, form_type, file_path, data_json, start_date)
+            VALUES (?, ?, ?, ?, ?)
         """, (
             client_id,
             form_type,
             pdf_path,
-            json.dumps(data)  # Store full prescription data
+            json.dumps(data),
+            start_date
         ))
 
         # Get the inserted row ID
@@ -164,18 +166,18 @@ class PrescriptionsPage:
         self.prescription_paths.clear()
 
         self.cursor.execute("""
-            SELECT id, form_type, file_path FROM prescriptions
+            SELECT id, form_type, file_path, start_date FROM prescriptions
             WHERE client_id = ?
-            ORDER BY id DESC
+            ORDER BY start_date DESC
         """, (client_id,))
         prescriptions = self.cursor.fetchall()
 
         for pres in prescriptions:
-            pres_id, form_type, file_path = pres
+            pres_id, form_type, file_path, start_date = pres
 
             # Example: use file creation/modification time as "date" column value
             if os.path.exists(file_path):
-                created_date = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%m/%d/%Y")
+                created_date = start_date
             else:
                 created_date = "Unknown"
 
@@ -197,57 +199,147 @@ class PrescriptionsPage:
         self.prescription_paths[iid] = path
 
 
-    def edit_prescription(self):
-        print("✏️ Edit current prescription")
-
-
-    def delete_prescription(self):
+    def edit_prescription(self, event=None):
         selected = self.prescription_list.selection()
         if not selected:
-            print("❌ No prescription selected for deletion.")
+            print("❌ No prescription selected for editing.")
             return
 
-        iid = selected[0]  # This is the DB ID as a string
-        pdf_path = self.prescription_paths.get(iid)
-
-        confirm = CTkMessagebox(
-            title="Delete?",
-            message="Are you sure you want to delete this prescription?",
-            icon="warning",
-            option_1="Yes",
-            option_2="Cancel"
-        )
-        if confirm.get() != "Yes":
-            return
+        iid = selected[0]  # This is the prescription ID (as string)
+        prescription_id = int(iid)
 
         try:
-            # Delete the file
-            if pdf_path and os.path.exists(pdf_path):
-                os.remove(pdf_path)
-                print(f"🗑️ Deleted file: {pdf_path}")
+            self.cursor.execute("""
+                SELECT data_json, file_path, form_type
+                FROM prescriptions
+                WHERE id = ?
+            """, (prescription_id,))
+            result = self.cursor.fetchone()
 
-            # Delete from database using ID
-            self.cursor.execute("DELETE FROM prescriptions WHERE id = ?", (iid,))
+            if not result:
+                print("❌ Prescription not found in database.")
+                return
+
+            data_json, original_path, form_type = result
+            parsed_data = json.loads(data_json)
+
+            # Open the popup with existing data
+            PrescriptionEntryPopup(
+                self.main_app,
+                lambda updated_path, updated_data: self.handle_edit_submission(prescription_id, updated_path, updated_data),
+                getattr(self.main_app.profile_card, "client_id", None),
+                self.cursor,
+                initial_data=parsed_data,
+                original_path=original_path
+            )
+
+        except Exception as e:
+            print(f"❌ Failed to load prescription for editing: {e}")
+
+
+    def handle_edit_submission(self, prescription_id, updated_path, updated_data):
+        try:
+            form_type = f"{sum(1 for key in updated_data if key.startswith('Col') and '_Header' in key)}-column"
+            start_date = updated_data.get("start_date")
+
+            self.cursor.execute("""
+                UPDATE prescriptions
+                SET form_type = ?, file_path = ?, data_json = ?, start_date = ?
+                WHERE id = ?
+            """, (
+                form_type,
+                updated_path,
+                json.dumps(updated_data),
+                start_date,
+                prescription_id
+            ))
             self.conn.commit()
 
-            # Remove from Treeview and internal dict
+            # Update Treeview visually
+            if self.prescription_list.exists(str(prescription_id)):
+                self.prescription_list.item(str(prescription_id), values=(
+                    start_date,
+                    form_type
+                ))
+                self.prescription_paths[str(prescription_id)] = updated_path
+                self.render_pdf_to_preview(updated_path)
+
+            print("✅ Prescription updated successfully.")
+
+        except Exception as e:
+            print(f"❌ Failed to update prescription: {e}")
+
+
+    def delete_prescription(self, event=None):
+        """Delete the selected prescription from the database and file system after confirmation."""
+        selected_item = self.prescription_list.selection()
+
+        if not selected_item:
+            print("⚠ No prescription selected for deletion.")
+            return
+
+        iid = selected_item[0]
+        pdf_path = self.prescription_paths.get(iid)
+
+        # Create Confirmation Pop-up
+        confirmation = ctk.CTkToplevel()
+        confirmation.title("Confirm Deletion")
+        confirmation.geometry("350x150")
+        confirmation.resizable(False, False)
+
+        # Lock interaction to this pop-up
+        confirmation.transient(self.main_app)
+        confirmation.grab_set()
+        confirmation.focus_force()
+
+        # Main Frame
+        main_frame = ctk.CTkFrame(confirmation)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Confirmation Message
+        ctk.CTkLabel(
+            main_frame,
+            text="Are you sure you want to delete this prescription?",
+            font=("Helvetica", 14),
+            wraplength=300
+        ).pack(pady=(25, 10))
+
+        # Buttons Frame
+        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        button_frame.pack(pady=10)
+
+        # Cancel Button
+        ctk.CTkButton(button_frame, text="Cancel", command=confirmation.destroy).pack(side="left", padx=5)
+
+        # Delete Button
+        ctk.CTkButton(
+            button_frame, text="Delete", fg_color="#FF4444", hover_color="#CC0000",
+            command=lambda: self._execute_delete_prescription(iid, pdf_path, confirmation)
+        ).pack(side="right", padx=5)
+
+
+    def _execute_delete_prescription(self, iid, pdf_path, confirmation_window):
+        try:
+            # Delete the PDF file
+            if pdf_path and os.path.exists(pdf_path):
+                os.remove(pdf_path)
+                print(f"🗑️ Deleted PDF file: {pdf_path}")
+
+            # Delete from database
+            self.cursor.execute("DELETE FROM prescriptions WHERE file_path = ?", (pdf_path,))
+            self.conn.commit()
+
+            # Remove from Treeview and internal state
             self.prescription_list.delete(iid)
-            if iid in self.prescription_paths:
-                del self.prescription_paths[iid]
+            del self.prescription_paths[iid]
 
-            print("✅ Prescription deleted successfully.")
-
-            # Clear preview image if deleted one was currently shown
-            for widget in self.preview_inner_frame.winfo_children():
-                widget.destroy()
+            print("✅ Prescription successfully deleted.")
 
         except Exception as e:
             print(f"❌ Failed to delete prescription: {e}")
-        
-        remaining = self.prescription_list.get_children()
-        if remaining:
-            self.prescription_list.selection_set(remaining[0])
-            self.on_prescription_select(None)
+
+        finally:
+            confirmation_window.destroy()
 
 
     def preview_prescription(self):
