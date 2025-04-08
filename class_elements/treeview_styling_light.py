@@ -1,6 +1,6 @@
 from tkinter import ttk
 
-def style_treeview_light(style_name="Corium.Treeview", rowheight=22):
+def style_treeview_light(style_name="Corium.Treeview", rowheight=22, font=("Helvetica", 10)):
     """Applies a Corium-themed light mode to all ttk.Treeview widgets with purple highlights and cream backgrounds."""
     style = ttk.Style()
     style.theme_use("default")
@@ -36,7 +36,7 @@ def style_treeview_light(style_name="Corium.Treeview", rowheight=22):
                     fieldbackground=SOFT_GRAY,
                     foreground=TEXT_COLOR,
                     bordercolor=HOVER_PURPLE,
-                    font=("Helvetica", 10),
+                    font=font,
                     rowheight=rowheight,
                     borderwidth=1,
                     relief="flat")
