@@ -204,25 +204,29 @@ class ProfileCard:
         arrow_up_icon = ctk.CTkImage(Image.open("icons/arrow_up.png"), size=(24, 24))
         arrow_down_icon = ctk.CTkImage(Image.open("icons/arrow_down.png"), size=(24, 24))
 
+        # Main frame
+        main_frame = ctk.CTkFrame(self.popup)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
         # Live Preview of Circular Image
-        self.preview_label = ctk.CTkLabel(self.popup, text="")  # Placeholder label for preview
+        self.preview_label = ctk.CTkLabel(main_frame, text="")  # Placeholder label for preview
         self.preview_label.pack(pady=5)
         self.update_preview()  # Load initial preview
 
         # Zoom controls
-        zoom_frame = ctk.CTkFrame(self.popup)
+        zoom_frame = ctk.CTkFrame(main_frame)
         zoom_frame.pack(pady=5)
         ctk.CTkButton(zoom_frame, text="", width=40, image=zoom_out_icon, command=self.zoom_in).pack(side="left", padx=5)
         ctk.CTkButton(zoom_frame, text="", width=40, image=zoom_in_icon, command=self.zoom_out).pack(side="left", padx=5)
 
         # Shift controls
-        shift_frame = ctk.CTkFrame(self.popup)
+        shift_frame = ctk.CTkFrame(main_frame)
         shift_frame.pack(pady=5)
         ctk.CTkButton(shift_frame, text="", width=40, image=arrow_down_icon, command=self.shift_up).pack(side="left", padx=5)
         ctk.CTkButton(shift_frame, text="", width=40, image=arrow_up_icon, command=self.shift_down).pack(side="left", padx=5)
 
         # Save button
-        ctk.CTkButton(self.popup, text="Save Changes", command=self.apply_changes).pack(pady=10)
+        ctk.CTkButton(main_frame, text="Save Changes", command=self.apply_changes).pack(pady=10)
 
     def update_preview(self):
         """Update the circular image preview inside the popup window."""
