@@ -121,6 +121,7 @@ def create_tables(cursor):
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
         appointment_id INTEGER,
+        start_date DATE,
         form_type TEXT,
         file_path TEXT NOT NULL,
         data_json TEXT,
@@ -128,5 +129,3 @@ def create_tables(cursor):
         FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
     )
     """)
-
-print("✅ Prescriptions table created or already exists.")
