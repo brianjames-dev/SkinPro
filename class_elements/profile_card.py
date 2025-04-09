@@ -11,7 +11,7 @@ class ProfileCard:
         self.conn = conn                            # Store database connection
         self.cursor = cursor
         self.client_id = None                       # Selected client ID
-        self.profile_path = "icons/add_photo.png"   # Default placeholder
+        self.profile_path = "icons/account_circle.png"   # Default placeholder
 
         # Frame to hold the profile picture and name
         self.profile_frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -48,7 +48,7 @@ class ProfileCard:
         if client_id is None:
             print("🔄 Resetting Profile Card to default state...")
             self.client_id = None
-            self.profile_path = "icons/add_photo.png"
+            self.profile_path = "icons/account_circle.png"
             self.full_name = "No Client Selected"
 
             # Reset profile image
@@ -72,7 +72,7 @@ class ProfileCard:
         if not client_data:  # No data found
             print(f"⚠ No saved client found for ID: {client_id}. Using default.")
             self.full_name = "Unknown Client"  # Assign default name
-            self.profile_path = "icons/add_photo.png"
+            self.profile_path = "icons/account_circle.png"
             self.zoom = 100
             self.shift = 0
         else:
@@ -85,18 +85,18 @@ class ProfileCard:
         # Ensure profile image exists, otherwise fallback to default
         if not self.profile_path or not os.path.exists(self.profile_path):
             print(f"⚠ Image path not found: {self.profile_path}. Using default profile picture.")
-            self.profile_path = "icons/add_photo.png"
+            self.profile_path = "icons/account_circle.png"
 
         # Load and apply circular transformation only for real images
         try:
-            if self.profile_path == "icons/add_photo.png":
+            if self.profile_path == "icons/account_circle.png":
                 self.profile_image = ctk.CTkImage(Image.open(self.profile_path), size=(w, h))
             else:
                 processed_image = self.create_circular_image(Image.open(self.profile_path))
                 self.profile_image = ctk.CTkImage(processed_image, size=(w, h))
         except Exception as e:
             print(f"❌ Error processing image: {e}")
-            self.profile_image = ctk.CTkImage(Image.open("icons/add_photo.png"), size=(w, h))  # Ensure valid image object
+            self.profile_image = ctk.CTkImage(Image.open("icons/account_circle.png"), size=(w, h))  # Ensure valid image object
 
         # Update UI
         self.profile_button.configure(image=self.profile_image)

@@ -6,7 +6,7 @@ class PdfRenderWorker:
         self.callback = callback  # Function to call with rendered image
         self.thread = None
 
-    def render_async(self, pdf_path, display_width=464):
+    def render_async(self, pdf_path, display_width=650):
         if self.thread and self.thread.is_alive():
             return  # Avoid overlapping renders
 

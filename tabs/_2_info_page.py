@@ -604,11 +604,11 @@ class InfoPage:
             # Step 5: Refresh TreeView in ClientsPage and select the updated/new client
             if hasattr(self.main_app, "tabs") and "Clients" in self.main_app.tabs:
                 print("🔄 Refreshing Client List in TreeView...")
-                self.main_app.tabs["Clients"].load_clients()  # 🔥 Reload all clients in TreeView
+                self.main_app.tabs["Clients"].load_clients()  # Reload all clients in TreeView
 
                 # Select and bring the client into view
                 self.main_app.tabs["Clients"].client_list.selection_set(str(self.client_id))
-                self.main_app.tabs["Clients"].client_list.see(str(self.client_id))  # 🔥 Jump to selected client
+                self.main_app.tabs["Clients"].client_list.see(str(self.client_id))  # Jump to selected client
 
             # Step 6: Finalize Temporary Profile Picture
             temp_profile_path = "images/clients/temp_profile.png"
@@ -629,6 +629,10 @@ class InfoPage:
                 self.main_app.profile_card.client_id = self.client_id
                 self.main_app.profile_card.full_name = full_name
                 self.main_app.profile_card.name_label.configure(text=full_name)
+
+            if hasattr(self.main_app, "tabs") and "Appointments" in self.main_app.tabs:
+                self.main_app.tabs["Appointments"].client_id = self.client_id
+                print(f"✅ Force-set Appointments tab client_id = {self.client_id}")
 
             # Step 7: Disable save button and change label after successful save
             self.save_button.configure(state="disabled", text="Saved!", fg_color="#696969", text_color="#ebebeb")

@@ -9,7 +9,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from datetime import datetime
 import textwrap
-from CTkMessagebox import CTkMessagebox
+from tkinter import messagebox
 from prescriptions.pdf_generators.pdf_2col import Pdf2ColGenerator
 from prescriptions.pdf_generators.pdf_3col import Pdf3ColGenerator
 from prescriptions.pdf_generators.pdf_4col import Pdf4ColGenerator
@@ -38,19 +38,25 @@ class PrescriptionsPage:
 
         # Configure Grid Layout
         main_frame.columnconfigure(0, weight=1)  # Treeview
-        main_frame.columnconfigure(1, weight=4)  # Prescription display
-        main_frame.columnconfigure(2, weight=0)  # Buttons
-        main_frame.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=0)  # Prescription display + Create button
+        main_frame.columnconfigure(2, weight=0)  # Edit button
+        main_frame.columnconfigure(3, weight=0)  # Delete button
+        main_frame.columnconfigure(4, weight=0)  # Preview PDF button
+        main_frame.columnconfigure(5, weight=0)  # Print button
+        main_frame.columnconfigure(6, weight=0)  # Alert button
+        main_frame.rowconfigure(0, weight=0)
+        main_frame.rowconfigure(1, weight=1)  # PDF preview row
 
         # Treeview Frame (Past Prescriptions)
         treeview_frame = ctk.CTkFrame(main_frame)
-        treeview_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+        treeview_frame.grid(row=0, rowspan=2, column=0, sticky="nsew", padx=(0, 5))
 
         # Apply treeview styling
         style_treeview_light("Prescriptions.Treeview")
 
         # Grid layout in treeview_frame
         treeview_frame.rowconfigure(0, weight=1)
+        treeview_frame.rowconfigure(1, weight=0)  # Scrollbar
         treeview_frame.columnconfigure(0, weight=1)
 
         # Style and Treeview
@@ -60,7 +66,7 @@ class PrescriptionsPage:
         self.prescription_list.heading("template", text="Template")
         self.prescription_list.column("date", width=90, anchor="center")
         self.prescription_list.column("template", width=90, anchor="center")
-        self.prescription_list.grid(row=0, column=0, sticky="nsew")
+        self.prescription_list.grid(row=0, rowspan=2, column=0, sticky="nsew")
         self.prescription_list.bind("<<TreeviewSelect>>", self.on_prescription_select)
         self.prescription_list.bind("<Double-1>", self.edit_prescription)
 
@@ -69,9 +75,45 @@ class PrescriptionsPage:
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.prescription_list.configure(yscrollcommand=scrollbar.set)
 
+        # Button row above PDF preview
+        button_row_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        button_row_frame.grid(row=0, column=1, columnspan=6, sticky="nw", padx=5, pady=(0, 5))
+
+        # Configure columns for equal spacing
+        for i in range(6):
+            button_row_frame.columnconfigure(i, weight=1)
+
+        add_img = ctk.CTkImage(Image.open("icons/add.png"), size=(24, 24))
+        edit_img = ctk.CTkImage(Image.open("icons/edit_document.png"), size=(24, 24))
+        delete_img = ctk.CTkImage(Image.open("icons/delete.png"), size=(24, 24))
+        preview_img = ctk.CTkImage(Image.open("icons/preview.png"), size=(24, 24))
+        print_img = ctk.CTkImage(Image.open("icons/print.png"), size=(24, 24))
+        alert_img = ctk.CTkImage(Image.open("icons/alert.png"), size=(24, 24))
+
+        # Create buttons in a row
+        button_specs = [
+            ("New", self.create_prescription, add_img),
+            ("Edit", self.edit_prescription, edit_img),
+            ("Delete", self.delete_prescription, delete_img),
+            ("Preview", self.preview_prescription, preview_img),
+            ("Print", self.print_prescription, print_img),
+            ("Alert", self.set_alert, alert_img)
+        ]
+
+        for i, (text, command, image) in enumerate(button_specs):
+            button = ctk.CTkButton(
+                button_row_frame,
+                text=text,
+                image=image,
+                compound="left",  # ← Image on the left, text on the right
+                width=100,
+                command=command
+            )
+            button.grid(row=0, column=i, sticky="ew", padx=5, pady=(0, 5))
+
         # === Prescription Display Area (Editable or PDF Preview Placeholder) ===
         display_frame = ctk.CTkFrame(main_frame, fg_color="#563A9C")
-        display_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 5))
+        display_frame.grid(row=1, column=1, columnspan=6, sticky="nsew", padx=5)
 
         ctk.CTkLabel(display_frame, text="Current Prescription", font=("Helvetica", 16, "bold"),
                     fg_color="transparent", text_color="#ebebeb").pack()
@@ -95,28 +137,12 @@ class PrescriptionsPage:
         self.preview_inner_frame.bind("<Configure>", self._update_scroll_region)
         self._bind_mousewheel_events()
 
-        # Button Column on the Right
-        button_column = ctk.CTkFrame(main_frame)
-        button_column.grid(row=0, column=2, sticky="ns", padx=(5, 0))
-
-        # Buttons stacked vertically
-        button_specs = [
-            ("New Prescription", self.create_prescription),
-            ("Edit Prescription", self.edit_prescription),
-            ("Delete Prescription", self.delete_prescription),
-            ("Preview PDF", self.preview_prescription),
-            ("Print Prescription", self.print_prescription),
-            ("Set Alert", self.set_alert)
-        ]
-
-        for text, command in button_specs:
-            ctk.CTkButton(button_column, text=text, width=160, command=command).pack(fill="x", pady=(0, 10))
-
 
     def create_prescription(self):
         client_id = getattr(self.main_app.profile_card, "client_id", None)
+
         if not client_id:
-            ctk.CTkLabel(self.main_app, text="No client selected.", text_color="red").pack(pady=10)
+            messagebox.showwarning("Warning", "Please select a client first.")
             return
 
         cursor = self.conn.cursor()

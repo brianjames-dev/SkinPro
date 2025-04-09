@@ -462,6 +462,8 @@ class AppointmentsPage:
 
     def create_appointment(self):
         """Open a dialog to create a new appointment."""
+        print(f"🧪 Inside create_appointment - current client_id: {self.client_id}")
+
         if not self.client_id:
             print("⚠ No client selected. Cannot create appointment.")
             return

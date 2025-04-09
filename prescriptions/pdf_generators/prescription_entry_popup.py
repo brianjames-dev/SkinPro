@@ -5,6 +5,7 @@ from prescriptions.pdf_generators.pdf_2col import Pdf2ColGenerator
 from prescriptions.pdf_generators.pdf_3col import Pdf3ColGenerator
 from prescriptions.pdf_generators.pdf_4col import Pdf4ColGenerator
 from datetime import datetime
+from PIL import Image, ImageTk
 import pprint
 import re
 
@@ -21,8 +22,15 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         self.initial_data = initial_data
         self.original_path = original_path
         self.already_prefilled = False
+        button_width = 85
         self.title("New Prescription")
         self.grab_set()
+
+        add_row_img = ctk.CTkImage(Image.open("icons/add_row.png"), size=(24, 24))
+        add_column_img = ctk.CTkImage(Image.open("icons/add_column.png"), size=(24, 24))
+        delete_row_img = ctk.CTkImage(Image.open("icons/delete_row.png"), size=(24, 24))
+        delete_column_img = ctk.CTkImage(Image.open("icons/delete_column.png"), size=(24, 24))
+        save_img = ctk.CTkImage(Image.open("icons/save.png"), size=(24, 24))
 
         # Fetch the client's name
         self.client_name = "Unknown Client"
@@ -60,7 +68,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         # === Combined Container Frame for Client + Date ===
         self.client_date_wrapper = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         self.client_date_wrapper.grid(row=0, column=0, sticky="w", padx=10, pady=10)
-        self.client_date_wrapper.columnconfigure((0, 1), weight=0)  # Prevent stretch
+        self.client_date_wrapper.columnconfigure((0, 1, 2), weight=0)  # Prevent stretch
 
         # === 🟣 Client Bubble ===
         self.client_bubble = ctk.CTkFrame(self.client_date_wrapper, fg_color="#563A9C")
@@ -98,6 +106,14 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         self.date_entry.bind("<FocusOut>", lambda e: self.format_date())
         self.date_entry.bind("<Return>", lambda e: self.format_date())
         self.date_entry.bind("<Tab>", lambda e: self.format_date())
+        self.save_button = ctk.CTkButton(
+            self.client_date_wrapper,
+            text="Save",
+            command=self.on_create,
+            image=save_img,
+            width=button_width
+        )
+        self.save_button.grid(row=0, column=2, padx=(10, 0), pady=0, sticky="e")
 
         if not self.initial_data:
             today = datetime.today().strftime("%m/%d/%Y")
@@ -111,12 +127,10 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         self.button_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         self.button_frame.grid(row=2, column=0, sticky="w", padx=5, pady=5)  # Align to left, spacing below
 
-        button_width = 85
-        ctk.CTkButton(self.button_frame, text="Add Row", command=self.add_row, width=button_width).pack(side="left", padx=5)
-        ctk.CTkButton(self.button_frame, text="Add Column", command=self.add_column, width=button_width).pack(side="left", padx=5)
-        ctk.CTkButton(self.button_frame, text="Delete Row", command=self.delete_row, width=button_width).pack(side="left", padx=5)
-        ctk.CTkButton(self.button_frame, text="Delete Column", command=self.delete_column, width=button_width).pack(side="left", padx=5)
-        ctk.CTkButton(self.button_frame, text="Save", command=self.on_create, width=button_width).pack(side="left", padx=5)
+        ctk.CTkButton(self.button_frame, text="Add Row", command=self.add_row, image=add_row_img, width=button_width, hover_color="darkgreen").pack(side="left", padx=5)
+        ctk.CTkButton(self.button_frame, text="Add Col", command=self.add_column, image=add_column_img, width=button_width, hover_color="darkgreen").pack(side="left", padx=5)
+        ctk.CTkButton(self.button_frame, text="Delete Row", command=self.delete_row, image=delete_row_img, width=button_width, hover_color="#FF4444").pack(side="left", padx=5)
+        ctk.CTkButton(self.button_frame, text="Delete Col", command=self.delete_column, image=delete_column_img, width=button_width, hover_color="#FF4444").pack(side="left", padx=5)
 
         # --- Table frame (below buttons) ---
         self.table_frame = ctk.CTkFrame(self.main_frame, fg_color="#b3b3b3")
