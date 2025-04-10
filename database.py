@@ -129,3 +129,13 @@ def create_tables(cursor):
         FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
     )
     """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL,
+        deadline DATE NOT NULL,
+        notes TEXT,
+        FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+    )
+    """)
