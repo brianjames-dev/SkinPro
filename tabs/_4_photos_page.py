@@ -97,7 +97,7 @@ class PhotosPage:
         self.before_left_button = ctk.CTkButton(self.before_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "before"))
         self.before_left_button.pack(side="left")
 
-        self.before_date_label = ctk.CTkLabel(self.before_nav_frame, text="                   ", font=("Helvetica", 12, "bold"), fg_color="#b3b3b3", padx=40)
+        self.before_date_label = ctk.CTkLabel(self.before_nav_frame, text="                   ", font=("Helvetica", 12, "bold"), fg_color="#dbdbdb", padx=40)
         self.before_date_label.pack(side="left", expand=True)
 
         self.before_right_button = ctk.CTkButton(self.before_nav_frame, text="", image=fwd_arrow, width=30, command=lambda: self.navigate_image(1, "before"))
@@ -110,7 +110,7 @@ class PhotosPage:
         self.after_left_button = ctk.CTkButton(self.after_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "after"))
         self.after_left_button.pack(side="left")
 
-        self.after_date_label = ctk.CTkLabel(self.after_nav_frame, text="                   ", font=("Helvetica", 12, "bold"), fg_color="#b3b3b3", padx=40)
+        self.after_date_label = ctk.CTkLabel(self.after_nav_frame, text="                   ", font=("Helvetica", 12, "bold"), fg_color="#dbdbdb", padx=40)
         self.after_date_label.pack(side="left", expand=True)
 
         self.after_right_button = ctk.CTkButton(self.after_nav_frame, text="", image=fwd_arrow, width=30, command=lambda: self.navigate_image(1, "after"))
@@ -399,11 +399,8 @@ class PhotosPage:
         self.before_image_index = -1
         self.after_image_index = -1
 
-        self.photo_list.delete(*self.photo_list.get_children())  # Clear existing list
-        self.photo_file_paths.clear()
-        self.photo_paths.clear()
-
-        print("🔄 Debug: Cleared previous photo data.")
+        # Clear previous photos
+        self.clear_photos_list()
 
         # Fetch all photos for the selected client, sorted by most recent
         self.cursor.execute("SELECT id, appt_date, type, file_path FROM photos WHERE client_id = ? ORDER BY appt_date DESC", (client_id,))
@@ -445,6 +442,15 @@ class PhotosPage:
             )
 
         print(f"🔍 Debug: Thumbnail cache contains {len(self.image_cache.thumbnail_cache)} entries")
+
+
+    def clear_photos_list(self):
+        """Clear the Treeview/Listbox and reset all relevant variables."""
+        self.photo_list.delete(*self.photo_list.get_children())  # Clear existing list
+        self.photo_file_paths.clear()
+        self.photo_paths.clear()
+
+        print("🔄 Cleared previous photo data.")
 
 
     def highlight_images_in_treeview(self):

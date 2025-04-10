@@ -10,11 +10,11 @@ from reportlab.pdfgen import canvas
 from datetime import datetime
 import textwrap
 from tkinter import messagebox
-from prescriptions.pdf_generators.pdf_2col import Pdf2ColGenerator
-from prescriptions.pdf_generators.pdf_3col import Pdf3ColGenerator
-from prescriptions.pdf_generators.pdf_4col import Pdf4ColGenerator
-from prescriptions.pdf_generators.prescription_entry_popup import PrescriptionEntryPopup
-from PdfRenderThread import PdfRenderWorker
+from class_elements.pdf_generators.pdf_2col import Pdf2ColGenerator
+from class_elements.pdf_generators.pdf_3col import Pdf3ColGenerator
+from class_elements.pdf_generators.pdf_4col import Pdf4ColGenerator
+from class_elements.pdf_generators.prescription_entry_popup import PrescriptionEntryPopup
+from class_elements.PdfRenderThread import PdfRenderWorker
 import json
 
 
@@ -188,8 +188,7 @@ class PrescriptionsPage:
 
 
     def load_prescriptions_for_client(self, client_id):
-        self.prescription_list.delete(*self.prescription_list.get_children())
-        self.prescription_paths.clear()
+        self.clear_prescriptions_list()
 
         self.cursor.execute("""
             SELECT id, form_type, file_path, start_date FROM prescriptions
@@ -225,6 +224,12 @@ class PrescriptionsPage:
 
         # Ensure the alternate tag is properly styled
         self.prescription_list.tag_configure('alternate', background='#b3b3b3')  # You should set this in your style setup
+
+
+    def clear_prescriptions_list(self):
+        """Clear the prescription list and internal state."""
+        self.prescription_list.delete(*self.prescription_list.get_children())
+        self.prescription_paths.clear()
 
 
     def add_prescription_to_list(self, date, template, path):

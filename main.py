@@ -1,9 +1,9 @@
 import customtkinter as ctk
-from client_app import ClientApp
-from database import init_database
-from image_cache import ImageCache
-from splash_screen import SplashScreen
-from img_load_threading import ImageLoaderThread
+from tabs.client_app import ClientApp
+from class_elements.database import init_database
+from class_elements.image_cache import ImageCache
+from class_elements.splash_screen import SplashScreen
+from class_elements.img_load_threading import ImageLoaderThread
 
 if __name__ == "__main__":
     ctk.set_appearance_mode("Light")

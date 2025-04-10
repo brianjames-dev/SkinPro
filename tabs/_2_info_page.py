@@ -630,9 +630,14 @@ class InfoPage:
                 self.main_app.profile_card.full_name = full_name
                 self.main_app.profile_card.name_label.configure(text=full_name)
 
+            # Force set self.client_id's in other tabs
             if hasattr(self.main_app, "tabs") and "Appointments" in self.main_app.tabs:
                 self.main_app.tabs["Appointments"].client_id = self.client_id
                 print(f"✅ Force-set Appointments tab client_id = {self.client_id}")
+            
+            if hasattr(self.main_app, "tabs") and "Alerts" in self.main_app.tabs:
+                self.main_app.tabs["Alerts"].client_id = self.client_id
+                print(f"✅ Force-set Alerts tab client_id = {self.client_id}")
 
             # Step 7: Disable save button and change label after successful save
             self.save_button.configure(state="disabled", text="Saved!", fg_color="#696969", text_color="#ebebeb")

@@ -84,7 +84,8 @@ class ClientsPage:
             table_frame,
             text="",
             font=("Helvetica", 24),
-            anchor="center"
+            anchor="center",
+            fg_color="#ebebeb"
         )
         self.no_results_label.place(relx=0.5, rely=0.5, anchor="center")
         self.no_results_label.lower()  # Hide the label by lowering it below the Treeview
@@ -167,7 +168,7 @@ class ClientsPage:
                     client_id = row[0]  # Extract client_id
                     client_values = row[1:]  # Everything except client_id
 
-                    # ✅ Insert using client_id as the TreeView iid
+                    # Insert using client_id as the TreeView iid
                     self.client_list.insert("", "end", iid=str(client_id), values=client_values)
                 
                 self.no_results_label.lower()  # Hide the "No Results" label
@@ -304,10 +305,14 @@ class ClientsPage:
         # Proceed with adding the client
         self.proceed_with_new_client(full_name)
 
+
     def proceed_with_new_client(self, full_name):
         """Handles adding a new client after confirmation."""
         self.main_app.tabs["Info"].clear_info()
         self.main_app.tabs["Appointments"].clear_appointments()
+        self.main_app.tabs["Photos"].clear_photos_list()
+        self.main_app.tabs["Prescriptions"].clear_prescriptions_list()
+
         self.main_app.current_client_id = -1  # Placeholder for new clients
 
         # Populate the full name entry in the Info tab
@@ -412,7 +417,6 @@ class ClientsPage:
             if result:
                 client_name = client_name_result[0].replace(" ", "_")  # convert to safe folder name
                 self.delete_client_assets(client_name, client_id)
-                # === # Delete all ALERTS from the UI HERE # === #
             
             # Delete the client from the database (ON DELETE CASCADE removes linked data)
             self.cursor.execute("DELETE FROM clients WHERE id = ?", (client_id,))
@@ -420,6 +424,7 @@ class ClientsPage:
             
             # Refresh UI after deletion
             self.load_clients()
+            self.main_app.tabs["Alerts"].load_alerts()
             
             # Reset ProfileCard (Loads default state)
             if hasattr(self.main_app, "profile_card"):
@@ -457,6 +462,8 @@ class ClientsPage:
             shutil.rmtree(prescriptions_dir)
         else:
             print(f"⚠ No matching prescriptions found for {client_name}_{client_id} in {prescriptions_dir}")
+        
+        print(f"✅ Deleted all assets associated with Client ID: {client_id}")
         
 
     def sort_treeview(self, column, reverse):

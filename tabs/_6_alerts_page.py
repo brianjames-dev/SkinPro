@@ -91,6 +91,11 @@ class AlertsPage:
         self.alerts_list.column("Phone Number", width=25)
         self.alerts_list.column("Notes", width=350)
 
+        # Bind keybind events to edit/delete alert(s)
+        self.alerts_list.bind("<Double-1>", self.edit_alert)
+        self.alerts_list.bind("<Delete>", self.delete_selected_alert)
+        self.alerts_list.bind("<BackSpace>", self.delete_selected_alert)
+
         self.load_alerts()
 
 
@@ -102,6 +107,7 @@ class AlertsPage:
         self.notes_entry.delete(0, "end")
         self.notes_entry.configure(placeholder_text="Send progress pictures, call client, etc.")
 
+
     def load_alerts(self):
         """Load all alerts from the database and populate the Treeview."""
         try:
@@ -111,7 +117,7 @@ class AlertsPage:
 
             # Query the database for all alerts with client details
             query = """
-            SELECT a.client_id, c.full_name, c.phone, a.deadline, a.notes
+            SELECT a.id, a.client_id, c.full_name, c.phone, a.deadline, a.notes
             FROM alerts a
             JOIN clients c ON a.client_id = c.id
             ORDER BY a.deadline ASC
@@ -121,9 +127,9 @@ class AlertsPage:
 
             # Populate the Treeview with the alerts
             for alert in alerts:
-                client_id, client_name, phone_number, deadline, notes = alert
+                alert_id, client_id, client_name, phone_number, deadline, notes = alert
                 status = self.calculate_status(deadline)  # Calculate status based on the deadline
-                self.alerts_list.insert("", "end", values=(client_name, status, deadline, phone_number, notes))
+                self.alerts_list.insert("", "end", iid=str(alert_id), values=(client_name, status, deadline, phone_number, notes))
             
             # Update the alert colors based on their status
             self.update_alert_colors()
@@ -136,6 +142,142 @@ class AlertsPage:
         self.deadline_entry.configure(placeholder_text="MM/DD/YYYY")
         self.notes_entry.delete(0, "end")
         self.notes_entry.configure(placeholder_text="Send progress pictures, call client, etc.")
+
+
+    def edit_alert(self, event=None):
+        selected_item = self.alerts_list.selection()
+        if not selected_item:
+            print("⚠ No alert selected for editing.")
+            return
+
+        alert_id = selected_item[0]
+
+        self.cursor.execute("SELECT deadline, notes FROM alerts WHERE id = ?", (alert_id,))
+        alert_data = self.cursor.fetchone()
+
+        if not alert_data:
+            print("⚠ Alert not found in database.")
+            return
+
+        deadline, notes = alert_data
+
+        # === Create Pop-up ===
+        self.alert_window = ctk.CTkToplevel()
+        self.alert_window.title("Edit Alert")
+        self.alert_window.geometry("400x280")
+        self.alert_window.transient(self.main_app)
+        self.alert_window.grab_set()
+        self.alert_window.focus_force()
+
+        frame = ctk.CTkFrame(self.alert_window)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Deadline
+        ctk.CTkLabel(frame, text="Deadline", anchor="w").pack(anchor="w", padx=5, pady=(10, 2))
+        self.deadline_entry = ctk.CTkEntry(frame, placeholder_text="MM/DD/YYYY")
+        self.deadline_entry.insert(0, deadline)
+        self.deadline_entry.pack(fill="x", padx=5)
+
+        # Notes Label
+        ctk.CTkLabel(frame, text="Notes", anchor="w").pack(anchor="w", padx=5, pady=(10, 2))
+
+        # Outer frame acting as the border
+        border_frame = ctk.CTkFrame(frame, fg_color="#563A9C", corner_radius=8)
+        border_frame.pack(fill="x", padx=5, pady=(0, 10))
+
+        # Inner frame to control height and prevent expansion
+        notes_frame = ctk.CTkFrame(border_frame, fg_color="#dbdbdb")  # Match border color for consistency
+        notes_frame.configure(height=100)
+        notes_frame.pack(fill="x", padx=1, pady=1)  # Padding inside the border frame
+        notes_frame.pack_propagate(False)
+
+        # Textbox inside the height-limited frame
+        self.notes_textbox = ctk.CTkTextbox(notes_frame, wrap="word", fg_color="#ebebeb")
+        self.notes_textbox.insert("1.0", notes or "")
+        self.notes_textbox.pack(fill="both", expand=True)
+
+        # Save Button
+        ctk.CTkButton(
+            frame, text="Save",
+            command=lambda: self.update_alert(alert_id)
+        ).pack(pady=5)
+
+
+    def update_alert(self, alert_id):
+        new_deadline = self.deadline_entry.get().strip()
+        new_notes = self.notes_textbox.get("1.0", "end").strip()
+
+        if not new_deadline:
+            print("⚠ Deadline cannot be empty.")
+            return
+
+        try:
+            self.cursor.execute("""
+                UPDATE alerts SET deadline = ?, notes = ? WHERE id = ?
+            """, (new_deadline, new_notes, alert_id))
+            self.conn.commit()
+            print(f"✅ Alert {alert_id} updated.")
+
+            self.load_alerts()
+            self.alert_window.destroy()
+
+        except Exception as e:
+            print(f"❌ Failed to update alert: {e}")
+
+
+    def delete_selected_alert(self, event=None):
+        """Prompt the user to confirm deletion of the selected alert."""
+        selected_item = self.alerts_list.selection()
+        if not selected_item:
+            print("⚠ No alert selected for deletion.")
+            return
+
+        alert_id = selected_item[0]
+
+        # Confirm deletion
+        confirmation = ctk.CTkToplevel()
+        confirmation.title("Confirm Deletion")
+        confirmation.geometry("350x150")
+        confirmation.resizable(False, False)
+
+        confirmation.transient(self.main_app)
+        confirmation.grab_set()
+        confirmation.focus_force()
+
+        # Main frame
+        main_frame = ctk.CTkFrame(confirmation)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        ctk.CTkLabel(
+            main_frame,
+            text="Are you sure you want to delete this alert?",
+            font=("Helvetica", 14), wraplength=300
+        ).pack(pady=(25, 10))
+
+        # Buttons
+        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        button_frame.pack(pady=10)
+
+        ctk.CTkButton(button_frame, text="Cancel", command=confirmation.destroy).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            button_frame, text="Delete", fg_color="#FF4444", hover_color="#CC0000",
+            command=lambda: self._execute_delete_alert(alert_id, confirmation)
+        ).pack(side="right", padx=5)
+
+
+    def _execute_delete_alert(self, alert_id, popup):
+        """Delete the alert from the database and refresh the view."""
+        try:
+            self.cursor.execute("DELETE FROM alerts WHERE id = ?", (alert_id,))
+            self.conn.commit()
+            print(f"🗑️ Deleted alert ID: {alert_id}")
+            self.load_alerts()  # Refresh the list
+        except Exception as e:
+            print(f"❌ Error deleting alert: {e}")
+        finally:
+            popup.destroy()
+
 
     def set_alert(self):
         self.format_date()
