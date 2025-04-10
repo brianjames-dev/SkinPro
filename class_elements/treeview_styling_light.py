@@ -32,8 +32,8 @@ def style_treeview_light(style_name="Corium.Treeview", rowheight=22, font=("Helv
 
     # === 🎨 General Treeview Style ===
     style.configure(style_name,
-                    background=SOFT_GRAY,
-                    fieldbackground=SOFT_GRAY,
+                    background=SOFT_WHITE,
+                    fieldbackground=SOFT_WHITE,
                     foreground=TEXT_COLOR,
                     bordercolor=HOVER_PURPLE,
                     font=font,
@@ -41,15 +41,23 @@ def style_treeview_light(style_name="Corium.Treeview", rowheight=22, font=("Helv
                     borderwidth=1,
                     relief="flat")
 
+    # === 🎨 Alternate row tag styles ===
+    style.map(style_name,
+              fieldbackground=[
+                  ("alternate", MID_GRAY),  # Tag-based alternate row coloring
+                  ("selected", DARK_PURPLE)
+              ],
+              background=[
+                  ("selected", DARK_PURPLE)
+              ],
+              foreground=[
+                  ("selected", SOFT_WHITE)
+              ])
+    
     # Remove borders and separators
     style.layout(style_name, [
         ("Treeview.treearea", {"sticky": "nswe"})
     ])
-
-    # === 🎨 Selected Row Highlight ===
-    style.map(style_name,
-              background=[("selected", DARK_PURPLE)],
-              foreground=[("selected", SOFT_WHITE)])
 
     # === 🎨 Scrollbar Styling ===
     style.configure("Vertical.TScrollbar",
