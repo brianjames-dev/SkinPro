@@ -83,7 +83,7 @@ class ImageCache:
     ########################################
     def load_image_cache(self, splash_screen=None):
         """Load full-size image cache from disk and update splash screen dynamically."""
-        print("🔍 Entering load_cache_from_disk()...")  # ✅ Debug: Confirm function entry
+        print("🔍 Entering load_cache_from_disk()...")  # Debug: Confirm function entry
 
         if os.path.exists(self.cache_file):
             try:
@@ -98,10 +98,8 @@ class ImageCache:
                     step = 0.5 / total_images if total_images > 0 else 1
 
                 for i, file_path in enumerate(cached_paths):
-                    print(f"🔄 Checking file {i+1}/{total_images}: {file_path}")  # ✅ Debug: Show progress
 
                     if os.path.exists(file_path):
-                        # print(f"🟢 Preloading full-size image: {file_path}")  # ✅ Debug: Processing image
                         img = self.preload_image(file_path)  # Load image
                         self.image_cache[file_path] = img  # Store image in cache
 
@@ -111,14 +109,14 @@ class ImageCache:
                             splash_screen.update_idletasks()  # 🔹 Force UI update
                             splash_screen.after(10)  # 🔹 Allow Tkinter to refresh
                     else:
-                        print(f"❌ Warning: Image file does NOT exist - {file_path}")  # ✅ Debug: Missing file
+                        print(f"❌ Warning: Image file does NOT exist - {file_path}")  # Debug: Missing file
 
                 print("✅ Loaded all 25 startup images.")
 
             except Exception as e:
                 print(f"⚠ Error loading full-size image cache: {e}")
         
-        print("🔍 Exiting load_cache_from_disk()...")  # ✅ Debug: Ensure function fully executed
+        print("🔍 Exiting load_cache_from_disk()...")  # Debug: Ensure function fully executed
 
 
     def save_cache_to_disk(self):

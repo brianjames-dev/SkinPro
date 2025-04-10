@@ -34,7 +34,7 @@ class ClientsPage:
         add_client_button = ctk.CTkButton(
             search_frame,
             image=add_client_icon,
-            text="",
+            text="Add Client",
             width=24,
             height=24,
             command=self.add_client_button
@@ -66,7 +66,6 @@ class ClientsPage:
         # Bind all column headers to sorting function
         for col in columns:
             self.client_list.heading(col, text=col, command=lambda c=col: self.sort_treeview(c, False))
-
 
         # Set initial column widths
         self.set_column_widths()
@@ -133,10 +132,13 @@ class ClientsPage:
             self.no_results_label.lift()  # Show the label if the DB is empty
             return
         
-        for row in results:
+        for index, row in enumerate(results):
             client_id = row[0]  # Extract client_id
             client_values = row[1:]  # Everything except client_id
-            self.client_list.insert("", "end", iid=str(client_id), values=client_values)
+            tag = 'alternate' if index % 2 == 1 else None  # Apply the 'alternate' tag to every other row
+            self.client_list.insert("", "end", iid=str(client_id), values=client_values, tags=(tag,))
+
+        self.client_list.tag_configure('alternate', background="#b3b3b3")  # Assuming DARK_GRAY = '#979da2'
 
         print(f"✅ Loaded {len(results)} clients.")  # Debugging
         self.no_results_label.lower()  # Hide "No Results" label
@@ -243,6 +245,7 @@ class ClientsPage:
         self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
         self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
         self.main_app.tabs["Prescriptions"].load_prescriptions_for_client(self.client_id)
+        self.main_app.tabs["Alerts"].update_client_id(self.client_id)
 
         # Update Profile Card if it exists
         if hasattr(self.main_app, "profile_card"):
@@ -333,18 +336,46 @@ class ClientsPage:
 
         client_name = client_name[0]  # Extract name from tuple
 
-        # Show Confirmation Popup
-        ConfirmationPopup(
-            self.parent,
-            "Confirm Deletion",
-            f"Are you sure you want to delete '{client_name}' and all associated data?\nThis action cannot be undone!",
-            lambda response: self.delete_client(response, client_id)
-        )
+        # Create Confirmation Pop-up
+        confirmation = ctk.CTkToplevel()
+        confirmation.title("Confirm Deletion")
+        confirmation.geometry("350x180")
+        confirmation.resizable(False, False)
+        
+        # Make pop-up always on top and disable main window until closed
+        confirmation.transient(self.main_app)  # Link to main app window
+        confirmation.grab_set()  # Prevent interactions with main app until pop-up is closed
+        confirmation.focus_force()  # Immediately focus the pop-up window
 
-    def delete_client(self, response, client_id):
+        # Main frame
+        main_frame = ctk.CTkFrame(confirmation)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Confirmation Message
+        ctk.CTkLabel(
+            main_frame, 
+            text=f"Are you sure you want to delete '{client_name}' and all associated data?\n\nThis action cannot be undone!",
+            font=("Helvetica", 14), wraplength=300
+        ).pack(pady=(25, 10))
+
+        # Buttons Frame
+        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        button_frame.pack(pady=10)
+
+        # Cancel Button (Closes Pop-up)
+        ctk.CTkButton(button_frame, text="Cancel", command=confirmation.destroy).pack(side="left", padx=5)
+
+        # Delete Button (Executes Deletion)
+        ctk.CTkButton(
+            button_frame, text="Delete", fg_color="#FF4444", hover_color="#CC0000",
+            command=lambda: self.delete_client(True, client_id, confirmation)
+        ).pack(side="right", padx=5)
+
+    def delete_client(self, response, client_id, confirmation_window):
         """Deletes the client, their profile picture, and all associated records if confirmed."""
         if not response:
             print("🔴 User canceled deletion.")
+            confirmation_window.destroy()  # Destroy the confirmation window even on cancellation
             return  # Stop if the user selects "No"
 
         try:
@@ -384,6 +415,9 @@ class ClientsPage:
 
         except Exception as e:
             print(f"❌ Database error during deletion: {e}")
+
+        finally:
+            confirmation_window.destroy()  # Ensure the confirmation window is closed after the operation
 
     def sort_treeview(self, column, reverse):
         """Sort the Treeview column when clicked."""

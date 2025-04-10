@@ -29,7 +29,7 @@ class PhotosPage:
 
         # Create Main Frame
         main_frame = ctk.CTkFrame(parent)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        main_frame.pack(fill="both", expand=True, padx=10)
 
         # Configure grid layout
         main_frame.columnconfigure(0, weight=6)  # Listbox column
@@ -79,7 +79,7 @@ class PhotosPage:
         before_frame.grid(row=0, column=1, columnspan=3, sticky="nsew", padx=(5, 5))
 
         ctk.CTkLabel(before_frame, text="Before", font=("Helvetica", 16, "bold"), fg_color="transparent", text_color="#ebebeb").pack()
-        self.before_label = ctk.CTkLabel(before_frame, text="<No Image Selected>", width=300, height=400)
+        self.before_label = ctk.CTkLabel(before_frame, text="<No Image Selected>", width=300, height=400, fg_color="#ebebeb")
         self.before_label.pack(pady=(0, 5))
 
         # After Image Preview Pane (Right Column)
@@ -87,7 +87,7 @@ class PhotosPage:
         after_frame.grid(row=0, column=4, columnspan=3, sticky="nsew", padx=(5, 0))
 
         ctk.CTkLabel(after_frame, text="After", font=("Helvetica", 16, "bold"), fg_color="transparent", text_color="#ebebeb").pack()
-        self.after_label = ctk.CTkLabel(after_frame, text="<No Image Selected>", width=300, height=400)
+        self.after_label = ctk.CTkLabel(after_frame, text="<No Image Selected>", width=300, height=400, fg_color="#ebebeb")
         self.after_label.pack(pady=(0, 5))
 
         # Navigation Buttons & Date Label (Before Image)
@@ -97,7 +97,7 @@ class PhotosPage:
         self.before_left_button = ctk.CTkButton(self.before_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "before"))
         self.before_left_button.pack(side="left")
 
-        self.before_date_label = ctk.CTkLabel(self.before_nav_frame, text="                   ", font=("Helvetica", 12, "bold"))
+        self.before_date_label = ctk.CTkLabel(self.before_nav_frame, text="                   ", font=("Helvetica", 12, "bold"), fg_color="#b3b3b3", padx=40)
         self.before_date_label.pack(side="left", expand=True)
 
         self.before_right_button = ctk.CTkButton(self.before_nav_frame, text="", image=fwd_arrow, width=30, command=lambda: self.navigate_image(1, "before"))
@@ -110,7 +110,7 @@ class PhotosPage:
         self.after_left_button = ctk.CTkButton(self.after_nav_frame, text="", image=back_arrow, width=30, command=lambda: self.navigate_image(-1, "after"))
         self.after_left_button.pack(side="left")
 
-        self.after_date_label = ctk.CTkLabel(self.after_nav_frame, text="                   ", font=("Helvetica", 12, "bold"))
+        self.after_date_label = ctk.CTkLabel(self.after_nav_frame, text="                   ", font=("Helvetica", 12, "bold"), fg_color="#b3b3b3", padx=40)
         self.after_date_label.pack(side="left", expand=True)
 
         self.after_right_button = ctk.CTkButton(self.after_nav_frame, text="", image=fwd_arrow, width=30, command=lambda: self.navigate_image(1, "after"))
@@ -414,14 +414,12 @@ class PhotosPage:
             print(f"⚠ No photos found for Client ID {client_id}")
             return
 
-        for photo in photos:
+        for index, photo in enumerate(photos):
             photo_id, appt_date, type, file_path = photo  # Unpack data
 
             # Ensure `photo_id` is unique in the Treeview
             if self.photo_list.exists(str(photo_id)):
                 continue  
-
-            # print(f"🖼️ Debug: Adding Photo ID {photo_id} | Path: {file_path} | Date: {appt_date} | Type: {type}")
 
             # Store the valid thumbnail reference
             self.photo_file_paths[photo_id] = file_path  
@@ -443,8 +441,7 @@ class PhotosPage:
             # Insert row into Treeview
             self.photo_list.insert(
                 "", "end", iid=str(photo_id),  # Tkinter requires `iid` as a string
-                values=(appt_date, type),
-                image=thumbnail if thumbnail else ""  # Use cached or leave blank until worker fills it
+                values=(appt_date, type)
             )
 
         print(f"🔍 Debug: Thumbnail cache contains {len(self.image_cache.thumbnail_cache)} entries")
@@ -478,7 +475,7 @@ class PhotosPage:
     def update_ui_with_thumbnail(self, photo_id, thumbnail):
         """Update the Treeview with the new thumbnail and store the reference to prevent GC."""
         if self.photo_list.exists(str(photo_id)):
-            self.thumbnails[str(photo_id)] = thumbnail  # ✅ Store the reference!
+            self.thumbnails[str(photo_id)] = thumbnail  # Store the reference
             self.main_app.after(0, lambda: self.photo_list.item(str(photo_id), image=thumbnail))
         else:
             print(f"⚠️ Skipping UI update: Treeview item {photo_id} not found.")

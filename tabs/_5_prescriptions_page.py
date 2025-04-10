@@ -34,7 +34,7 @@ class PrescriptionsPage:
 
         # Main container
         main_frame = ctk.CTkFrame(parent)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        main_frame.pack(fill="both", expand=True, padx=10)
 
         # Configure Grid Layout
         main_frame.columnconfigure(0, weight=1)  # Treeview
@@ -119,7 +119,7 @@ class PrescriptionsPage:
                     fg_color="transparent", text_color="#ebebeb").pack()
 
         # === Scrollable Frame for PDF Preview ===
-        self.scroll_canvas = ctk.CTkCanvas(display_frame, highlightthickness=0)
+        self.scroll_canvas = ctk.CTkCanvas(display_frame, highlightthickness=0, bg="#ebebeb")
         self.scroll_canvas.pack(fill="both", expand=True, padx=5, pady=(0, 5))
 
         # Hidden Scrollbar (not placed in layout)
@@ -130,7 +130,7 @@ class PrescriptionsPage:
         self.scroll_canvas.configure(yscrollcommand=scrollbar.set)
 
         # === Internal Frame inside Canvas ===
-        self.preview_inner_frame = ctk.CTkFrame(self.scroll_canvas)
+        self.preview_inner_frame = ctk.CTkFrame(self.scroll_canvas, fg_color="#ebebeb")
         self.scroll_window = self.scroll_canvas.create_window((0, 0), window=self.preview_inner_frame, anchor="nw")
 
         # === Scroll Region & Mouse Events ===
@@ -198,9 +198,12 @@ class PrescriptionsPage:
         """, (client_id,))
         prescriptions = self.cursor.fetchall()
 
-        for pres in prescriptions:
+        for index, pres in enumerate(prescriptions):
             pres_id, form_type, file_path, start_date = pres
 
+            # Determine the appropriate tag based on the row index
+            tag = 'alternate' if index % 2 == 1 else None
+            
             # Example: use file creation/modification time as "date" column value
             if os.path.exists(file_path):
                 created_date = start_date
@@ -210,7 +213,8 @@ class PrescriptionsPage:
             iid = self.prescription_list.insert(
                 "", "end",
                 iid=str(pres_id),
-                values=(created_date, form_type)
+                values=(created_date, form_type),
+                tags=(tag,)  # Apply the tag for alternating row colors
             )
             self.prescription_paths[iid] = file_path
         
@@ -218,6 +222,9 @@ class PrescriptionsPage:
         if children:
             self.prescription_list.selection_set(children[0])
             self.on_prescription_select(None)
+
+        # Ensure the alternate tag is properly styled
+        self.prescription_list.tag_configure('alternate', background='#b3b3b3')  # You should set this in your style setup
 
 
     def add_prescription_to_list(self, date, template, path):

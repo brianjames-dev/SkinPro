@@ -158,9 +158,12 @@ class AppointmentsPage:
                                          bd=0, 
                                          border=0, 
                                          borderwidth=0, 
-                                         highlightthickness=0)
+                                         highlightthickness=0,
+                                         foreground="#000000",
+                                         background="#ebebeb")
         self.all_notes_textbox.grid(row=1, column=0, columnspan=2, sticky="nsew")
         self.all_notes_textbox.configure(state="disabled")  # Disable editing
+
 
     def on_client_selected(self, selected_client):
         """Triggered when a client is selected from the combobox."""
@@ -198,6 +201,7 @@ class AppointmentsPage:
         self.appointments_table.column("price", width=int(total_width * 0.10), minwidth=70)
         self.appointments_table.column("photos", width=int(total_width * 0.12), minwidth=40)
 
+
     def filter_clients(self, event):
         """Dynamically update the client dropdown based on user input."""
         query = self.client_combobox.get().strip()  # Get the current text
@@ -218,6 +222,7 @@ class AppointmentsPage:
 
         self.client_combobox.focus()  # Ensure the combobox remains focused
 
+
     def restore_placeholder(self, event=None):
         """Restore the placeholder text if no valid client is selected when focus is lost."""
         current_text = self.client_var.get().strip()
@@ -226,11 +231,13 @@ class AppointmentsPage:
             self.client_combobox.set("Select a client...")  # Reset placeholder
             self.client_combobox.configure(text_color="#797e82")
 
+
     def clear_placeholder(self, event=None):
         """Clear the placeholder text when the user clicks or focuses on the combobox."""
         if self.client_var.get() == "Select a client...":  # Only clear if it's the placeholder
             self.client_combobox.set("")  # Clear text to allow typing
             self.client_combobox.configure(text_color="#797e82")
+
 
     def load_client_appointments(self, client_id):
         """Load appointments for the selected client into the Treeview."""
@@ -263,24 +270,23 @@ class AppointmentsPage:
             # Convert fetched rows into a list of tuples
             appointments = self.cursor.fetchall()
 
-            # SORT APPTS --> Sort appointments by date (most recent first)
-            try:
-                appointments.sort(key=lambda x: datetime.strptime(x[1], "%m/%d/%Y"), reverse=True)
-            except ValueError:
-                print("⚠ Date formatting issue detected in database. Ensure format is MM/DD/YYYY.")
-
-            # Insert sorted appointments into the TreeView
-            for row in appointments:
+            # Insert sorted appointments into the TreeView with alternate row coloring
+            for index, row in enumerate(appointments):
                 appointment_id, date, type, treatment, price, photos_taken, treatment_notes = row
+                tag = 'alternate' if index % 2 == 1 else None
                 self.appointments_table.insert(
-                    "", "end", values=(date, type, treatment, price, photos_taken), tags=(treatment_notes,)
+                    "", "end", values=(date, type, treatment, price, photos_taken), tags=(tag,)
                 )
+
+            # Apply styling for alternate rows
+            self.appointments_table.tag_configure('alternate', background="#b3b3b3")  # Assuming MID_GRAY = '#b3b3b3'
 
             # LOAD ALL NOTES --> Load compilation of treatment notes in "All Notes" view 
             self.load_all_treatment_notes()
                 
         except Exception as e:
             print(f"❌ Error loading appointments: {e}")
+
 
     def on_appointment_select(self, event):
         """Handle selection of multiple appointments and update the All Notes textbox in real-time."""
@@ -377,6 +383,7 @@ class AppointmentsPage:
         # Disable Editing Again
         self.all_notes_textbox.configure(state="disabled")
 
+
     def load_all_treatment_notes(self):
         """Load all treatment notes for the selected client, sorted by most recent appointment."""
         
@@ -422,6 +429,7 @@ class AppointmentsPage:
 
         self.all_notes_textbox.configure(state="disabled")  # Disable Again
         
+
     def clear_appointments(self):
         """Clear all rows in the appointments Treeview and treatment notes."""
         self.appointments_table.delete(*self.appointments_table.get_children())
@@ -432,6 +440,7 @@ class AppointmentsPage:
         # Reset Appointments ComboBox to Placeholder
         self.client_combobox.set("Select a client...")
         self.client_combobox.configure(text_color="#797e82")  # Ensure placeholder color
+
 
     def sort_appointments_treeview(self, column):
         """Sort the appointments TreeView by column."""
@@ -459,6 +468,7 @@ class AppointmentsPage:
 
         # Update the column heading to trigger sorting when clicked again
         self.appointments_table.heading(column, command=lambda c=column: self.sort_appointments_treeview(c))
+
 
     def create_appointment(self):
         """Open a dialog to create a new appointment."""
@@ -592,6 +602,7 @@ class AppointmentsPage:
         except Exception as e:
             print(f"❌ Error saving new appointment: {e}")
 
+
     def update_appointment(self):
         """Open a dialog to update an existing appointment."""
         selected_item = self.appointments_table.selection()
@@ -695,6 +706,7 @@ class AppointmentsPage:
         self.save_button = ctk.CTkButton(self.notes_frame, text="Update", command=lambda: self.save_updated_appointment(appointment_id))
         self.save_button.grid(row=2, column=0, pady=10)
 
+
     def save_updated_appointment(self, appointment_id):
         """Save the updated appointment details."""
         date = self.date_entry.get().strip()
@@ -772,6 +784,7 @@ class AppointmentsPage:
             print(f"⚠ Error retrieving appointment ID: {e}")
             return None
 
+
     def get_treatment_notes(self, appointment_id):
         """Fetch treatment notes for an appointment."""
         self.cursor.execute("""
@@ -781,6 +794,7 @@ class AppointmentsPage:
         """, (appointment_id,))
         result = self.cursor.fetchone()
         return result[0] if result else ""
+
 
     def format_date(self):
         """Format the date entry to MM/DD/YYYY upon hitting Enter or leaving the field."""
@@ -828,6 +842,7 @@ class AppointmentsPage:
         self.date_entry.insert(0, formatted_date)
         print(f"✅ Formatted Date: {formatted_date}")
 
+
     def format_price(self, event=None):
         """Format the price entry to '$X.XX' upon hitting Enter or leaving the field."""
         raw_price = self.price_entry.get().strip()
@@ -861,10 +876,12 @@ class AppointmentsPage:
         self.price_entry.insert(0, formatted_price)
         print(f"✅ Formatted Price: {formatted_price}")
 
+
     def focus_next_widget(self, event):
         """Move focus to the next widget when pressing Enter."""
         event.widget.tk_focusNext().focus()
         return "break"  # Prevents default behavior (e.g., inserting a newline in text fields)
+
 
     def on_double_click_edit_appointment(self, event):
         """Open the Edit Appointment window when an appointment is double-clicked."""
@@ -879,6 +896,7 @@ class AppointmentsPage:
 
         # Call `update_appointment()` to open the edit window
         self.update_appointment()
+
 
     def delete_appointment(self, event=None):
         """Delete the selected appointment from the database after user confirmation."""
@@ -930,6 +948,7 @@ class AppointmentsPage:
             command=lambda: self._execute_delete_appointment(appointment_id, confirmation)
         ).pack(side="right", padx=5)
 
+
     def _execute_delete_appointment(self, appointment_id, confirmation_window):
         """Executes appointment deletion and closes the confirmation pop-up."""
         try:
@@ -946,6 +965,7 @@ class AppointmentsPage:
 
         finally:
             confirmation_window.destroy()  # Close confirmation window
+
 
     def add_photos(self):
         selected_item = self.appointments_table.selection()

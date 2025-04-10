@@ -316,7 +316,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         """
         try:
             # Check format via datetime for real calendar validation
-            datetime.datetime.strptime(date_str, "%m/%d/%Y")
+            datetime.strptime(date_str, "%m/%d/%Y")
             return True
         except ValueError:
             return False
@@ -332,7 +332,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         cleaned_date = re.sub(r"[^0-9/.-]", "", raw_date)
 
         if re.fullmatch(r"\d{2}/\d{2}/\d{4}", cleaned_date):
-            return  # ✅ Already valid
+            return  # Already valid
 
         formatted_date = None
 
