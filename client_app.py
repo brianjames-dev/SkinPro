@@ -4,6 +4,7 @@ from tabs._2_info_page import InfoPage
 from tabs._3_appointments_page import AppointmentsPage
 from tabs._4_photos_page import PhotosPage
 from tabs._5_prescriptions_page import PrescriptionsPage
+from tabs._6_alerts_page import AlertsPage
 from class_elements.profile_card import ProfileCard
 from splash_screen import SplashScreen
 from img_load_threading import ImageLoaderThread
@@ -68,11 +69,10 @@ class ClientApp(ctk.CTk):
     def load_full_images(self, full_images, thumbnails, splash_screen, index, step_full, step_thumb):
         """Recursively load full-size images while updating the progress bar."""
         if index >= len(full_images):
-            print("✅ Finished loading full-size images, moving to thumbnails...")
+            print("Finished loading full-size images, moving to thumbnails...")
             return self.after(10, lambda: self.load_thumbnails(thumbnails, splash_screen, 0.50, step_thumb))
 
         file_path = full_images[index]
-        # print(f"🟢 Loading {index+1}/{len(full_images)}: {file_path}")
 
         self.image_cache.get_image(file_path)  # Load image
 
@@ -142,6 +142,7 @@ class ClientApp(ctk.CTk):
         self.tab_view.add("Appointments")
         self.tab_view.add("Photos")
         self.tab_view.add("Prescriptions")
+        self.tab_view.add("Alerts")
 
         # Tabs dictionary to store references
         self.tabs = {}
@@ -152,6 +153,7 @@ class ClientApp(ctk.CTk):
         self.init_appointments_tab()
         self.init_photos_tab()
         self.init_prescriptions_tab()
+        self.init_alerts_tab()
 
 
     def init_clients_tab(self):
@@ -177,6 +179,9 @@ class ClientApp(ctk.CTk):
         prescriptions_tab = self.tab_view.tab("Prescriptions")
         self.tabs["Prescriptions"] = PrescriptionsPage(prescriptions_tab, self.conn, self)
 
+    def init_alerts_tab(self):
+        alerts_tab = self.tab_view.tab("Alerts")
+        self.tabs["Alerts"] = AlertsPage(alerts_tab, self.conn, self)
 
     def switch_to_tab(self, tab_name, data=None):
         """Switch to the specified tab by name."""
