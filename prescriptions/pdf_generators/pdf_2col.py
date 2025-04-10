@@ -7,8 +7,21 @@ class Pdf2ColGenerator:
         self.output_dir = os.path.join(os.getcwd(), output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def generate(self, client_name, start_date, steps_dict):
-        file_path = os.path.join(self.output_dir, f"{client_name.replace(' ', '_')}_2col.pdf")
+
+    def generate(self, client_id, client_name, start_date, steps_dict):
+        # === Build subfolder path based on client and form type ===
+        form_type = "2-col"
+        safe_client_name = client_name.replace(" ", "_")
+        folder_name = f"{safe_client_name}_{client_id}"
+        client_dir = os.path.join(self.output_dir, folder_name)
+        os.makedirs(client_dir, exist_ok=True)
+
+        # === Generate PDF file path ===
+        safe_date = start_date.replace("/", "-")  # or "_" if you prefer
+        filename = f"{safe_date}_{form_type}.pdf"
+        file_path = os.path.join(client_dir, filename)
+
+        # === Create PDF canvas ===
         c = canvas.Canvas(file_path, pagesize=letter)
         width, height = letter
 

@@ -996,6 +996,7 @@ class AppointmentsPage:
 
         # Sanitize client name to avoid invalid folder names
         safe_client_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in client_name)
+        safe_client_name = safe_client_name.replace(" ", "_")
         # Format appointment date as YYYY-MM-DD for better sorting
         appt_date_formatted = appt_date.replace("/", "-")
 

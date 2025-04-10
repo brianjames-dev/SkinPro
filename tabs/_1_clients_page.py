@@ -5,6 +5,7 @@ from class_elements.profile_card import ProfileCard
 from class_elements.treeview_styling_light import style_treeview_light
 from class_elements.ctk_popup import ConfirmationPopup
 import os
+import shutil
 
 class ClientsPage:
     def __init__(self, parent, conn, main_app):
@@ -103,6 +104,7 @@ class ClientsPage:
         self.client_list.bind("<Delete>", self.confirm_delete_client)                           # Deletes client
         self.client_list.bind("<BackSpace>", self.confirm_delete_client)                        # Deletes client
             
+
     def set_column_widths(self):
         # Get the current width of the Treeview
         total_width = self.client_list.winfo_width()
@@ -114,6 +116,7 @@ class ClientsPage:
         self.client_list.column("Phone #", width=int(total_width * 0.13), minwidth=100)
         self.client_list.column("Email", width=int(total_width * 0.14), minwidth=200)
         self.client_list.column("Address", width=int(total_width * 0.40), minwidth=200)
+
 
     def load_clients(self):
         """Load all clients from the database and insert them into the Treeview."""
@@ -142,6 +145,7 @@ class ClientsPage:
 
         print(f"✅ Loaded {len(results)} clients.")  # Debugging
         self.no_results_label.lower()  # Hide "No Results" label
+
 
     def search_client(self):
         """Search for clients based on the name entered in the search box."""
@@ -177,6 +181,7 @@ class ClientsPage:
             self.load_clients()  # Reload all clients if no search query is provided
             self.no_results_label.lower()  # Hide the "No Results" label
 
+
     def jump_to_info_tab(self, event):
         """Switch to the Info tab when a client (row) is double-clicked in the TreeView."""
     
@@ -194,6 +199,7 @@ class ClientsPage:
 
         print(f"🔄 Switching to Info Tab for Client ID: {selected_item[0]}")
         self.main_app.switch_to_tab("Info")
+
 
     def on_client_select(self, event):
         """Update the profile card when a client is single-clicked in the treeview."""
@@ -247,6 +253,7 @@ class ClientsPage:
         self.main_app.tabs["Prescriptions"].load_prescriptions_for_client(self.client_id)
         self.main_app.tabs["Alerts"].update_client_id(self.client_id)
 
+
         # Update Profile Card if it exists
         if hasattr(self.main_app, "profile_card"):
             print("🟢 Updating Profile Card for Client ID:", self.client_id)
@@ -287,6 +294,7 @@ class ClientsPage:
             else:
                 print("⚠ Skipping TreeView selection: Client ID is -1 (new client).")
 
+
     def handle_duplicate_response(self, response, full_name):
         """Handles user decision when adding a duplicate client."""
         if not response:
@@ -317,6 +325,7 @@ class ClientsPage:
         self.main_app.switch_to_tab("Info")
 
         print(f"🆕 Proceeding to add a new client: {full_name}")
+
 
     def confirm_delete_client(self, event=None):
         """Ask for confirmation before deleting the selected client."""
@@ -371,6 +380,7 @@ class ClientsPage:
             command=lambda: self.delete_client(True, client_id, confirmation)
         ).pack(side="right", padx=5)
 
+
     def delete_client(self, response, client_id, confirmation_window):
         """Deletes the client, their profile picture, and all associated records if confirmed."""
         if not response:
@@ -396,10 +406,18 @@ class ClientsPage:
                 else:
                     print("⚠ Profile image file not found, skipping deletion.")
 
+            self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
+            client_name_result = self.cursor.fetchone()
+
+            if result:
+                client_name = client_name_result[0].replace(" ", "_")  # convert to safe folder name
+                self.delete_client_assets(client_name, client_id)
+                # === # Delete all ALERTS from the UI HERE # === #
+            
             # Delete the client from the database (ON DELETE CASCADE removes linked data)
             self.cursor.execute("DELETE FROM clients WHERE id = ?", (client_id,))
             self.conn.commit()
-
+            
             # Refresh UI after deletion
             self.load_clients()
             
@@ -419,6 +437,28 @@ class ClientsPage:
         finally:
             confirmation_window.destroy()  # Ensure the confirmation window is closed after the operation
 
+
+    def delete_client_assets(self, client_name, client_id):
+        """Delete all assets associated with the client."""
+        base_dir = os.getcwd()
+
+        # Delete before/after images folder
+        img_folder = os.path.join(base_dir, "images", "before_after", f"{client_name}_id_{client_id}")
+        if os.path.exists(img_folder):
+            print(f"🧹 Deleted image folder: {img_folder}")
+            shutil.rmtree(img_folder)
+        else:
+            print(f"⚠ No image folder found at: {img_folder}")
+
+        # Delete prescriptions PDFs folder
+        prescriptions_dir = os.path.join(base_dir, "prescriptions", f"{client_name}_{client_id}")
+        if os.path.exists(prescriptions_dir):
+            print(f"🧻 Deleted prescription folder: {prescriptions_dir}")
+            shutil.rmtree(prescriptions_dir)
+        else:
+            print(f"⚠ No matching prescriptions found for {client_name}_{client_id} in {prescriptions_dir}")
+        
+
     def sort_treeview(self, column, reverse):
         """Sort the Treeview column when clicked."""
         # Get all rows from the treeview
@@ -436,5 +476,4 @@ class ClientsPage:
 
         # Toggle sorting order on next click
         self.client_list.heading(column, command=lambda: self.sort_treeview(column, not reverse))
-            
-                
+               

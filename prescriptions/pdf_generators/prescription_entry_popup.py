@@ -278,7 +278,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             print("❌ Unsupported column count.")
             return
 
-        pdf_path = generator.generate(self.client_name, start_date, steps_dict)
+        pdf_path = generator.generate(self.client_id, self.client_name, start_date, steps_dict)
         print(f"✅ PDF generated at: {pdf_path}")
 
         if self.on_submit_callback:
