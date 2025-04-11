@@ -203,20 +203,18 @@ class ClientsPage:
 
 
     def on_client_select(self, event):
-        """Update the profile card when a client is single-clicked in the treeview."""
+        selected = self.client_list.selection()
+        if not selected:
+            print("⚠ No item selected in the Treeview.")
+            return
         
-        # Ensure a client is selected
-        selected_client = self.client_list.selection()
-        if not selected_client:
-            print("⚠ No item selected in the Treeview.")  # Debugging
-            return  
+        client_id = int(selected[0])
+        self.select_client_by_id(client_id)  # 🔁 Reusable logic
 
-        # Get selected client's client_id from Treeview
-        client_id = selected_client[0]  # Treeview 'iid' is now the correct client_id
-        self.client_id = int(client_id)  # Store current client_id for future use
-        print(f"\n🟢 Selected Client ID:      {self.client_id}")  # Debugging
 
-        # Ensure the selected client is brought into view
+    def select_client_by_id(self, client_id):
+        """Update the profile card when a client is single-clicked in the treeview."""
+        self.client_id = client_id       # Store the selected client ID
         self.client_list.see(client_id)  # Scroll to selected client
         
         # Update ProfileCard's client_id
@@ -254,7 +252,6 @@ class ClientsPage:
         self.main_app.tabs["Prescriptions"].load_prescriptions_for_client(self.client_id)
         self.main_app.tabs["Alerts"].update_client_id(self.client_id)
 
-
         # Update Profile Card if it exists
         if hasattr(self.main_app, "profile_card"):
             print("🟢 Updating Profile Card for Client ID:", self.client_id)
@@ -291,7 +288,7 @@ class ClientsPage:
             if self.main_app.current_client_id != -1:
                 print(f"🔄 Selecting Client ID: {self.main_app.current_client_id} in TreeView...")
                 self.main_app.tabs["Clients"].client_list.selection_set(str(self.main_app.current_client_id))
-                self.main_app.tabs["Clients"].client_list.see(str(self.main_app.current_client_id))  # 🔥 Bring into view
+                self.main_app.tabs["Clients"].client_list.see(str(self.main_app.current_client_id))  # Bring into view
             else:
                 print("⚠ Skipping TreeView selection: Client ID is -1 (new client).")
 
@@ -319,12 +316,12 @@ class ClientsPage:
         info_tab = self.main_app.tabs["Info"]
         info_tab.full_name_entry.insert(0, full_name)
         
-        # Update the Profile Card with the New Client Name
-        if hasattr(self.main_app, "profile_card"):
-            self.main_app.profile_card.client_id = -1  # Placeholder ID
-            self.main_app.profile_card.full_name = full_name
-            self.main_app.profile_card.name_label.configure(text=full_name)  # Update UI
-            print(f"🆕 New Client Placeholder Set: {full_name} (ID: -1)")
+        self.main_app.profile_card.client_id = -1  # Placeholder ID
+        self.main_app.profile_card.full_name = full_name
+        self.main_app.profile_card.name_label.configure(text=full_name)  # Update UI
+        print(f"🆕 New Client Placeholder Set: {full_name} (ID: -1)")
+
+        self.main_app.profile_card.set_default_profile_picture()
 
         # Switch to the Info tab
         self.main_app.switch_to_tab("Info")
@@ -424,15 +421,16 @@ class ClientsPage:
             
             # Refresh UI after deletion
             self.load_clients()
+
+            self.main_app.tabs["Info"].clear_info()  # Clear Info tab
+            self.main_app.tabs["Appointments"].clear_appointments()
+            self.main_app.tabs["Photos"].clear_photos_list()
+            self.main_app.tabs["Prescriptions"].clear_prescriptions_list()
             self.main_app.tabs["Alerts"].load_alerts()
-            
+
             # Reset ProfileCard (Loads default state)
             if hasattr(self.main_app, "profile_card"):
                 self.main_app.profile_card.load_client(None)  # Reset profile card
-
-            # Reset Info Tab (Clear all fields)
-            if "Info" in self.main_app.tabs:
-                self.main_app.tabs["Info"].clear_info()
 
             print(f"✅ Successfully deleted Client ID: {client_id} and their profile image.")
 
@@ -484,3 +482,7 @@ class ClientsPage:
         # Toggle sorting order on next click
         self.client_list.heading(column, command=lambda: self.sort_treeview(column, not reverse))
                
+
+    def restore_placeholder(self):
+        self.name_entry.delete(0, "end")
+        self.name_entry.configure(placeholder_text="Enter client name")
