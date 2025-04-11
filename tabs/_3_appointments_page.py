@@ -275,7 +275,7 @@ class AppointmentsPage:
                 appointment_id, date, type, treatment, price, photos_taken, treatment_notes = row
                 tag = 'alternate' if index % 2 == 1 else None
                 self.appointments_table.insert(
-                    "", "end", values=(date, type, treatment, price, photos_taken), tags=(tag,)
+                    "", "end", iid=str(appointment_id), values=(date, type, treatment, price, photos_taken), tags=(tag,)
                 )
 
             # Apply styling for alternate rows
@@ -771,15 +771,7 @@ class AppointmentsPage:
     def get_selected_appointment_id(self, treeview_item):
         """Retrieve the appointment ID based on the TreeView selection."""
         try:
-            selected_date = self.appointments_table.item(treeview_item)["values"][0]  # Date is the first column
-            if not isinstance(selected_date, str):  # Ensure it's a string
-                selected_date = str(selected_date)
-
-            self.cursor.execute("SELECT id FROM appointments WHERE client_id = ? AND date = ?", 
-                                (self.client_id, selected_date))
-            result = self.cursor.fetchone()
-                
-            return result[0] if result else None
+            return int(treeview_item)
         except Exception as e:
             print(f"⚠ Error retrieving appointment ID: {e}")
             return None
