@@ -45,7 +45,8 @@ class AppointmentsPage:
             variable=self.client_var, 
             values=[], 
             command=self.on_client_selected, 
-            width=180
+            width=180,
+            text_color="#000000"
         )
         self.client_combobox.grid(row=0, column=1, sticky="w", padx=5, pady=2)  # Stretch across grid
         self.client_combobox.configure(text_color="#797e82")
@@ -168,6 +169,7 @@ class AppointmentsPage:
     def on_client_selected(self, selected_client):
         """Triggered when a client is selected from the combobox."""
         if not selected_client or selected_client == "No matches found":
+            self.client_combobox.configure(text_color="#797e82")  # Placeholder color
             self.client_combobox.set("Select a client...")  # Restore placeholder
             return  # Exit early, don't process selection
 
@@ -178,16 +180,7 @@ class AppointmentsPage:
             self.client_id = result[0]  # Store the client ID
             print(f"🟢 Selected Client: {selected_client} (ID: {self.client_id})")
 
-            # Update Profile Card
-            if hasattr(self.main_app, "profile_card"):
-                self.main_app.profile_card.load_client(self.client_id)
-
-            # Update Info Tab
-            if hasattr(self.main_app, "tabs") and "Info" in self.main_app.tabs:
-                self.main_app.tabs["Info"].populate_client_info(self.client_id)
-
-            # Load Appointments for the Selected Client
-            self.load_client_appointments(self.client_id)
+            self.main_app.tabs["Clients"].select_client_by_id(self.client_id)
 
 
     def set_column_widths(self):
@@ -207,6 +200,8 @@ class AppointmentsPage:
         query = self.client_combobox.get().strip()  # Get the current text
 
         if query:  # Only search if there's input
+            self.client_combobox.configure(text_color="#000000")  # Change text color to black
+
             self.cursor.execute(
                 "SELECT full_name FROM clients WHERE full_name LIKE ? LIMIT 10", (f"%{query}%",)
             )
@@ -967,7 +962,7 @@ class AppointmentsPage:
 
         # Get appointment details from Treeview
         appointment_data = self.appointments_table.item(selected_item[0], "values")
-        appointment_id = self.get_selected_appointment_id(selected_item)  
+        appointment_id = self.get_selected_appointment_id(selected_item[0])  
         print(f"🟢 Selected Appointment ID: {appointment_id}")  # Debugging print
         if not appointment_data:
             messagebox.showerror("Error", "Could not retrieve appointment data.")

@@ -87,9 +87,9 @@ class AlertsPage:
         # Set column widths as percentages of the total width
         self.alerts_list.column("Name", width=80)
         self.alerts_list.column("Status", width=65)
-        self.alerts_list.column("Deadline", width=20)
-        self.alerts_list.column("Phone Number", width=25)
-        self.alerts_list.column("Notes", width=350)
+        self.alerts_list.column("Deadline", width=15)
+        self.alerts_list.column("Phone Number", width=30)
+        self.alerts_list.column("Notes", width=320)
 
         # Bind keybind events to edit/delete alert(s)
         self.alerts_list.bind("<Double-1>", self.edit_alert)
@@ -102,6 +102,11 @@ class AlertsPage:
     def update_client_id(self, client_id):
         """Update the client ID when a client is selected."""
         self.client_id = client_id
+        self.restore_placeholder()
+
+
+    def restore_placeholder(self, event=None):
+        """Restore the placeholder text in the entry fields."""
         self.deadline_entry.delete(0, "end")
         self.deadline_entry.configure(placeholder_text="MM/DD/YYYY")
         self.notes_entry.delete(0, "end")
@@ -138,10 +143,7 @@ class AlertsPage:
             print(f"Error loading alerts from database: {e}")
             messagebox.showerror("Database Error", "Failed to load alerts from database.")
 
-        self.deadline_entry.delete(0, "end")
-        self.deadline_entry.configure(placeholder_text="MM/DD/YYYY")
-        self.notes_entry.delete(0, "end")
-        self.notes_entry.configure(placeholder_text="Send progress pictures, call client, etc.")
+        self.restore_placeholder()
 
 
     def edit_alert(self, event=None):
@@ -174,9 +176,11 @@ class AlertsPage:
 
         # Deadline
         ctk.CTkLabel(frame, text="Deadline", anchor="w").pack(anchor="w", padx=5, pady=(10, 2))
-        self.deadline_entry = ctk.CTkEntry(frame, placeholder_text="MM/DD/YYYY")
-        self.deadline_entry.insert(0, deadline)
-        self.deadline_entry.pack(fill="x", padx=5)
+        self.popup_deadline_entry = ctk.CTkEntry(frame, placeholder_text="MM/DD/YYYY")
+        self.popup_deadline_entry.insert(0, deadline)
+        self.popup_deadline_entry.pack(fill="x", padx=5)
+        self.popup_deadline_entry.bind("<FocusOut>", lambda e: self.format_date_popup())
+        self.popup_deadline_entry.bind("<Return>", lambda e: self.format_date_popup())
 
         # Notes Label
         ctk.CTkLabel(frame, text="Notes", anchor="w").pack(anchor="w", padx=5, pady=(10, 2))
@@ -204,7 +208,8 @@ class AlertsPage:
 
 
     def update_alert(self, alert_id):
-        new_deadline = self.deadline_entry.get().strip()
+        self.format_date_popup()
+        new_deadline = self.popup_deadline_entry.get().strip()
         new_notes = self.notes_textbox.get("1.0", "end").strip()
 
         if not new_deadline:
@@ -287,23 +292,111 @@ class AlertsPage:
             return
 
         client_name, client_phone = self.get_client_details(client_id)
-        if not all([client_name, client_phone]):
-            messagebox.showerror("Error", "Could not fetch client details.")
+
+        missing_fields = []
+        if not client_name:
+            missing_fields.append("- Name")
+        if not client_phone:
+            missing_fields.append("- Phone Number")
+
+        if missing_fields:
+            messagebox.showerror("Error", f"Client profile is missing:\n\n" + "\n".join(missing_fields))
             return
 
         deadline = self.deadline_entry.get()
         notes = self.notes_entry.get()
+
+        self.restore_placeholder()
+
         try:
             # Validate the deadline format
             datetime.strptime(deadline, "%m/%d/%Y")  # US format
             status = self.calculate_status(deadline)
-            self.alerts_list.insert("", "end", values=(client_name, status, deadline, client_phone, notes))
-            self.save_alert_to_database(client_id, deadline, notes)
-            self.sort_treeview()
+            alert_id = self.save_alert_to_database(client_id, deadline, notes)
+            if alert_id:
+                self.alerts_list.insert(
+                    "", "end", iid=str(alert_id),
+                    values=(client_name, status, deadline, client_phone, notes)
+                )
+                self.sort_treeview()
+                messagebox.showinfo("Success", "Alert saved to database successfully.")
 
         except ValueError:
             messagebox.showerror("Error", "Invalid date format. Please use MM/DD/YYYY.")
-        
+    
+
+    def create_proxy_alert(self, client_id):
+        """Open popup to create a new alert for the selected client (from another tab)."""
+        if client_id is None:
+            messagebox.showwarning("Warning", "No client is selected.")
+            return
+
+        self.alert_window = ctk.CTkToplevel()
+        self.alert_window.title("Set Alert")
+        self.alert_window.geometry("400x280")
+        self.alert_window.transient(self.main_app)
+        self.alert_window.grab_set()
+        self.alert_window.focus_force()
+
+        frame = ctk.CTkFrame(self.alert_window)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Deadline
+        ctk.CTkLabel(frame, text="Deadline", anchor="w").pack(anchor="w", padx=5, pady=(10, 2))
+        self.popup_deadline_entry = ctk.CTkEntry(frame, placeholder_text="MM/DD/YYYY")
+        self.popup_deadline_entry.pack(fill="x", padx=5)
+        self.popup_deadline_entry.bind("<FocusOut>", lambda e: self.format_date_popup())
+        self.popup_deadline_entry.bind("<Return>", lambda e: self.format_date_popup())
+
+        # Notes Label
+        ctk.CTkLabel(frame, text="Notes", anchor="w").pack(anchor="w", padx=5, pady=(10, 2))
+
+        # Outer frame acting as the border
+        border_frame = ctk.CTkFrame(frame, fg_color="#563A9C", corner_radius=8)
+        border_frame.pack(fill="x", padx=5, pady=(0, 10))
+
+        # Notes frame
+        notes_frame = ctk.CTkFrame(border_frame, fg_color="#dbdbdb")
+        notes_frame.configure(height=100)
+        notes_frame.pack(fill="x", padx=1, pady=1)
+        notes_frame.pack_propagate(False)
+
+        # Notes textbox
+        self.notes_textbox = ctk.CTkTextbox(notes_frame, wrap="word", fg_color="#ebebeb")
+        self.notes_textbox.pack(fill="both", expand=True)
+
+        # Save Button
+        ctk.CTkButton(
+            frame, text="Save",
+            command=lambda: self.save_proxy_alert(client_id)
+        ).pack(pady=5)
+
+
+    def save_proxy_alert(self, client_id):
+        self.format_date_popup()
+        deadline = self.popup_deadline_entry.get().strip()
+        notes = self.notes_textbox.get("1.0", "end").strip()
+
+        if not deadline:
+            messagebox.showwarning("Missing Field", "Please enter a deadline.")
+            return
+
+        # Try to save to DB and get alert_id
+        alert_id = self.save_alert_to_database(client_id, deadline, notes)
+        if alert_id:
+            # Pull client name/phone for the treeview
+            client_name, client_phone = self.get_client_details(client_id)
+            status = self.calculate_status(deadline)
+
+            # Insert with correct iid so it can be edited right after
+            self.alerts_list.insert(
+                "", "end", iid=str(alert_id),
+                values=(client_name, status, deadline, client_phone, notes)
+            )
+
+            self.sort_treeview()
+            self.alert_window.destroy()
+
 
     def sort_treeview(self):
         items = [(self.alerts_list.item(iid, 'values'), iid) for iid in self.alerts_list.get_children()]
@@ -365,11 +458,13 @@ class AlertsPage:
         try:
             self.cursor.execute(query, (client_id, deadline, notes))
             self.conn.commit()
-            messagebox.showinfo("Success", "Alert saved to database successfully.")
+            alert_id = self.cursor.lastrowid  # Get the ID of the inserted row
+            return alert_id
+        
         except Exception as e:
             print(f"Error saving to database: {e}")
             messagebox.showerror("Database Error", "Failed to save alert.")
-
+            return None
 
     def update_alert_colors(self):
         for item in self.alerts_list.get_children():
@@ -435,4 +530,45 @@ class AlertsPage:
 
         self.deadline_entry.delete(0, "end")
         self.deadline_entry.insert(0, formatted_date)
+        print(f"✅ Formatted Date: {formatted_date}")
+
+
+    def format_date_popup(self):
+        """Format the date entry to MM/DD/YYYY upon hitting Enter or leaving the field."""
+        raw_date = self.popup_deadline_entry.get().strip()
+
+        if not raw_date:
+            self.popup_deadline_entry.delete(0, "end")
+            return
+
+        cleaned_date = re.sub(r"[^0-9/.-]", "", raw_date)
+
+        if re.fullmatch(r"\d{2}/\d{2}/\d{4}", cleaned_date):
+            return  # Already valid
+
+        formatted_date = None
+
+        try:
+            if len(re.sub(r"\D", "", cleaned_date)) == 8:
+                formatted_date = f"{cleaned_date[:2]}/{cleaned_date[2:4]}/{cleaned_date[4:]}"
+            else:
+                for fmt in ["%m-%d-%Y", "%m.%d.%Y", "%m/%d/%Y"]:
+                    try:
+                        parsed_date = datetime.strptime(cleaned_date, fmt)
+                        formatted_date = parsed_date.strftime("%m/%d/%Y")
+                        break
+                    except ValueError:
+                        formatted_date = None
+
+            if not formatted_date:
+                raise ValueError("Invalid date format")
+
+        except ValueError:
+            print("⚠ Invalid date entered. Resetting to placeholder.")
+            self.popup_deadline_entry.delete(0, "end")
+            self.popup_deadline_entry.insert(0, raw_date)
+            return
+
+        self.popup_deadline_entry.delete(0, "end")
+        self.popup_deadline_entry.insert(0, formatted_date)
         print(f"✅ Formatted Date: {formatted_date}")

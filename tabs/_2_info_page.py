@@ -205,14 +205,18 @@ class InfoPage:
 
         # Mimic Tab behavior for all entry fields
         self.full_name_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.gender_entry.             bind("<Return>", lambda event: self.focus_next_widget(event))
         self.birthdate_entry.          bind("<Return>", lambda event: (self.format_birthdate(), self.focus_next_widget(event)))
         self.birthdate_entry.          bind("<FocusOut>", lambda event: self.format_birthdate())
         self.address1_entry.           bind("<Return>", lambda event: self.focus_next_widget(event))
         self.address2_entry.           bind("<Return>", lambda event: self.focus_next_widget(event))
         self.city_entry.               bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.state_entry.              bind("<Return>", lambda event: self.focus_next_widget(event))
         self.zip_entry.                bind("<Return>", lambda event: self.focus_next_widget(event))
         self.phone_entry.              bind("<Return>", self.handle_phone_input)
+        self.phone_entry.              bind("<FocusOut>", self.handle_phone_input)
         self.email_entry.              bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.referred_by_combobox.     bind("<Return>", lambda event: self.focus_next_widget(event))
         self.allergies_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
         self.health_conditions_entry.  bind("<Return>", lambda event: self.focus_next_widget(event))
         self.medications_entry.        bind("<Return>", lambda event: self.focus_next_widget(event))
@@ -609,6 +613,7 @@ class InfoPage:
                 # Select and bring the client into view
                 self.main_app.tabs["Clients"].client_list.selection_set(str(self.client_id))
                 self.main_app.tabs["Clients"].client_list.see(str(self.client_id))  # Jump to selected client
+                self.main_app.tabs["Clients"].restore_placeholder()
 
             # Step 6: Finalize Temporary Profile Picture
             temp_profile_path = "images/clients/temp_profile.png"
@@ -687,10 +692,12 @@ class InfoPage:
         self.birthdate_entry.insert(0, formatted_date)
         print(f"✅ Formatted Birthdate: {formatted_date}")
     
+
     def handle_phone_input(self, event=None):
         """Format phone number and move to the next widget."""
         self.format_phone_number()  # Format number once
         self.focus_next_widget(event)  # Move focus to next field
+
 
     def format_phone_number(self, event=None):
         """Format phone number as (XXX) XXX-XXXX, preserving country code if entered with '+'. 
@@ -738,11 +745,13 @@ class InfoPage:
 
         print(f"📞 Formatted Phone Number: {self.phone_entry.get()}")
 
+
     def clear_referred_placeholder(self, event=None):
         """Clear the placeholder text when the user clicks inside the combobox."""
         if self.referred_by_combobox.get() == "Referred by...":
             self.referred_by_combobox.set("")  # Clear placeholder text
             self.referred_by_combobox.configure(text_color="#000000")  # Change to normal text color
+
 
     def restore_referred_placeholder(self, event=None):
         """Restore the 'Referred by...' placeholder if no valid selection is made."""
@@ -752,6 +761,7 @@ class InfoPage:
             self.referred_by_combobox.set("Referred by...")  # Restore placeholder text
             self.referred_by_combobox.configure(text_color="#797e82")  # Restore gray color
 
+
     def update_combobox_color(self, widget):
         """Ensure the selected combobox value appears in white text."""
         selected_value = widget.get().strip()
@@ -759,6 +769,7 @@ class InfoPage:
         # Ensure white text when an actual selection is made
         if selected_value and selected_value not in ["Select Gender", "Select State", "Referred by..."]:
             widget.configure(text_color="#000000")  # Make text black
+
 
     def handle_combobox_change(self, widget):
         """Update text color and enable save button when a combobox value is selected."""

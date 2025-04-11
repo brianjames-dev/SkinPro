@@ -221,6 +221,10 @@ class PrescriptionsPage:
         if children:
             self.prescription_list.selection_set(children[0])
             self.on_prescription_select(None)
+        
+        # Clear previous image
+        for widget in self.preview_inner_frame.winfo_children():
+            widget.destroy()
 
         # Ensure the alternate tag is properly styled
         self.prescription_list.tag_configure('alternate', background='#b3b3b3')  # You should set this in your style setup
@@ -230,6 +234,10 @@ class PrescriptionsPage:
         """Clear the prescription list and internal state."""
         self.prescription_list.delete(*self.prescription_list.get_children())
         self.prescription_paths.clear()
+
+        # Clear previous image
+        for widget in self.preview_inner_frame.winfo_children():
+            widget.destroy()
 
 
     def add_prescription_to_list(self, date, template, path):
@@ -448,7 +456,8 @@ class PrescriptionsPage:
 
 
     def set_alert(self):
-        print("🔔 Set reminder alert")
+        current_client_id = self.main_app.profile_card.client_id  # or however you store it
+        self.main_app.tabs["Alerts"].create_proxy_alert(current_client_id)
   
 
     def render_pdf_to_preview(self, pdf_path):
