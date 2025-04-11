@@ -292,4 +292,10 @@ class ProfileCard:
         circular_image.putalpha(mask) 
 
         return circular_image
-    
+
+
+    def set_default_profile_picture(self):
+        """Reset to default profile picture."""
+        self.profile_path = "icons/account_circle.png"
+        self.profile_image = ctk.CTkImage(Image.open(self.profile_path), size=(w, h))
+        self.profile_button.configure(image=self.profile_image)
