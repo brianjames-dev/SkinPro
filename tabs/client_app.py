@@ -137,23 +137,24 @@ class ClientApp(ctk.CTk):
         self.tab_view.pack(fill="both", expand=True, padx=(10, 10), pady=(0, 10))
 
         # Add Tabs
+        self.tab_view.add("Alerts")
         self.tab_view.add("Clients")
         self.tab_view.add("Info")
         self.tab_view.add("Appointments")
         self.tab_view.add("Photos")
         self.tab_view.add("Prescriptions")
-        self.tab_view.add("Alerts")
+
 
         # Tabs dictionary to store references
         self.tabs = {}
 
         # Add Content to Each Tab
+        self.init_alerts_tab()
         self.init_clients_tab()
         self.init_info_tab()
         self.init_appointments_tab()
         self.init_photos_tab()
         self.init_prescriptions_tab()
-        self.init_alerts_tab()
 
 
     def init_clients_tab(self):
