@@ -1,4 +1,5 @@
 __pychache__/
+*.pyc
 .vscode/
 .DS_Store
 image_cache.json
