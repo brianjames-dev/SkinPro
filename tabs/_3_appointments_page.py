@@ -3,6 +3,8 @@ from tkinter import ttk, filedialog, messagebox
 import tkinter as tk
 from class_elements.profile_card import ProfileCard
 from class_elements.treeview_styling_light import style_treeview_light
+from class_elements.photo_upload_popup import PhotoUploadPopup
+from upload_server.qr_helper import generate_upload_qr
 from datetime import datetime
 from PIL import Image
 import re
@@ -981,61 +983,14 @@ class AppointmentsPage:
         client_name = result[0]
         print(f"🟢 Retrieved Client: {client_name} (ID: {self.client_id}) | Appointment Date: {appt_date} (ID: {appointment_id})")  # Debugging print
 
-        # Sanitize client name to avoid invalid folder names
-        safe_client_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in client_name)
-        safe_client_name = safe_client_name.replace(" ", "_")
-        # Format appointment date as YYYY-MM-DD for better sorting
-        appt_date_formatted = appt_date.replace("/", "-")
-
-        # Create directory path
-        client_folder = os.path.join("images", "before_after", f"{safe_client_name}_id_{self.client_id}", appt_date_formatted)
-        os.makedirs(client_folder, exist_ok=True)
-
-        # Open file dialog for multiple image selection
-        file_paths = filedialog.askopenfilenames(
-            title="Select Photos",
-            filetypes=[("Image Files", "*.jpg *.png *.jpeg *.bmp *.gif")]
+        # Launch popup and pass necessary info
+        popup = PhotoUploadPopup(
+            parent=self.main_app,
+            client_id=self.client_id,
+            appointment_id=appointment_id,
+            appointment_date=appt_date,
+            client_name=client_name,
+            appt_type=type,
+            main_app=self.main_app
         )
-        
-        # Debugging/edge case prevention
-        if not file_paths:
-            print("⚠ No photos selected.")
-            return  # User canceled selection
-        print(f"🟢 {len(file_paths)} photos selected.")  # Debugging print
-
-        # Copy files to the destination folder and store paths in DB
-        for file_path in file_paths:
-            filename = os.path.basename(file_path)
-            new_path = os.path.join(client_folder, filename)
-
-            # Ensure filename is unique
-            counter = 1
-            while os.path.exists(new_path):
-                name, ext = os.path.splitext(filename)
-                new_path = os.path.join(client_folder, f"{name}_{counter}{ext}")
-                counter += 1
-
-            # Copy the file
-            shutil.copy(file_path, new_path)
-            print(f"✅ Copied {file_path} to {new_path}")  # Debugging print
-
-            # Insert record into database
-            self.cursor.execute("INSERT INTO photos (client_id, appointment_id, appt_date, file_path, type) VALUES (?, ?, ?, ?, ?)",
-                                (self.client_id, appointment_id, appt_date, new_path, type))
-
-        # Update the `photos_taken` column in the appointments table
-        self.cursor.execute("UPDATE appointments SET photos_taken = 'Yes' WHERE id = ?", (appointment_id,))
-        self.conn.commit()
-
-        messagebox.showinfo("Success", f"{len(file_paths)} photo(s) uploaded successfully.")
-        print(f"✅ Inserted Photo - Client: {self.client_id}, Appt: {appointment_id}, Date: {appt_date}, Path: {new_path}, Type: {type}")
-
-        # Refresh photos list on the Photos Page
-        if "Photos" in self.main_app.tabs:  # Access PhotosPage from `self.tabs`
-            self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
-
-        # 🔄 Refresh the appointments table to show the updated "Yes" in the photos_taken column
-        self.load_client_appointments(self.client_id)
-
-        print(f"🟢 Photos successfully linked to Client ID: {self.client_id} | Appointment ID: {appointment_id}")
-        print(f"🔄 Appointments table refreshed.")
+        popup.grab_set()

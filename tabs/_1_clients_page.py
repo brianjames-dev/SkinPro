@@ -411,6 +411,11 @@ class ClientsPage:
             self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
             client_name_result = self.cursor.fetchone()
 
+            # Clear preview image if it's currently loaded
+            if hasattr(self.main_app.tabs["Photos"], "preview_label"):
+                self.main_app.tabs["Photos"].preview_label.configure(image=None)
+                self.main_app.tabs["Photos"].preview_label.image = None
+
             if result:
                 client_name = client_name_result[0].replace(" ", "_")  # convert to safe folder name
                 self.delete_client_assets(client_name, client_id)
