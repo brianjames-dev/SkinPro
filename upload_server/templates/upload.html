@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Photos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f2f2f2;
+            margin: 0;
+            padding: 20px 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 25px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+            width: 92%;
+            max-width: 420px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 32px;  /* Nearly double the size */
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .subheading {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        input[type="file"] {
+            display: block;
+            margin: 0 auto;
+            font-size: 16px;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            margin-top: 20px;
+            background-color: #6a42c2;
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            width: 100%;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        button:hover {
+            background-color: #563a9c;
+        }
+
+        @media (max-height: 600px) {
+            body {
+                align-items: flex-start;
+                padding-top: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload Photos</h1>
+        <div class="subheading">{{ full_name }} | {{ appointment_date }} | {{ appt_type }}</div>
+        <form action="" method="post" enctype="multipart/form-data">
+            <input type="file" name="photos" multiple accept="image/*,.heic,.HEIC">
+            <button type="submit">Upload</button>
+        </form>
+    </div>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Complete</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f2f2f2;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            padding-top: 30px;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 25px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+            width: 92%;
+            max-width: 420px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 26px;
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+
+        .info {
+            font-size: 16px;
+            color: #444;
+            margin-bottom: 20px;
+        }
+
+        .button {
+            background-color: #6a42c2;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .button:hover {
+            background-color: #563a9c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✅ Upload Complete!</h1>
+        <div class="info">
+            {{ uploaded }} file(s) successfully uploaded.<br><br>
+            <strong>{{ full_name }}</strong><br>
+            {{ appointment_date }} | {{ appt_type }}
+        </div>
+        <button class="button" onclick="window.close()">Close Window</button>
+    </div>
+</body>
+</html>
