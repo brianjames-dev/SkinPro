@@ -25,8 +25,8 @@ def generate_upload_qr(client_id: int, appointment_id: int, output_dir: str = ".
     # Create output dir if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
-    # Unique filename (e.g., qr_12_34_20250412T1618.png)
-    timestamp = datetime.now().strftime("%Y%m%dT%H%M")
+    # Create generic temp filename for QR code rewriting
+    # This will be overwritten each time a new QR code is generated
     filename = f"temp_qr_code.png"
     filepath = os.path.join(output_dir, filename)
 
