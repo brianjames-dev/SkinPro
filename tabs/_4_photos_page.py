@@ -1,6 +1,5 @@
 import customtkinter as ctk
-from tkinter import ttk
-from tkinter import filedialog
+from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 from customtkinter import CTkImage
 from class_elements.treeview_styling_light import style_treeview_light
@@ -18,6 +17,7 @@ class PhotosPage:
 
         self.before_image_index = -1  # Track navigation index
         self.after_image_index = -1
+        self.last_clicked_index = None  # Used for shift+click range selection
 
         self.photo_paths = []  # Stores tuples of (photo_id, file_path) for navigation
         self.photo_file_paths = {}
@@ -66,6 +66,9 @@ class PhotosPage:
         self.photo_list.grid(row=0, column=0, sticky="nsew")
         self.photo_list.bind("<ButtonRelease-1>", self.set_before_image)         # Set Before Image
         self.photo_list.bind("<Control-ButtonRelease-1>", self.set_after_image)  # Set After Image
+        self.photo_list.bind("<Shift-ButtonRelease-1>", self.handle_shift_click)
+        self.photo_list.bind("<Delete>", self.delete_photo)
+        self.photo_list.bind("<BackSpace>", self.delete_photo)
         self.photo_list.tag_configure("before_highlight", background="#563A9C", foreground="#ebebeb")  # Before highlight color
         self.photo_list.tag_configure("after_highlight", background="#251254", foreground="#ebebeb")   # After highlight color
 
@@ -144,25 +147,28 @@ class PhotosPage:
 
 
     def set_before_image(self, event):
-        """Set the selected image as the Before Image and ensure After highlight isn't forced."""
         selected_item = self.photo_list.selection()
         if not selected_item:
             print("⚠ Ignoring empty click in Treeview")
             return
 
-        photo_id = int(selected_item[0])  # Convert ID to integer
+        clicked_item = self.photo_list.identify_row(event.y)
+        if clicked_item:
+            all_items = self.photo_list.get_children()
+            self.last_clicked_index = all_items.index(clicked_item)
 
-        # Retrieve file path from our dictionary
+        photo_id = int(selected_item[0])
         file_path = self.photo_file_paths.get(photo_id)
 
         if file_path and os.path.exists(file_path):
-            self.before_image_index = self.photo_paths.index(file_path)  # Track index
+            self.before_image_index = self.photo_paths.index(file_path)
             self.load_image(file_path, self.before_label, "before")
-
-            # Reset save button state for Before
             self.before_save_button.configure(state="disabled", text="Save", fg_color="#696969")
 
-            # Only update highlights if an After image was actually set (Prevent green auto-highlighting)
+            # Force selection to this photo to ensure deletion works
+            self.photo_list.selection_set(str(photo_id))
+            self.photo_list.focus(str(photo_id))
+
             if self.after_image_index != -1:
                 self.highlight_images_in_treeview()
 
@@ -172,27 +178,29 @@ class PhotosPage:
 
 
     def set_after_image(self, event):
-        """Set the selected image as the After Image with no restrictions."""
         selected_item = self.photo_list.selection()
         if not selected_item:
             print("⚠ Ignoring empty click in Treeview")
             return
 
-        photo_id = int(selected_item[0])  # Convert ID to integer
-
-        # Retrieve file path from our dictionary
+        photo_id = int(selected_item[0])
         file_path = self.photo_file_paths.get(photo_id)
 
         if file_path and os.path.exists(file_path):
-            self.after_image_index = self.photo_paths.index(file_path)  # Always allow selection
+            self.after_image_index = self.photo_paths.index(file_path)
             self.load_image(file_path, self.after_label, "after")
-
-            # Reset save button state for After
             self.after_save_button.configure(state="disabled", text="Save", fg_color="#696969")
-
-            # Apply highlighting in treeview
             self.highlight_images_in_treeview()
             print(f"🟢 Selected After Image: {file_path} (Index: {self.after_image_index})")
+
+            # Always reselect the before image after setting after image
+            if self.before_image_index != -1 and self.before_image_index < len(self.photo_paths):
+                before_file_path = self.photo_paths[self.before_image_index]
+                before_photo_id = next((pid for pid, path in self.photo_file_paths.items() if path == before_file_path), None)
+                if before_photo_id is not None:
+                    self.photo_list.selection_set(str(before_photo_id))
+                    self.photo_list.focus(str(before_photo_id))
+
         else:
             print(f"⚠ Error: {file_path} not found in photo_paths list or does not exist.")
 
@@ -422,6 +430,12 @@ class PhotosPage:
             self.photo_file_paths[photo_id] = file_path  
             self.photo_paths.append(file_path)
 
+            # Insert row into Treeview
+            self.photo_list.insert(
+                "", "end", iid=str(photo_id),  # Tkinter requires `iid` as a string
+                values=(appt_date, type)
+            )
+
             # Retrieve cached thumbnail first
             thumbnail = self.image_cache.get_thumbnail(file_path)
 
@@ -429,17 +443,9 @@ class PhotosPage:
                 # Add task to worker thread to generate the thumbnail asynchronously
                 self.image_loader.add_task(file_path, photo_id)
             else:
-                # Use cached thumbnail immediately
-                self.main_app.after(0, lambda: self.update_ui_with_thumbnail(photo_id, thumbnail))
-
-            # Store the valid thumbnail reference
-            self.thumbnails[str(photo_id)] = thumbnail if thumbnail else None  
-
-            # Insert row into Treeview
-            self.photo_list.insert(
-                "", "end", iid=str(photo_id),  # Tkinter requires `iid` as a string
-                values=(appt_date, type)
-            )
+                # Store the reference
+                self.thumbnails[str(photo_id)] = thumbnail
+                self.photo_list.item(str(photo_id), image=thumbnail)
 
         print(f"🔍 Debug: Thumbnail cache contains {len(self.image_cache.thumbnail_cache)} entries")
 
@@ -453,8 +459,77 @@ class PhotosPage:
         print("🔄 Cleared previous photo data.")
 
 
+    def delete_photo(self, event=None):
+        selected = self.photo_list.selection()
+        if not selected:
+            return
+
+        confirm = messagebox.askyesno("Confirm Deletion", "Are you sure you want to delete the selected photo(s)?")
+        if not confirm:
+            return
+
+        for iid in selected:
+            # Get the photo ID (iid is already a string of the photo_id)
+            photo_id = int(iid)
+
+            # Retrieve file path from our internal dictionary
+            file_path = self.photo_file_paths.get(photo_id)
+
+            try:
+                # Delete file from disk
+                if file_path and os.path.exists(file_path):
+                    os.remove(file_path)
+
+                # Delete from DB
+                self.cursor.execute("DELETE FROM photos WHERE id = ?", (photo_id,))
+                self.conn.commit()
+
+                print(f"🗑️ Deleted: {file_path}")
+
+                # Remove from Treeview
+                self.photo_list.delete(iid)
+
+                # Clean up internal references
+                if file_path in self.photo_paths:
+                    self.photo_paths.remove(file_path)
+                self.photo_file_paths.pop(photo_id, None)
+                self.thumbnails.pop(str(photo_id), None)
+
+            except Exception as e:
+                print(f"❌ Failed to delete {file_path}: {e}")
+
+        # Optional: reset image previews if deleted image was being shown
+        self.before_label.configure(text="<No Image Selected>", image="")
+        self.after_label.configure(text="<No Image Selected>", image="")
+
+
+    def handle_shift_click(self, event):
+        # Get the row that was clicked
+        clicked_item = self.photo_list.identify_row(event.y)
+        if not clicked_item:
+            return
+
+        # Get list of all photo_ids (iids) in the Treeview
+        all_items = self.photo_list.get_children()
+        clicked_index = all_items.index(clicked_item)
+
+        if self.last_clicked_index is None:
+            self.last_clicked_index = clicked_index
+            self.photo_list.selection_set(clicked_item)
+        else:
+            start = min(self.last_clicked_index, clicked_index)
+            end = max(self.last_clicked_index, clicked_index)
+            items_to_select = all_items[start:end + 1]
+            self.photo_list.selection_set(items_to_select)
+
+        # Restore focus to the most recent item
+        self.photo_list.focus(clicked_item)
+
+
     def highlight_images_in_treeview(self):
         """Highlight Before and After images in the Treeview with different colors."""
+        current_selection = self.photo_list.selection()
+
         # Remove previous highlights
         for item in self.photo_list.get_children():
             self.photo_list.item(item, tags=())  # Clears all tags
@@ -466,22 +541,28 @@ class PhotosPage:
             if before_photo_id is not None:
                 self.photo_list.item(str(before_photo_id), tags=("before_highlight",))
 
-        # Apply the After highlight **ONLY IF** a valid After image was chosen
+        # Apply the After highlight
         if self.after_image_index != -1 and self.after_image_index < len(self.photo_paths):
             after_file_path = self.photo_paths[self.after_image_index]
             after_photo_id = next((pid for pid, path in self.photo_file_paths.items() if path == after_file_path), None)
             if after_photo_id is not None:
                 self.photo_list.item(str(after_photo_id), tags=("after_highlight",))
 
-        # Fully clear selection and focus to avoid default style conflict
-        self.photo_list.selection_set(())
-        self.photo_list.focus("")
+        # Don't clear the user's manual selection anymore
+        self.photo_list.selection_set(current_selection)
+        if current_selection:
+            self.photo_list.focus(current_selection[0])
 
 
     def update_ui_with_thumbnail(self, photo_id, thumbnail):
         """Update the Treeview with the new thumbnail and store the reference to prevent GC."""
         if self.photo_list.exists(str(photo_id)):
             self.thumbnails[str(photo_id)] = thumbnail  # Store the reference
-            self.main_app.after(0, lambda: self.photo_list.item(str(photo_id), image=thumbnail))
+            # Wrap in a function to bind thumbnail by default
+            def set_item_image():
+                self.photo_list.item(str(photo_id), image=self.thumbnails[str(photo_id)])
+
+            self.main_app.after(0, set_item_image)
+
         else:
             print(f"⚠️ Skipping UI update: Treeview item {photo_id} not found.")
