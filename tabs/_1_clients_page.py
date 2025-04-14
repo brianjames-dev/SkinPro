@@ -98,9 +98,9 @@ class ClientsPage:
 
         # Key "bind" configurations for quick functionality
         self.name_entry. bind("<KeyRelease>", lambda event: (self.search_client(), "break"))    # Prevent default behavior
-        self.client_list.bind("<Return>", self.jump_to_info_tab)                                # Pressing Enter in Treeview
+        self.client_list.bind("<Return>", self.jump_to_appt_tab)                                # Pressing Enter in Treeview
         self.client_list.bind("<ButtonRelease-1>", self.on_client_select)                       # Update all client info w/ single click
-        self.client_list.bind("<Double-1>", self.jump_to_info_tab)                              # Double left-click
+        self.client_list.bind("<Double-1>", self.jump_to_appt_tab)                              # Double left-click
         self.client_list.bind_all("<Control-Return>", lambda event: self.add_client_button())   # Bind globally for Ctrl+Enter
         self.client_list.bind("<Delete>", self.confirm_delete_client)                           # Deletes client
         self.client_list.bind("<BackSpace>", self.confirm_delete_client)                        # Deletes client
@@ -183,7 +183,7 @@ class ClientsPage:
             self.no_results_label.lower()  # Hide the "No Results" label
 
 
-    def jump_to_info_tab(self, event):
+    def jump_to_appt_tab(self, event):
         """Switch to the Info tab when a client (row) is double-clicked in the TreeView."""
     
         # Check where the click happened
@@ -199,7 +199,7 @@ class ClientsPage:
             return  # Ignore if no valid row is selected
 
         print(f"🔄 Switching to Info Tab for Client ID: {selected_item[0]}")
-        self.main_app.switch_to_tab("Info")
+        self.main_app.switch_to_tab("Appointments")
 
 
     def on_client_select(self, event):
