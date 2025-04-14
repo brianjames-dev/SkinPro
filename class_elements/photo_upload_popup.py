@@ -13,7 +13,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
     def __init__(self, parent, client_id, appointment_id, appointment_date, client_name, appt_type, main_app):
         super().__init__(parent)
         self.title("Upload Photos")
-        self.geometry("300x330")
+        self.geometry("300x360")
         self.resizable(False, False)
 
         self.client_id = client_id
@@ -34,37 +34,28 @@ class PhotoUploadPopup(ctk.CTkToplevel):
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Grid setup for layout control
-        main_frame.rowconfigure(0, weight=0)   # Title
-        main_frame.rowconfigure(1, weight=1)   # QR + status
-        main_frame.rowconfigure(2, weight=0)   # Button
+        main_frame.rowconfigure(0, weight=0)
+        main_frame.rowconfigure(1, weight=1)
+        main_frame.rowconfigure(2, weight=0)
         main_frame.columnconfigure(0, weight=1)
 
-        # === Title Label ===
-        ctk.CTkLabel(
-            main_frame,
-            text=f"Add Photos for {client_name}",
-            font=("Helvetica", 16, "bold")
-        ).grid(row=0, column=0, pady=(10, 5), sticky="n")
+        ctk.CTkLabel(main_frame, text=f"Add Photos for\n{client_name}", font=("Helvetica", 16, "bold")).grid(row=0, column=0, pady=(10, 5), sticky="n")
 
-        # === QR and status (in sub-frame to center)
+        # === QR + status in sub-frame
         center_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         center_frame.grid(row=1, column=0, sticky="nsew")
         center_frame.columnconfigure(0, weight=1)
 
         self.qr_label = ctk.CTkLabel(center_frame, text="")
-        self.qr_label.grid(row=0, column=0, pady=(10, 10), sticky="n")
+        self.qr_label.grid(row=0, column=0, pady=(5, 5), sticky="n")
 
-        self.status_label = ctk.CTkLabel(center_frame, text="", font=("Helvetica", 12))
-        self.status_label.grid(row=1, column=0, pady=(0, 10), sticky="n")
+        self.status_label = ctk.CTkLabel(center_frame, text="", font=("Helvetica", 14))
+        self.status_label.grid(row=1, column=0, pady=(0, 5), sticky="n")
 
-        # === Upload Button pinned to bottom
-        ctk.CTkButton(
-            main_frame,
-            text="Upload Local Photos",
-            command=self.upload_local_photos
-        ).grid(row=2, column=0, pady=(10, 10), sticky="n")
+        # Upload Local Button
+        ctk.CTkButton(main_frame, text="Upload Local Photos", command=self.upload_local_photos).grid(row=2, column=0, pady=(10, 10), sticky="n")
 
-        # Start polling for uploaded photos
+        # Setup and start
         self.generate_qr()
         self.after(3000, self.check_for_uploaded_photos)
 
@@ -132,7 +123,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
     def check_for_uploaded_photos(self):
         try:
-            conn = sqlite3.connect("client_database.db")  # Adjust if needed
+            conn = sqlite3.connect("client_database.db")
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT COUNT(*) FROM photos
@@ -141,26 +132,35 @@ class PhotoUploadPopup(ctk.CTkToplevel):
             count = cursor.fetchone()[0]
             conn.close()
 
-            # First run: store initial count
             if not hasattr(self, "initial_photo_count"):
                 self.initial_photo_count = count
+                self.last_seen_count = count
+                self.stable_count_checks = 0
                 self.after(2000, self.check_for_uploaded_photos)
                 return
 
-            # If new photos were added
             if count > self.initial_photo_count:
-                print(f"📸 Detected {count - self.initial_photo_count} new photos")
+                if not getattr(self, "_uploading_started", False):
+                    self._uploading_started = True
+                    self.status_label.configure(text="Uploading... Please wait ⏳")
 
-                # Prevent future calls
-                self._upload_confirmed = True
+                if count == self.last_seen_count:
+                    self.stable_count_checks += 1
+                else:
+                    self.stable_count_checks = 1
 
-                # Delay briefly to allow all photos to finish uploading
-                self.after(1500, lambda: self.finish_success_popup(count - self.initial_photo_count))
-                return
+                self.last_seen_count = count
 
-            # No new photos yet — poll again
-            if not getattr(self, "_upload_confirmed", False):
-                self.after(2000, self.check_for_uploaded_photos)
+                if self.stable_count_checks >= 2:
+                    print(f"📸 Final photo count stabilized at {count}")
+                    self.status_label.configure(image="")
+                    self.finish_success_popup(count - self.initial_photo_count)
+                    return
+            else:
+                self.stable_count_checks = 0
+                self.last_seen_count = count
+
+            self.after(2000, self.check_for_uploaded_photos)
 
         except Exception as e:
             print(f"❌ Error checking for uploaded photos: {e}")
@@ -168,10 +168,8 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
 
     def finish_success_popup(self, num_uploaded):
+        self.status_label.configure(text="Upload Complete!")
         messagebox.showinfo("Upload Complete", f"{num_uploaded} photo(s) uploaded successfully!")
-
-        # Refresh both views
         self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
         self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
-
-        self.destroy()  # Close the popup cleanly
+        self.destroy()
