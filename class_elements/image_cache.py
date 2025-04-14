@@ -63,7 +63,7 @@ class ImageCache:
 
     def add_thumbnail_to_cache(self, file_path, thumbnail):
         """Add a thumbnail to the cache with LRU handling."""
-        if not thumbnail or not isinstance(thumbnail, ImageTk.PhotoImage):  # ✅ Extra safeguard
+        if not thumbnail or not isinstance(thumbnail, ImageTk.PhotoImage):  # Extra safeguard
             print(f"⚠ Warning: Not caching invalid thumbnail for {file_path}")
             return  
 
