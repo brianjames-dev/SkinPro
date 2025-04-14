@@ -12,9 +12,10 @@ birthdate_placeholder           = "MM/DD/YYYY"
 address1_placeholder            = "Enter street address (e.g., 123 Main St.)"
 address2_placeholder            = "(optional)"
 city_placeholder                = "e.g., Santa Rosa"
-zip_placeholder                 = "e.g., 95404"
+zip_placeholder                 = ""
 email_placeholder               = "john.doe@example.com"
-phone_placeholder               = "e.g., 555-123-4567"
+primary_placeholder             = "e.g., 555-123-4567"
+secondary_placeholder           = "e.g., 707-555-1234"
 allergies_placeholder           = "List any known allergies (e.g., nuts, latex)"
 health_conditions_placeholder   = "List known health conditions (e.g., diabetes, asthma)"
 medications_placeholder         = "List current medications (e.g., Ibuprofen)"
@@ -40,11 +41,18 @@ class InfoPage:
         # Frame for Full Name (entry), Gender, Birthdate
         name_frame = ctk.CTkFrame(form_frame)
         name_frame.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
-        name_frame.columnconfigure(0, weight=2)  # Full Name entry box
+        name_frame.columnconfigure(0, weight=0)  # Full Name entry box
         name_frame.columnconfigure(1, weight=0)  # Gender label
         name_frame.columnconfigure(2, weight=0)  # Gender combo box
         name_frame.columnconfigure(3, weight=0)  # Birthdate label
         name_frame.columnconfigure(4, weight=1)  # Birthdate entry box
+
+        # Fram for Address 1, Address 2
+        address_frame = ctk.CTkFrame(form_frame)
+        address_frame.grid(row=1, column=1, sticky="ew", padx=5, pady=5)
+        address_frame.columnconfigure(0, weight=0)  # Address 1 entry box
+        address_frame.columnconfigure(1, weight=0)  # Address 2 label
+        address_frame.columnconfigure(2, weight=1)  # Address 2 entry box
 
         # Define tracking variables
         self.gender_var = ctk.StringVar()
@@ -56,84 +64,86 @@ class InfoPage:
 
         # Row 1: Full Name, Gender, Birthdate
         ctk.CTkLabel(form_frame, text="Full Name").grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        self.full_name_entry = ctk.CTkEntry(name_frame, placeholder_text=full_name_placeholder)
+        self.full_name_entry = ctk.CTkEntry(name_frame, placeholder_text=full_name_placeholder, width=293)
         self.full_name_entry.grid(row=0, column=0, sticky="ew")
 
         ctk.CTkLabel(name_frame, text="Gender").grid(row=0, column=1, sticky="w", padx=(20, 5))
-        self.gender_entry = ctk.CTkComboBox(name_frame, values=["Female", "Male"])
+        self.gender_entry = ctk.CTkComboBox(name_frame, values=["Female", "Male"], width=120)
         self.gender_entry.grid(row=0, column=2, sticky="ew")
         self.gender_entry.configure(variable=self.gender_var, text_color="#797e82")
         self.gender_entry.set("Select Gender")  # Assuming it should have a default value
 
-        ctk.CTkLabel(name_frame, text="Birthdate").grid(row=0, column=3, sticky="w", padx=(20, 5))
+        ctk.CTkLabel(name_frame, text="Birthdate").grid(row=0, column=3, sticky="w", padx=(20, 25))
         self.birthdate_entry = ctk.CTkEntry(name_frame, placeholder_text=birthdate_placeholder)
         self.birthdate_entry.grid(row=0, column=4, sticky="ew")
 
         # Row 2: Address 1
         ctk.CTkLabel(form_frame, text="Address 1").grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        self.address1_entry = ctk.CTkEntry(form_frame, placeholder_text=address1_placeholder)
-        self.address1_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        self.address1_entry = ctk.CTkEntry(address_frame, placeholder_text=address1_placeholder, width=479)
+        self.address1_entry.grid(row=0, column=0, sticky="ew")
 
         # Row 3: Address 2
-        ctk.CTkLabel(form_frame, text="Address 2").grid(row=2, column=0, sticky="w", padx=5, pady=5)
-        self.address2_entry = ctk.CTkEntry(form_frame, placeholder_text=address2_placeholder)
-        self.address2_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        ctk.CTkLabel(address_frame, text="Address 2").grid(row=0, column=1, sticky="w", padx=(20, 18))
+        self.address2_entry = ctk.CTkEntry(address_frame, placeholder_text=address2_placeholder)
+        self.address2_entry.grid(row=0, column=2, sticky="ew")
 
-        # Frame for City, State, Zip
+        # Frame for City, State, Zip, Referred by
         address_tri_frame = ctk.CTkFrame(form_frame)
         address_tri_frame.grid(row=3, column=1, sticky="ew", padx=5, pady=5)
-        address_tri_frame.columnconfigure(0, weight=3)  # City entry box
-        address_tri_frame.columnconfigure(1, weight=0)  # State label
-        address_tri_frame.columnconfigure(2, weight=0)  # State combo box
-        address_tri_frame.columnconfigure(3, weight=0)  # Zip label
-        address_tri_frame.columnconfigure(4, weight=1)  # Zip entry box
+        address_tri_frame.columnconfigure((0, 1, 2, 3, 4, 5), weight=0)  # We'll use explicit widths
+        address_tri_frame.columnconfigure(6, weight=1)  # Referred by entry box
 
-        # Row 4: City, State, Zip
+        # Row 4: City, State, Zip, Referred by
         ctk.CTkLabel(form_frame, text="City").grid(row=3, column=0, sticky="w", padx=5, pady=5)
-        self.city_entry = ctk.CTkEntry(address_tri_frame, placeholder_text=city_placeholder)
-        self.city_entry.grid(row=3, column=0, sticky="ew")
+        self.city_entry = ctk.CTkEntry(address_tri_frame, placeholder_text=city_placeholder, width=242)
+        self.city_entry.grid(row=3, column=0, sticky="w")
 
-        ctk.CTkLabel(address_tri_frame, text="State").grid(row=3, column=1, sticky="w", padx=(20, 5))
+        ctk.CTkLabel(address_tri_frame, text="State").grid(row=3, column=1, sticky="w", padx=(20, 29))
         self.state_entry = ctk.CTkComboBox(address_tri_frame, 
                                            values=["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", 
                                                    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
                                                    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
                                                    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
-                                                   "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"])
-        self.state_entry.grid(row=3, column=2, sticky="ew")
+                                                   "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"],
+                                           width=60)
+        self.state_entry.grid(row=3, column=2, sticky="w")
         self.state_entry.configure(variable=self.state_var, text_color="#797e82")
-        self.state_entry.set("Select State")  # Assuming it should have a default value
+        self.state_entry.set("")
 
         ctk.CTkLabel(address_tri_frame, text="Zip").grid(row=3, column=3, sticky="w", padx=(20, 5))
-        self.zip_entry = ctk.CTkEntry(address_tri_frame, placeholder_text=zip_placeholder)
-        self.zip_entry.grid(row=3, column=4, sticky="ew")
+        self.zip_entry = ctk.CTkEntry(address_tri_frame, placeholder_text=zip_placeholder, width=58)
+        self.zip_entry.grid(row=3, column=4, sticky="w")
 
-        # Frame for Email, Cell Phone, Referred by
-        contacts_tri_frame = ctk.CTkFrame(form_frame)
-        contacts_tri_frame.grid(row=4, column=1, sticky="ew", padx=5, pady=5)
-        contacts_tri_frame.columnconfigure(0, weight=1)  # Email entry box
-        contacts_tri_frame.columnconfigure(1, weight=0)  # Cell Phone label
-        contacts_tri_frame.columnconfigure(2, weight=1)  # Cell Phone entry box
-        contacts_tri_frame.columnconfigure(3, weight=0)  # Referred by label
-        contacts_tri_frame.columnconfigure(4, weight=1)  # Referred by entry box
-
-        # Row 5: Email, Cell Phone, Referred by
-        ctk.CTkLabel(form_frame, text="Email").grid(row=4, column=0, sticky="w", padx=5, pady=5)
-        self.email_entry = ctk.CTkEntry(contacts_tri_frame, placeholder_text=email_placeholder)
-        self.email_entry.grid(row=4, column=0, sticky="ew")
-       
-        ctk.CTkLabel(contacts_tri_frame, text="Phone #").grid(row=4, column=1, sticky="w", padx=(20, 5))
-        self.phone_entry = ctk.CTkEntry(contacts_tri_frame, placeholder_text=phone_placeholder)
-        self.phone_entry.grid(row=4, column=2, sticky="ew")
-
-        ctk.CTkLabel(contacts_tri_frame, text="Referred by").grid(row=4, column=3, sticky="w", padx=(20, 5))
-        self.referred_by_combobox = ctk.CTkComboBox(contacts_tri_frame, values=[])
-        self.referred_by_combobox.grid(row=4, column=4, sticky="ew")
+        ctk.CTkLabel(address_tri_frame, text="Referred by").grid(row=3, column=5, sticky="w", padx=(20, 11))
+        self.referred_by_combobox = ctk.CTkComboBox(address_tri_frame, values=[], width=200)
+        self.referred_by_combobox.grid(row=3, column=6, sticky="ew")
         self.referred_by_combobox.configure(text_color="#797e82")
         self.referred_by_combobox.set("Referred by...")
         self.referred_by_combobox.bind("<KeyRelease>", lambda event: self.update_referred_by_suggestions())
         self.referred_by_combobox.bind("<FocusIn>", self.clear_referred_placeholder)
         self.referred_by_combobox.bind("<FocusOut>", self.restore_referred_placeholder)
+
+        # Frame for Email, Primary/Secondary Phone #'s
+        contacts_tri_frame = ctk.CTkFrame(form_frame)
+        contacts_tri_frame.grid(row=4, column=1, sticky="ew", padx=5, pady=5)
+        contacts_tri_frame.columnconfigure(0, weight=0)  # Email entry box
+        contacts_tri_frame.columnconfigure(1, weight=0)  # Primary label
+        contacts_tri_frame.columnconfigure(2, weight=0)  # Primary entry box
+        contacts_tri_frame.columnconfigure(3, weight=0)  # Secondary label
+        contacts_tri_frame.columnconfigure(4, weight=1)  # Secondary entry box
+
+        # Row 5: Email, Primary/Secondary Phone #'s
+        ctk.CTkLabel(form_frame, text="Email").grid(row=4, column=0, sticky="w", padx=5, pady=5)
+        self.email_entry = ctk.CTkEntry(contacts_tri_frame, placeholder_text=email_placeholder, width=242)
+        self.email_entry.grid(row=4, column=0, sticky="ew")
+       
+        ctk.CTkLabel(contacts_tri_frame, text="Primary #").grid(row=4, column=1, sticky="w", padx=(20, 5))
+        self.primary_entry = ctk.CTkEntry(contacts_tri_frame, placeholder_text=primary_placeholder, width=160)
+        self.primary_entry.grid(row=4, column=2, sticky="ew")
+
+        ctk.CTkLabel(contacts_tri_frame, text="Secondary #").grid(row=4, column=3, sticky="w", padx=(20, 6))
+        self.secondary_entry = ctk.CTkEntry(contacts_tri_frame, placeholder_text=secondary_placeholder)
+        self.secondary_entry.grid(row=4, column=4, sticky="ew")
 
         # Separator
         separator = ttk.Separator(form_frame, orient="horizontal")
@@ -213,8 +223,8 @@ class InfoPage:
         self.city_entry.               bind("<Return>", lambda event: self.focus_next_widget(event))
         self.state_entry.              bind("<Return>", lambda event: self.focus_next_widget(event))
         self.zip_entry.                bind("<Return>", lambda event: self.focus_next_widget(event))
-        self.phone_entry.              bind("<Return>", self.handle_phone_input)
-        self.phone_entry.              bind("<FocusOut>", self.handle_phone_input)
+        self.primary_entry.              bind("<Return>", self.handle_phone_input)
+        self.primary_entry.              bind("<FocusOut>", self.handle_phone_input)
         self.email_entry.              bind("<Return>", lambda event: self.focus_next_widget(event))
         self.referred_by_combobox.     bind("<Return>", lambda event: self.focus_next_widget(event))
         self.allergies_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
@@ -230,7 +240,7 @@ class InfoPage:
         self.full_name_entry.bind("<KeyRelease>", self.enable_save_button)
         self.gender_entry.bind("<<ComboboxSelected>>", self.enable_save_button)
         self.birthdate_entry.bind("<KeyRelease>", self.enable_save_button)
-        self.phone_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.primary_entry.bind("<KeyRelease>", self.enable_save_button)
         self.email_entry.bind("<KeyRelease>", self.enable_save_button)
         self.address1_entry.bind("<KeyRelease>", self.enable_save_button)
         self.address2_entry.bind("<KeyRelease>", self.enable_save_button)
@@ -334,7 +344,7 @@ class InfoPage:
             else:
                 self.city_entry.configure(placeholder_text=city_placeholder)
 
-            self.state_entry.set(state if state else "Select State")
+            self.state_entry.set(state if state else "")
             self.state_entry.configure(text_color="#000000" if state else "#797e82")
             
             self.zip_entry.delete(0, "end")
@@ -343,11 +353,17 @@ class InfoPage:
             else:
                 self.zip_entry.configure(placeholder_text=zip_placeholder)
 
-            self.phone_entry.delete(0, "end")
+            self.primary_entry.delete(0, "end")
             if phone:
-                self.phone_entry.insert(0, phone)
+                self.primary_entry.insert(0, phone)
             else:
-                self.phone_entry.configure(placeholder_text=phone_placeholder)
+                self.primary_entry.configure(placeholder_text=primary_placeholder)
+
+            self.secondary_entry.delete(0, "end")
+            if phone:
+                self.secondary_entry.insert(0, phone)
+            else:
+                self.secondary_entry.configure(placeholder_text=primary_placeholder)
 
             self.email_entry.delete(0, "end")
             if email:
@@ -438,7 +454,7 @@ class InfoPage:
         self.full_name_entry.delete(0, "end")
         self.gender_entry.set("")
         self.birthdate_entry.delete(0, "end")
-        self.phone_entry.delete(0, "end")
+        self.primary_entry.delete(0, "end")
         self.email_entry.delete(0, "end")
         self.address1_entry.delete(0, "end")
         self.address2_entry.delete(0, "end")
@@ -458,7 +474,7 @@ class InfoPage:
         # Restore placeholder text manually (if needed)
         self.full_name_entry.configure(placeholder_text=full_name_placeholder)
         self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
-        self.phone_entry.configure(placeholder_text=phone_placeholder)
+        self.primary_entry.configure(placeholder_text=primary_placeholder)
         self.email_entry.configure(placeholder_text=email_placeholder)
         self.address1_entry.configure(placeholder_text=address1_placeholder)
         self.address2_entry.configure(placeholder_text=address2_placeholder)
@@ -475,7 +491,7 @@ class InfoPage:
 
         # Reset dropdown menus (ComboBoxes)
         self.gender_entry.set("Select Gender")  # Assuming it should have a default value
-        self.state_entry.set("Select State")  # Assuming it should have a default value
+        self.state_entry.set("")  # Assuming it should have a default value
         self.referred_by_combobox.set("Referred by...")  # Reset referred_by search box
 
     def update_referred_by_suggestions(self, event=None):
@@ -525,7 +541,7 @@ class InfoPage:
         full_name = self.full_name_entry.get().strip()
         gender = self.gender_entry.get().strip()
         birthdate = self.birthdate_entry.get().strip()
-        phone = self.phone_entry.get().strip()
+        phone = self.primary_entry.get().strip()
         email = self.email_entry.get().strip()
         address1 = self.address1_entry.get().strip()
         address2 = self.address2_entry.get().strip()
@@ -704,7 +720,7 @@ class InfoPage:
         If only 7 digits are entered, format as XXX-XXXX.
         """
 
-        raw_input = self.phone_entry.get().strip()
+        raw_input = self.primary_entry.get().strip()
         if not raw_input:
             return  # Don't format if the input is empty
 
@@ -739,11 +755,11 @@ class InfoPage:
             formatted_number = f"{country_code} {formatted_number}".strip()
 
         # Prevent triggering reformat on already formatted text
-        if self.phone_entry.get() != formatted_number:
-            self.phone_entry.delete(0, "end")
-            self.phone_entry.insert(0, formatted_number)
+        if self.primary_entry.get() != formatted_number:
+            self.primary_entry.delete(0, "end")
+            self.primary_entry.insert(0, formatted_number)
 
-        print(f"📞 Formatted Phone Number: {self.phone_entry.get()}")
+        print(f"📞 Formatted Phone Number: {self.primary_entry.get()}")
 
 
     def clear_referred_placeholder(self, event=None):
