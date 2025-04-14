@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>Upload Photos</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -13,7 +12,8 @@
             padding: 20px 0;
             display: flex;
             justify-content: center;
-            min-height: 100vh;
+            align-items: flex-start;
+            min-height: auto;
         }
 
         .container {
@@ -27,7 +27,7 @@
         }
 
         h1 {
-            font-size: 32px;  /* Nearly double the size */
+            font-size: 32px;
             margin-bottom: 5px;
             color: #333;
         }
@@ -67,11 +67,24 @@
             background-color: #563a9c;
         }
 
-        @media (max-height: 600px) {
-            body {
-                align-items: flex-start;
-                padding-top: 30px;
-            }
+        #spinner {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #6a42c2;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0%   { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -79,10 +92,27 @@
     <div class="container">
         <h1>Upload Photos</h1>
         <div class="subheading">{{ full_name }} | {{ appointment_date }} | {{ appt_type }}</div>
-        <form action="" method="post" enctype="multipart/form-data">
+
+        <form id="uploadForm" action="" method="post" enctype="multipart/form-data" onsubmit="showSpinner()">
             <input type="file" name="photos" multiple accept="image/*,.heic,.HEIC">
-            <button type="submit">Upload</button>
+            <button id="uploadButton" type="submit">Upload</button>
         </form>
+        <div id="spinner">
+            <div class="loader"></div>
+            <p style="font-size: 14px; margin-top: 8px; color: #666;">Uploading...</p>
+        </div>
+        <div class="trust-note" style="font-size: 14px; color: #777; margin-top: 28px; margin-bottom: 12px;">
+            🔒 <strong>Note:</strong> This upload happens safely over your private Wi-Fi network.<br>
+            You may see a browser warning about an insecure connection — this is expected and safe.
+        </div>
     </div>
+
+    <script>
+        function showSpinner() {
+            document.getElementById("spinner").style.display = "block";
+            document.getElementById("uploadButton").disabled = true;
+            document.getElementById("uploadButton").innerText = "Uploading...";
+        }
+    </script>
 </body>
 </html>
