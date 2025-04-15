@@ -237,6 +237,11 @@ class Pdf4ColGenerator:
             c.line(col1_x - 65, line_y + 10, col4_x + wrap_width + 10, line_y + 10)
         c.line(col1_x - 65, table_top + 10, col4_x + wrap_width + 10, table_top + 10)
 
+        # Bottom border line
+        final_row_height = row_heights[-1]
+        line_y -= final_row_height
+        c.line(col1_x - 65, line_y + 10, col4_x + wrap_width + 10, line_y + 10)
+
         # === Footer ===
         c.setFont("Helvetica", 10)
         footer_text = "©2020 CORIUM CORRECTIVE 360° - ALL RIGHTS RESERVED"
