@@ -250,6 +250,11 @@ class Pdf2ColGenerator:
             c.line(col1_x - 65, line_y + 10, col2_x + wrap_width + 10, line_y + 10)
         c.line(col1_x - 65, table_start_y + 10, col2_x + wrap_width + 10, table_start_y + 10)
 
+        # Bottom border line after the last row
+        final_row_height = row_heights[-1]
+        line_y -= final_row_height
+        c.line(col1_x - 65, line_y + 10, col2_x + wrap_width + 10, line_y + 10)
+
         # Footer
         c.setFont("Helvetica", 10)
 
