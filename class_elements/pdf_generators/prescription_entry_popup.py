@@ -70,7 +70,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         self.client_date_wrapper.grid(row=0, column=0, sticky="w", padx=10, pady=10)
         self.client_date_wrapper.columnconfigure((0, 1, 2), weight=0)  # Prevent stretch
 
-        # === 🟣 Client Bubble ===
+        # === Client Bubble ===
         self.client_bubble = ctk.CTkFrame(self.client_date_wrapper, fg_color="#563A9C")
         self.client_bubble.grid(row=0, column=0, padx=(0, 10), pady=0, sticky="w")
 
@@ -132,13 +132,40 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         ctk.CTkButton(self.button_frame, text="Delete Row", command=self.delete_row, image=delete_row_img, width=button_width, hover_color="#FF4444").pack(side="left", padx=5)
         ctk.CTkButton(self.button_frame, text="Delete Col", command=self.delete_column, image=delete_column_img, width=button_width, hover_color="#FF4444").pack(side="left", padx=5)
 
-        # --- Table frame (below buttons) ---
-        self.table_frame = ctk.CTkFrame(self.main_frame, fg_color="#b3b3b3")
-        self.table_frame.grid(row=3, column=0, sticky="nsew", padx=5, pady=5)
+        # --- Scrollable container frame ---
+        scroll_container = ctk.CTkFrame(self.main_frame)
+        scroll_container.grid(row=3, column=0, sticky="nsew", padx=5, pady=5)
+
+        # Create canvas + vertical scrollbar
+        canvas = ctk.CTkCanvas(scroll_container, bg="#b3b3b3", highlightthickness=0)
+        canvas.pack(side="left", fill="both", expand=True)
+
+        scrollbar = ttk.Scrollbar(scroll_container, orient="vertical", command=canvas.yview)
+        scrollbar.pack(side="right", fill="y")
+
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Create internal frame inside canvas to hold the actual table content
+        self.table_frame = ctk.CTkFrame(canvas, fg_color="#b3b3b3")
+        table_window = canvas.create_window((0, 0), window=self.table_frame, anchor="nw")
+
+        # Define scroll behavior functions *inside* __init__
+        def on_frame_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+
+        # Bind scrolling behavior
+        self.table_frame.bind("<Configure>", on_frame_configure)
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         self.pre_generate_widgets()
         self.build_table()
         self.resize_popup()
+        self.minsize(550, 280)
+        self.maxsize(1000, 700)
 
 
     def pre_generate_widgets(self):
@@ -208,8 +235,8 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
 
 
     def resize_popup(self):
-        base_width = 535
-        base_height = 275
+        base_width = 550
+        base_height = 280
         col_padding = 223
         row_padding = 105
         new_width = base_width + (self.num_cols - 2) * col_padding
