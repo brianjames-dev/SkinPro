@@ -18,6 +18,7 @@ primary_placeholder             = "e.g., 555-123-4567"
 secondary_placeholder           = "e.g., 707-555-1234"
 allergies_placeholder           = "List any known allergies (e.g., nuts, latex)"
 health_conditions_placeholder   = "List known health conditions (e.g., diabetes, asthma)"
+health_risks_placeholder        = "List known health rists (e.g., )"
 medications_placeholder         = "List current medications (e.g., Ibuprofen)"
 treatment_areas_placeholder     = "List desired treatment area(s) (e.g., face, legs)"
 current_products_placeholder    = "List skincare products used (e.g., cleanser, moisturizer)"
@@ -159,38 +160,43 @@ class InfoPage:
         self.health_conditions_entry = ctk.CTkEntry(form_frame, placeholder_text=health_conditions_placeholder)
         self.health_conditions_entry.grid(row=7, column=1, padx=5, pady=5, sticky="ew")
 
-        # Row 8: Medications
-        ctk.CTkLabel(form_frame, text="Medications").grid(row=8, column=0, sticky="w", padx=5, pady=5)
+        # Row 8: Health Risks
+        ctk.CTkLabel(form_frame, text="Health Risks").grid(row=8, column=0, sticky="w", padx=5, pady=5)
+        self.health_risks_entry = ctk.CTkEntry(form_frame, placeholder_text=health_risks_placeholder, fg_color="#FFF536")
+        self.health_risks_entry.grid(row=8, column=1, padx=5, pady=5, sticky="ew")
+
+        # Row 9: Medications
+        ctk.CTkLabel(form_frame, text="Medications").grid(row=9, column=0, sticky="w", padx=5, pady=5)
         self.medications_entry = ctk.CTkEntry(form_frame, placeholder_text=medications_placeholder)
-        self.medications_entry.grid(row=8, column=1, padx=5, pady=5, sticky="ew")
+        self.medications_entry.grid(row=9, column=1, padx=5, pady=5, sticky="ew")
 
-        # Row 9: Area to be Treated
-        ctk.CTkLabel(form_frame, text="Area to be Treated").grid(row=9, column=0, sticky="w", padx=5, pady=5)
+        # Row 10: Area to be Treated
+        ctk.CTkLabel(form_frame, text="Area to be Treated").grid(row=10, column=0, sticky="w", padx=5, pady=5)
         self.treatment_areas_entry = ctk.CTkEntry(form_frame, placeholder_text=treatment_areas_placeholder)
-        self.treatment_areas_entry.grid(row=9, column=1, padx=5, pady=5, sticky="ew")
+        self.treatment_areas_entry.grid(row=10, column=1, padx=5, pady=5, sticky="ew")
 
-        # Row 10: Current Product Use
-        ctk.CTkLabel(form_frame, text="Current Product Use").grid(row=10, column=0, sticky="w", padx=5, pady=5)
+        # Row 11: Current Product Use
+        ctk.CTkLabel(form_frame, text="Current Product Use").grid(row=11, column=0, sticky="w", padx=5, pady=5)
         self.current_products_entry = ctk.CTkEntry(form_frame, placeholder_text=current_products_placeholder)
-        self.current_products_entry.grid(row=10, column=1, padx=5, pady=5, sticky="ew")
+        self.current_products_entry.grid(row=11, column=1, padx=5, pady=5, sticky="ew")
 
-        # Row 11: Skin Conditions
-        ctk.CTkLabel(form_frame, text="Skin Conditions").grid(row=11, column=0, sticky="w", padx=5, pady=5)
+        # Row 12: Skin Conditions
+        ctk.CTkLabel(form_frame, text="Skin Conditions").grid(row=12, column=0, sticky="w", padx=5, pady=5)
         self.skin_conditions_entry = ctk.CTkEntry(form_frame, placeholder_text=skin_conditions_placeholder)
-        self.skin_conditions_entry.grid(row=11, column=1, padx=5, pady=5, sticky="ew")
+        self.skin_conditions_entry.grid(row=12, column=1, padx=5, pady=5, sticky="ew")
 
-        # Separator
+        # Row 13: Separator
         separator = ttk.Separator(form_frame, orient="horizontal")
-        separator.grid(row=12, column=0, columnspan=2, sticky="ew", padx=5, pady=10)
+        separator.grid(row=13, column=0, columnspan=2, sticky="ew", padx=5, pady=10)
 
-        # Row 12: Other Notes
-        ctk.CTkLabel(form_frame, text="Other Notes").grid(row=13, column=0, sticky="w", padx=5, pady=5)
+        # Row 14: Other Notes
+        ctk.CTkLabel(form_frame, text="Other Notes").grid(row=14, column=0, sticky="w", padx=5, pady=5)
         self.other_notes_entry = ctk.CTkEntry(form_frame, placeholder_text=other_notes_placeholder)
-        self.other_notes_entry.grid(row=13, column=1, padx=5, pady=5, sticky="ew")
+        self.other_notes_entry.grid(row=14, column=1, padx=5, pady=5, sticky="ew")
 
-        # Row 13: Desired Improvement + Save
+        # Row 15: Desired Improvement + Save
         final_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
-        final_frame.grid(row=14, column=0, columnspan=2, sticky="ew", pady=5)
+        final_frame.grid(row=15, column=0, columnspan=2, sticky="ew", pady=5)
 
         final_frame.columnconfigure(1, weight=1)  # Entry box will now expand
 
@@ -223,12 +229,15 @@ class InfoPage:
         self.city_entry.               bind("<Return>", lambda event: self.focus_next_widget(event))
         self.state_entry.              bind("<Return>", lambda event: self.focus_next_widget(event))
         self.zip_entry.                bind("<Return>", lambda event: self.focus_next_widget(event))
-        self.primary_entry.              bind("<Return>", self.handle_phone_input)
-        self.primary_entry.              bind("<FocusOut>", self.handle_phone_input)
+        self.primary_entry.            bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.primary_entry.            bind("<FocusOut>", lambda event: self.format_phone_number(event))
+        self.secondary_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.secondary_entry.          bind("<FocusOut>", lambda event: self.format_phone_number(event))
         self.email_entry.              bind("<Return>", lambda event: self.focus_next_widget(event))
         self.referred_by_combobox.     bind("<Return>", lambda event: self.focus_next_widget(event))
         self.allergies_entry.          bind("<Return>", lambda event: self.focus_next_widget(event))
         self.health_conditions_entry.  bind("<Return>", lambda event: self.focus_next_widget(event))
+        self.health_risks_entry.       bind("<Return>", lambda event: self.focus_next_widget(event))
         self.medications_entry.        bind("<Return>", lambda event: self.focus_next_widget(event))
         self.treatment_areas_entry.    bind("<Return>", lambda event: self.focus_next_widget(event))
         self.current_products_entry.   bind("<Return>", lambda event: self.focus_next_widget(event))
@@ -241,6 +250,7 @@ class InfoPage:
         self.gender_entry.bind("<<ComboboxSelected>>", self.enable_save_button)
         self.birthdate_entry.bind("<KeyRelease>", self.enable_save_button)
         self.primary_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.secondary_entry.bind("<KeyRelease>", self.enable_save_button)
         self.email_entry.bind("<KeyRelease>", self.enable_save_button)
         self.address1_entry.bind("<KeyRelease>", self.enable_save_button)
         self.address2_entry.bind("<KeyRelease>", self.enable_save_button)
@@ -250,6 +260,7 @@ class InfoPage:
         self.referred_by_combobox.bind("<<ComboboxSelected>>", self.enable_save_button)
         self.allergies_entry.bind("<KeyRelease>", self.enable_save_button)
         self.health_conditions_entry.bind("<KeyRelease>", self.enable_save_button)
+        self.health_risks_entry.bind("<KeyRelease>", self.enable_save_button)
         self.medications_entry.bind("<KeyRelease>", self.enable_save_button)
         self.treatment_areas_entry.bind("<KeyRelease>", self.enable_save_button)
         self.current_products_entry.bind("<KeyRelease>", self.enable_save_button)
@@ -286,7 +297,7 @@ class InfoPage:
             SELECT 
                 full_name, gender, birthdate, 
                 address1, address2, city, 
-                state, zip, phone, email, referred_by
+                state, zip, primary_phone, secondary_phone, email, referred_by
             FROM clients 
             WHERE id = ?
         """, (client_id,))
@@ -295,7 +306,7 @@ class InfoPage:
         # Fetch health-related client information
         self.cursor.execute("""
             SELECT 
-                allergies, health_conditions, medications, 
+                allergies, health_conditions, health_risks, medications, 
                 treatment_areas, current_products, skin_conditions, 
                 other_notes, desired_improvement 
             FROM client_health_info 
@@ -307,7 +318,7 @@ class InfoPage:
             (
                 full_name, gender, birthdate, 
                 address1, address2, city, 
-                state, zip, phone, email, referred_by
+                state, zip, primary, secondary, email, referred_by
             ) = client_result            
 
             # Populate general client fields
@@ -346,7 +357,7 @@ class InfoPage:
 
             self.state_entry.set(state if state else "")
             self.state_entry.configure(text_color="#000000" if state else "#797e82")
-            
+
             self.zip_entry.delete(0, "end")
             if zip:
                 self.zip_entry.insert(0, zip)
@@ -354,16 +365,16 @@ class InfoPage:
                 self.zip_entry.configure(placeholder_text=zip_placeholder)
 
             self.primary_entry.delete(0, "end")
-            if phone:
-                self.primary_entry.insert(0, phone)
+            if primary:
+                self.primary_entry.insert(0, primary)
             else:
                 self.primary_entry.configure(placeholder_text=primary_placeholder)
 
             self.secondary_entry.delete(0, "end")
-            if phone:
-                self.secondary_entry.insert(0, phone)
+            if secondary:
+                self.secondary_entry.insert(0, secondary)
             else:
-                self.secondary_entry.configure(placeholder_text=primary_placeholder)
+                self.secondary_entry.configure(placeholder_text=secondary_placeholder)
 
             self.email_entry.delete(0, "end")
             if email:
@@ -380,7 +391,7 @@ class InfoPage:
                 
         if health_result:
             (
-                allergies, health_conditions, medications, 
+                allergies, health_conditions, health_risks, medications, 
                 treatment_areas, current_products, skin_conditions, 
                 other_notes, desired_improvement
             ) = health_result
@@ -397,6 +408,12 @@ class InfoPage:
                 self.health_conditions_entry.insert(0, health_conditions)
             else:
                 self.health_conditions_entry.configure(placeholder_text=health_conditions_placeholder)
+
+            self.health_risks_entry.delete(0, "end")
+            if health_risks:
+                self.health_risks_entry.insert(0, health_risks)
+            else:
+                self.health_risks_entry.configure(placeholder_text=health_risks_placeholder)
 
             self.medications_entry.delete(0, "end")
             if medications:
@@ -455,6 +472,7 @@ class InfoPage:
         self.gender_entry.set("")
         self.birthdate_entry.delete(0, "end")
         self.primary_entry.delete(0, "end")
+        self.secondary_entry.delete(0, "end")
         self.email_entry.delete(0, "end")
         self.address1_entry.delete(0, "end")
         self.address2_entry.delete(0, "end")
@@ -464,6 +482,7 @@ class InfoPage:
         self.referred_by_combobox.set("")
         self.allergies_entry.delete(0, "end")
         self.health_conditions_entry.delete(0, "end")
+        self.health_risks_entry.delete(0, "end")
         self.medications_entry.delete(0, "end")
         self.treatment_areas_entry.delete(0, "end")
         self.current_products_entry.delete(0, "end")
@@ -475,6 +494,7 @@ class InfoPage:
         self.full_name_entry.configure(placeholder_text=full_name_placeholder)
         self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
         self.primary_entry.configure(placeholder_text=primary_placeholder)
+        self.secondary_entry.configure(placeholder_text=secondary_placeholder)
         self.email_entry.configure(placeholder_text=email_placeholder)
         self.address1_entry.configure(placeholder_text=address1_placeholder)
         self.address2_entry.configure(placeholder_text=address2_placeholder)
@@ -482,6 +502,7 @@ class InfoPage:
         self.zip_entry.configure(placeholder_text=zip_placeholder)
         self.allergies_entry.configure(placeholder_text=allergies_placeholder)
         self.health_conditions_entry.configure(placeholder_text=health_conditions_placeholder)
+        self.health_risks_entry.configure(placeholder_text=health_risks_placeholder)
         self.medications_entry.configure(placeholder_text=medications_placeholder)
         self.treatment_areas_entry.configure(placeholder_text=treatment_areas_placeholder)
         self.current_products_entry.configure(placeholder_text=current_products_placeholder)
@@ -541,7 +562,8 @@ class InfoPage:
         full_name = self.full_name_entry.get().strip()
         gender = self.gender_entry.get().strip()
         birthdate = self.birthdate_entry.get().strip()
-        phone = self.primary_entry.get().strip()
+        primary = self.primary_entry.get().strip()
+        secondary = self.secondary_entry.get().strip()
         email = self.email_entry.get().strip()
         address1 = self.address1_entry.get().strip()
         address2 = self.address2_entry.get().strip()
@@ -553,6 +575,7 @@ class InfoPage:
         # Health Info
         allergies = self.allergies_entry.get().strip()
         health_conditions = self.health_conditions_entry.get().strip()
+        health_risks = self.health_risks_entry.get().strip()
         medications = self.medications_entry.get().strip()
         treatment_areas = self.treatment_areas_entry.get().strip()
         current_products = self.current_products_entry.get().strip()
@@ -571,9 +594,9 @@ class InfoPage:
 
                 # Insert the new client into the `clients` table
                 self.cursor.execute("""
-                    INSERT INTO clients (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by))
+                    INSERT INTO clients (full_name, gender, birthdate, primary_phone, secondary_phone, email, address1, address2, city, state, zip, referred_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (full_name, gender, birthdate, primary, secondary, email, address1, address2, city, state, zip, referred_by))
 
                 # Get the newly inserted client_id
                 self.client_id = self.cursor.lastrowid
@@ -581,10 +604,10 @@ class InfoPage:
 
                 # Insert new Health Info
                 self.cursor.execute("""
-                    INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
+                    INSERT INTO client_health_info (client_id, allergies, health_conditions, health_risks, medications, treatment_areas, 
                         current_products, skin_conditions, other_notes, desired_improvement) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (self.client_id, allergies, health_conditions, health_risks, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
 
             else:  # If updating an existing client
                 print(f"✏️ Updating client ID: {self.client_id} ({full_name}) in the database...")
@@ -592,10 +615,10 @@ class InfoPage:
                 # Update client info in the `clients` table
                 self.cursor.execute("""
                     UPDATE clients 
-                    SET full_name = ?, gender = ?, birthdate = ?, phone = ?, email = ?, 
+                    SET full_name = ?, gender = ?, birthdate = ?, primary_phone = ?, secondary_phone = ?, email = ?, 
                         address1 = ?, address2 = ?, city = ?, state = ?, zip = ?, referred_by = ? 
                     WHERE id = ?
-                """, (full_name, gender, birthdate, phone, email, address1, address2, city, state, zip, referred_by, self.client_id))
+                """, (full_name, gender, birthdate, primary, secondary, email, address1, address2, city, state, zip, referred_by, self.client_id))
 
                 # Check if health info exists for this client
                 self.cursor.execute("SELECT COUNT(*) FROM client_health_info WHERE client_id = ?", (self.client_id,))
@@ -605,17 +628,17 @@ class InfoPage:
                     # Update existing Health Info
                     self.cursor.execute("""
                         UPDATE client_health_info 
-                        SET allergies = ?, health_conditions = ?, medications = ?, treatment_areas = ?, 
+                        SET allergies = ?, health_conditions = ?, health_risks = ?, medications = ?, treatment_areas = ?, 
                             current_products = ?, skin_conditions = ?, other_notes = ?, desired_improvement = ? 
                         WHERE client_id = ?
-                    """, (allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement, self.client_id))
+                    """, (allergies, health_conditions, health_risks, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement, self.client_id))
                 else:
                     # Insert new Health Info (if missing)
                     self.cursor.execute("""
-                        INSERT INTO client_health_info (client_id, allergies, health_conditions, medications, treatment_areas, 
+                        INSERT INTO client_health_info (client_id, allergies, health_conditions, health_risks, medications, treatment_areas, 
                             current_products, skin_conditions, other_notes, desired_improvement) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (self.client_id, allergies, health_conditions, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
+                    """, (self.client_id, allergies, health_conditions, health_risks, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
 
             # Step 4: Commit changes
             self.conn.commit()
@@ -709,18 +732,14 @@ class InfoPage:
         print(f"✅ Formatted Birthdate: {formatted_date}")
     
 
-    def handle_phone_input(self, event=None):
-        """Format phone number and move to the next widget."""
-        self.format_phone_number()  # Format number once
-        self.focus_next_widget(event)  # Move focus to next field
-
-
     def format_phone_number(self, event=None):
         """Format phone number as (XXX) XXX-XXXX, preserving country code if entered with '+'. 
         If only 7 digits are entered, format as XXX-XXXX.
         """
 
-        raw_input = self.primary_entry.get().strip()
+        widget = event.widget  # The Entry widget that triggered the event
+        raw_input = widget.get().strip()
+
         if not raw_input:
             return  # Don't format if the input is empty
 
@@ -755,11 +774,11 @@ class InfoPage:
             formatted_number = f"{country_code} {formatted_number}".strip()
 
         # Prevent triggering reformat on already formatted text
-        if self.primary_entry.get() != formatted_number:
-            self.primary_entry.delete(0, "end")
-            self.primary_entry.insert(0, formatted_number)
+        if widget.get() != formatted_number:
+            widget.delete(0, "end")
+            widget.insert(0, formatted_number)
 
-        print(f"📞 Formatted Phone Number: {self.primary_entry.get()}")
+        print(f"📞 Formatted Phone Number: {formatted_number}")
 
 
     def clear_referred_placeholder(self, event=None):

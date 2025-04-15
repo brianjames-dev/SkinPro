@@ -122,7 +122,7 @@ class AlertsPage:
 
             # Query the database for all alerts with client details
             query = """
-            SELECT a.id, a.client_id, c.full_name, c.phone, a.deadline, a.notes
+            SELECT a.id, a.client_id, c.full_name, c.primary_phone, a.deadline, a.notes
             FROM alerts a
             JOIN clients c ON a.client_id = c.id
             ORDER BY a.deadline ASC
@@ -439,7 +439,7 @@ class AlertsPage:
 
     def get_client_details(self, client_id):
         try:
-            self.cursor.execute("SELECT full_name, phone FROM clients WHERE id = ?", (client_id,))
+            self.cursor.execute("SELECT full_name, primary_phone FROM clients WHERE id = ?", (client_id,))
             client_details = self.cursor.fetchone()
             if client_details:
                 return client_details[0], client_details[1]  # Return full_name and phone #

@@ -53,14 +53,14 @@ class ClientsPage:
         style_treeview_light("Clients.Treeview")
 
         # Treeview Widget
-        columns = ("Name", "Gender", "Birthdate", "Phone #", "Email", "Address")
+        columns = ("Name", "Gender", "Birthdate", "Primary #", "Email", "Address")
         self.client_list = ttk.Treeview(table_frame, selectmode="browse", columns=columns, show="headings", style="Clients.Treeview")
 
         # Define column headers
         self.client_list.heading("Name", text="Name")
         self.client_list.heading("Gender", text="Gender")
         self.client_list.heading("Birthdate", text="Birthdate")
-        self.client_list.heading("Phone #", text="Phone #")
+        self.client_list.heading("Primary #", text="Primary #")
         self.client_list.heading("Email", text="Email")
         self.client_list.heading("Address", text="Address")
 
@@ -114,7 +114,7 @@ class ClientsPage:
         self.client_list.column("Name", width=int(total_width * 0.18), minwidth=120)
         self.client_list.column("Gender", width=int(total_width * 0.05), minwidth=55)
         self.client_list.column("Birthdate", width=int(total_width * 0.10), minwidth=60)
-        self.client_list.column("Phone #", width=int(total_width * 0.13), minwidth=100)
+        self.client_list.column("Primary #", width=int(total_width * 0.13), minwidth=100)
         self.client_list.column("Email", width=int(total_width * 0.14), minwidth=200)
         self.client_list.column("Address", width=int(total_width * 0.40), minwidth=200)
 
@@ -126,7 +126,7 @@ class ClientsPage:
         self.client_list.delete(*self.client_list.get_children())  # Clear existing rows
 
         self.cursor.execute("""
-            SELECT id, full_name, gender, birthdate, phone, email, address1 || ' ' || address2 FROM clients
+            SELECT id, full_name, gender, birthdate, primary_phone, email, address1 || ' ' || address2 FROM clients
         """)
         results = self.cursor.fetchall()
 
@@ -157,7 +157,7 @@ class ClientsPage:
 
             # Include client_id in the query (important for selection!)
             self.cursor.execute("""
-                SELECT id, full_name, gender, birthdate, phone, email, address1 || ' ' || address2 
+                SELECT id, full_name, gender, birthdate, primary_phone, email, address1 || ' ' || address2 
                 FROM clients 
                 WHERE full_name LIKE ?
             """, (f"%{query}%",))
@@ -233,14 +233,14 @@ class ClientsPage:
         full_name = client_data[0]      # Full name = column 0
         gender = client_data[1]         # Gender = column 1
         birthdate = client_data[2]      # Birthdate = column 2
-        phone = client_data[3]          # Phone = column 3
+        primary = client_data[3]        # Primary = column 3
         email = client_data[4]          # Email = column 4
         address = client_data[5]        # Address = column 5
 
         print(f"🔹 Retrieved Client Name:   {full_name}")
         print(f"🔹 Retrieved Gender:        {gender}") 
         print(f"🔹 Retrieved Birthdate:     {birthdate}") 
-        print(f"🔹 Retrieved Phone #:       {phone}")
+        print(f"🔹 Retrieved Primary #:     {primary}")
         print(f"🔹 Retrieved Email:         {email}") 
         print(f"🔹 Retrieved Address:       {address}")  # Debugging
 
