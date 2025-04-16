@@ -1,6 +1,7 @@
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import os
+import re
 
 class Pdf2ColGenerator:
     def __init__(self, output_dir="prescriptions"):
@@ -121,44 +122,82 @@ class Pdf2ColGenerator:
         c.drawString(col1_x + 100, header_y, col1_header.upper())
         c.drawString(col2_x + 90, header_y, col2_header.upper())
 
-        # === Word Wrapping Helper ===
         def draw_product_block(c, x, y, product, directions, max_width, font_size=10, line_height=12, dry_run=False):
             c.setFont("Helvetica", font_size)
+            lines_above = 0
+            chunks_per_line = []  # Each line will contain a list of (text, is_highlight)
 
-            # Split directions into wrapped lines
-            lines = []
-            for raw_line in directions.split("\n"):
-                words = raw_line.split()
-                line = ""
-                for word in words:
-                    trial = f"{line} {word}".strip()
-                    if c.stringWidth(trial, "Helvetica", font_size) <= max_width:
-                        line = trial
-                    else:
-                        lines.append(line)
-                        line = word
-                if line:
-                    lines.append(line)
+            # === Step 1: Extract highlight chunks across whole string ===
+            tokens = re.split(r"(\[\[highlight\]\]|\[\[/highlight\]\])", directions)
+            is_highlight = False
+            chunks = []
 
-            lines_above = 0  # This tracks if we draw the product name
+            for token in tokens:
+                if token == "[[highlight]]":
+                    is_highlight = True
+                elif token == "[[/highlight]]":
+                    is_highlight = False
+                elif token:
+                    chunks.append((token, is_highlight))
 
+            # === Step 2: Wrap chunks into lines (respecting max width) ===
+            current_line = ""
+            current_chunks = []
+
+            for text, hl in chunks:
+                # Split each chunk by newline and re-add newlines as their own chunks
+                parts = re.split(r"(\n)", text)
+                for part in parts:
+                    if part == "\n":
+                        # Force a new line
+                        if current_chunks:
+                            chunks_per_line.append(current_chunks)
+                            current_chunks = []
+                            current_line = ""
+                    elif part:
+                        sub_parts = re.split(r"(\s+)", part)
+                        for sub in sub_parts:
+                            trial = current_line + sub
+                            if c.stringWidth(trial.strip(), "Helvetica", font_size) <= max_width:
+                                current_line += sub
+                                current_chunks.append((sub, hl))
+                            else:
+                                if current_chunks:
+                                    chunks_per_line.append(current_chunks)
+                                current_line = sub
+                                current_chunks = [(sub, hl)]
+
+            if current_chunks:
+                chunks_per_line.append(current_chunks)
+
+            # === Step 3: Draw product title ===
             if not dry_run:
-                if product.strip():  # Only draw product line if not empty
+                if product.strip():
                     product_text = f"{product.strip()}:"
                     product_width = c.stringWidth(product_text, "Helvetica", font_size)
-                    c.setFont("Helvetica", font_size)
                     c.drawString(x, y, product_text)
                     c.setLineWidth(0.6)
                     c.line(x, y - 2, x + product_width, y - 2)
                     lines_above = 1
 
-                # Draw wrapped directions under the product (or at the top if no product)
-                c.setFont("Helvetica", font_size)
-                for idx, line in enumerate(lines):
-                    c.drawString(x, y - ((idx + lines_above) * line_height), line)
+                for idx, chunk_line in enumerate(chunks_per_line):
+                    line_y = y - ((idx + lines_above) * line_height)
+                    draw_x = x
 
-            return lines_above + len(lines)  # Total vertical lines used
+                    for text, hl in chunk_line:
+                        if hl:
+                            c.saveState()
+                            c.setFillAlpha(0.5)
+                            c.setFillColorRGB(1, 1, 0)
+                            text_width = c.stringWidth(text, "Helvetica", font_size)
+                            c.rect(draw_x - 1, line_y - 3, text_width + 1, line_height, fill=True, stroke=0)
+                            c.restoreState()
+                        c.drawString(draw_x, line_y, text)
+                        draw_x += c.stringWidth(text, "Helvetica", font_size)
+
+            return lines_above + len(chunks_per_line)
         
+
         # === Table Rows with Wrapped Content ===
         c.setFont("Helvetica", 10)
         row_spacing = 22
@@ -183,7 +222,7 @@ class Pdf2ColGenerator:
             # Measure vertical space needed
             lines_1 = draw_product_block(c, col1_x, current_y, col1["product"], col1["directions"], max_width=wrap_width, dry_run=True)
             lines_2 = draw_product_block(c, col2_x, current_y, col2["product"], col2["directions"], max_width=wrap_width, dry_run=True)
-            cell_height = max(max(lines_1, lines_2), min_lines) * row_height + 5
+            cell_height = (max(max(lines_1, lines_2), min_lines) + 1) * row_height + 5
             row_heights.append(cell_height)
 
         total_table_height = sum(row_heights)
