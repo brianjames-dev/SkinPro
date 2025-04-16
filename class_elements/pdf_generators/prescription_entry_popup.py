@@ -1,6 +1,5 @@
 import customtkinter as ctk
-from tkinter import ttk
-from tkinter import messagebox
+from tkinter import ttk, messagebox, Text
 from class_elements.pdf_generators.pdf_2col import Pdf2ColGenerator
 from class_elements.pdf_generators.pdf_3col import Pdf3ColGenerator
 from class_elements.pdf_generators.pdf_4col import Pdf4ColGenerator
@@ -24,12 +23,14 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         self.already_prefilled = False
         button_width = 85
         self.title("New Prescription")
+        self.text_widgets = []
         self.grab_set()
 
         add_row_img = ctk.CTkImage(Image.open("icons/add_row.png"), size=(24, 24))
         add_column_img = ctk.CTkImage(Image.open("icons/add_column.png"), size=(24, 24))
         delete_row_img = ctk.CTkImage(Image.open("icons/delete_row.png"), size=(24, 24))
         delete_column_img = ctk.CTkImage(Image.open("icons/delete_column.png"), size=(24, 24))
+        highlighter_img = ctk.CTkImage(Image.open("icons/highlighter.png"), size=(22, 22))
         save_img = ctk.CTkImage(Image.open("icons/save.png"), size=(24, 24))
 
         # Fetch the client's name
@@ -127,10 +128,58 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         self.button_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         self.button_frame.grid(row=2, column=0, sticky="w", padx=5, pady=5)  # Align to left, spacing below
 
-        ctk.CTkButton(self.button_frame, text="Add Row", command=self.add_row, image=add_row_img, width=button_width, hover_color="darkgreen").pack(side="left", padx=5)
-        ctk.CTkButton(self.button_frame, text="Add Col", command=self.add_column, image=add_column_img, width=button_width, hover_color="darkgreen").pack(side="left", padx=5)
-        ctk.CTkButton(self.button_frame, text="Delete Row", command=self.delete_row, image=delete_row_img, width=button_width, hover_color="#FF4444").pack(side="left", padx=5)
-        ctk.CTkButton(self.button_frame, text="Delete Col", command=self.delete_column, image=delete_column_img, width=button_width, hover_color="#FF4444").pack(side="left", padx=5)
+        self.button_frame.columnconfigure((0, 1, 2, 3, 4), weight=0)
+
+        ctk.CTkButton(
+            self.button_frame,
+            text="Add Row",
+            command=self.add_row,
+            image=add_row_img,
+            width=button_width,
+            anchor="center",
+            hover_color="darkgreen"
+        ).grid(row=0, column=0, padx=4, pady=2)
+
+        ctk.CTkButton(
+            self.button_frame,
+            text="Add Col",
+            command=self.add_column,
+            image=add_column_img,
+            width=button_width,
+            anchor="center",
+            hover_color="darkgreen"
+        ).grid(row=0, column=1, padx=4, pady=2)
+
+        ctk.CTkButton(
+            self.button_frame,
+            text="Delete Row",
+            command=self.delete_row,
+            image=delete_row_img,
+            width=button_width,
+            anchor="center",
+            hover_color="#FF4444"
+        ).grid(row=0, column=2, padx=4, pady=2)
+
+        ctk.CTkButton(
+            self.button_frame,
+            text="Delete Col",
+            command=self.delete_column,
+            image=delete_column_img,
+            width=button_width,
+            anchor="center",
+            hover_color="#FF4444"
+        ).grid(row=0, column=3, padx=4, pady=2)
+
+        ctk.CTkButton(
+            self.button_frame,
+            text="",
+            image=highlighter_img,
+            command=self.highlight_current_selection,
+            width=24,
+            height=24,
+            anchor="center",
+            hover_color="#b3ab20"
+        ).grid(row=0, column=4, padx=4, ipady=1)
 
         # --- Scrollable container frame ---
         scroll_container = ctk.CTkFrame(self.main_frame)
@@ -149,36 +198,124 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         self.table_frame = ctk.CTkFrame(canvas, fg_color="#b3b3b3")
         table_window = canvas.create_window((0, 0), window=self.table_frame, anchor="nw")
 
-        # Define scroll behavior functions *inside* __init__
-        def on_frame_configure(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
+        self.scroll_canvas = canvas  # Store canvas reference
+        self.scroll_canvas.bind("<Configure>", self._update_scroll_region)
+        scrollbar.configure(command=self.scroll_canvas.yview)  # Make sure scrollbar scrolls canvas
+        self.scroll_canvas.configure(yscrollcommand=scrollbar.set)  # Keep canvas in sync with scrollbar
 
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-
-        # Bind scrolling behavior
-        self.table_frame.bind("<Configure>", on_frame_configure)
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-
+        self.outer_scroll_active = False
+        self.bind_table_scroll_behavior()
         self.pre_generate_widgets()
         self.build_table()
         self.resize_popup()
-        self.minsize(550, 280)
-        self.maxsize(1000, 700)
+        self._update_scroll_region()
+        self.minsize(555, 283)
+        self.maxsize(1000, 710)
+
+        if self.initial_data and not self.already_prefilled:
+            self.prefill_from_data(self.initial_data)
+            self.already_prefilled = True
+
+
+    def _update_scroll_region(self, event=None):
+        self.scroll_canvas.configure(scrollregion=self.scroll_canvas.bbox("all"))
+
+
+    def bind_table_scroll_behavior(self):
+        def _on_mousewheel(event):
+            self.scroll_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _bind_canvas_scroll(_=None):
+            if not self.outer_scroll_active:
+                self.scroll_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+                self.outer_scroll_active = True
+
+        def _unbind_canvas_scroll(_=None):
+            if self.outer_scroll_active:
+                self.scroll_canvas.unbind_all("<MouseWheel>")
+                self.outer_scroll_active = False
+
+        self._bind_canvas_scroll = _bind_canvas_scroll
+        self._unbind_canvas_scroll = _unbind_canvas_scroll
+
+        # Attach scroll logic to the whole canvas area, not just table_frame
+        self.scroll_canvas.bind("<Enter>", _bind_canvas_scroll)
+        self.scroll_canvas.bind("<Leave>", _unbind_canvas_scroll)
+
+
+    def bind_scroll_behavior(self, widget):
+        def _on_inner_scroll(e):
+            widget.yview_scroll(int(-1 * (e.delta / 120)), "units")
+            return "break"
+
+        widget.bind("<Enter>", lambda e: (
+            widget.bind_all("<MouseWheel>", _on_inner_scroll),
+            self._unbind_canvas_scroll()
+        ))
+        widget.bind("<Leave>", lambda e: (
+            widget.unbind_all("<MouseWheel>"),
+            self._bind_canvas_scroll()
+        ))
 
 
     def pre_generate_widgets(self):
         self.column_data.clear()
+        self.text_widgets = []
+
         for col in range(self.MAX_COLS):
             col_info = {"header": None, "entries": []}
             header = ctk.CTkEntry(self.table_frame, placeholder_text=f"Header {col + 1}")
             col_info["header"] = header
+
             for row in range(self.MAX_ROWS):
                 product = ctk.CTkEntry(self.table_frame, placeholder_text="Product(s)", width=200)
-                directions = ctk.CTkTextbox(self.table_frame, height=50, width=200, corner_radius=0)
+                directions = Text(
+                    self.table_frame,
+                    height=3,
+                    width=28,
+                    wrap="word",
+                    font=("Helvetica", 10),
+                    selectbackground="#3399FF",
+                    selectforeground="#FFFFFF"
+                )
+
+                # Highlight tags
+                directions.tag_config("highlight", background="yellow", foreground="black")
+                directions.tag_config("highlight_selected", background="#3399FF", foreground="white")
+
+                # Selection detection
+                directions.bind("<<Selection>>", lambda e, w=directions: self.update_selection_tag(w))
+                directions.bind("<FocusOut>", lambda e, w=directions: w.tag_remove("highlight_selected", "1.0", "end"))
+                directions.bind("<FocusIn>", lambda e, widget=directions: self.after_idle(lambda: self.set_focused_text_widget(widget)))
+
+                self.bind_scroll_behavior(directions)
+
+                # Track this widget
+                self.text_widgets.append(directions)
+
                 col_info["entries"].append((product, directions))
+
             self.column_data.append(col_info)
+
+
+    def update_selection_tag(self, widget):
+        # Clear selection from all other text widgets
+        for w in self.text_widgets:
+            if w != widget:
+                w.tag_remove("sel", "1.0", "end")  # Clear prior invisible selection
+                w.tag_remove("highlight_selected", "1.0", "end")
+
+        widget.tag_remove("highlight_selected", "1.0", "end")
+        try:
+            start = widget.index("sel.first")
+            end = widget.index("sel.last")
+            widget.tag_add("highlight_selected", start, end)
+        except:
+            pass  # No selection
+
+
+    def set_focused_text_widget(self, widget):
+        self.last_focused_widget = widget
 
 
     def build_table(self):
@@ -228,17 +365,13 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             ttk.Separator(self.table_frame, orient="horizontal").grid(
                 row=sep_row, column=0, columnspan=total_grid_cols, sticky="ew", padx=10, pady=(0, 5)
             )
-        
-        if self.initial_data and not self.already_prefilled:
-            self.prefill_from_data(self.initial_data)
-            self.already_prefilled = True
 
 
     def resize_popup(self):
-        base_width = 550
-        base_height = 280
+        base_width = 555
+        base_height = 283
         col_padding = 223
-        row_padding = 105
+        row_padding = 107
         new_width = base_width + (self.num_cols - 2) * col_padding
         new_height = base_height + (self.num_rows - 1) * row_padding
         self.geometry(f"{new_width}x{new_height}")
@@ -249,6 +382,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             self.num_rows += 1
             self.resize_popup()
             self.build_table()
+            self.after_idle(self._update_scroll_region)
 
 
     def add_column(self):
@@ -256,6 +390,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             self.num_cols += 1
             self.resize_popup()
             self.build_table()
+            self.after_idle(self._update_scroll_region)
 
 
     def delete_row(self):
@@ -263,6 +398,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             self.num_rows -= 1
             self.resize_popup()
             self.build_table()
+            self.after_idle(self._update_scroll_region)
 
 
     def delete_column(self):
@@ -270,6 +406,37 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             self.num_cols -= 1
             self.resize_popup()
             self.build_table()
+            self.after_idle(self._update_scroll_region)
+
+
+    def extract_text_with_highlight(self, text_widget):
+        output = ""
+        current_tags = None
+        index = "1.0"
+
+        while True:
+            if index == text_widget.index("end"):
+                break
+
+            next_index = text_widget.index(f"{index} +1c")
+            char = text_widget.get(index, next_index)
+            tags = text_widget.tag_names(index)
+
+            if "highlight" in tags and "highlight" not in (current_tags or []):
+                output += "[[highlight]]"
+            elif "highlight" not in tags and "highlight" in (current_tags or []):
+                output += "[[/highlight]]"
+
+            output += char
+            current_tags = tags
+            index = next_index
+
+        # Close tag if text ends while still in highlight
+        if "highlight" in (current_tags or []):
+            output += "[[/highlight]]"
+
+        print(f"🟡 Extracted with highlight: {repr(output.strip())}")
+        return output.strip()
 
 
     def on_create(self):
@@ -280,7 +447,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             for row in range(self.num_rows):
                 product, directions = self.column_data[i]["entries"][row]
                 product_text = product.get().strip()
-                directions_text = directions.get("1.0", "end").strip()
+                directions_text = self.extract_text_with_highlight(directions)
                 steps.append({"product": product_text, "directions": directions_text})
             steps_dict[f"Col{i+1}_Header"] = header
             steps_dict[f"Col{i+1}"] = steps
@@ -307,6 +474,10 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
 
         pdf_path = generator.generate(self.client_id, self.client_name, start_date, steps_dict)
         print(f"✅ PDF generated at: {pdf_path}")
+        
+        if not pdf_path:
+            messagebox.showerror("PDF Error", "Failed to generate PDF.")
+            return
 
         if self.on_submit_callback:
             self.on_submit_callback(pdf_path, steps_dict)
@@ -333,8 +504,51 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
                     directions = data[col_key][row_index].get("directions", "")
 
                     product_entry, direction_box = self.column_data[col_index]["entries"][row_index]
+                    product_entry.delete(0, "end")
+                    direction_box.delete("1.0", "end")
                     product_entry.insert(0, product)
-                    direction_box.insert("1.0", directions)
+                    self.insert_highlighted_text(direction_box, directions)
+
+
+    def insert_highlighted_text(self, text_widget, content):
+        text_widget.tag_remove("highlight", "1.0", "end")
+
+        print(f"\n🔍 [insert_highlighted_text] Raw content: {repr(content)}")
+        text_widget.delete("1.0", "end")  # Clear previous content
+
+        pattern = r"\[\[highlight\]\](.*?)\[\[/highlight\]\]"
+        last_end = 0
+        has_any_highlight = False
+
+        for match in re.finditer(pattern, content, re.DOTALL):
+            start, end = match.span()
+            normal_text = content[last_end:start]
+            highlighted_text = match.group(1)
+
+            # Insert normal text before the highlight
+            if normal_text:
+                print(f"🟢 Inserting normal text: {repr(normal_text)}")
+                text_widget.insert("end", normal_text)
+
+            # Insert highlighted text and apply tag
+            start_idx = text_widget.index("insert")
+            text_widget.insert("insert", highlighted_text)
+            end_idx = text_widget.index("insert")
+            text_widget.tag_add("highlight", start_idx, end_idx)
+            text_widget.tag_config("highlight", background="yellow", foreground="black")
+            print(f"🟡 Highlighted: {repr(highlighted_text)} from {start_idx} to {end_idx}")
+
+            has_any_highlight = True
+            last_end = end
+
+        # Insert any remaining plain text after the last highlight
+        if last_end < len(content):
+            tail = content[last_end:]
+            print(f"🔵 Inserting trailing text: {repr(tail)}")
+            text_widget.insert("end", tail)
+
+        if not has_any_highlight:
+            print("⚠️ No highlight tags found in this content.")
 
 
     def validate_date_format(self, date_str):
@@ -387,3 +601,41 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         self.date_entry.delete(0, "end")
         self.date_entry.insert(0, formatted_date)
         print(f"✅ Formatted Date: {formatted_date}")
+
+
+    def highlight_current_selection(self):
+        self.update_idletasks()
+        widget = getattr(self, 'last_focused_widget', None)
+
+        if not widget:
+            print("⚠️ No focused text widget found.")
+            return
+
+        try:
+            start = widget.index("sel.first")
+            end = widget.index("sel.last")
+
+            if start == end:
+                print("⚠️ Empty selection. Nothing to highlight or dehighlight.")
+                return
+
+            # Check if every character in the selection has the highlight tag
+            current = start
+            fully_highlighted = True
+
+            while current != end:
+                if "highlight" not in widget.tag_names(current):
+                    fully_highlighted = False
+                    break
+                current = widget.index(f"{current} +1c")
+
+            if fully_highlighted:
+                widget.tag_remove("highlight", start, end)
+                print(f"❎ De-highlighted: {widget.get(start, end)} from {start} to {end}")
+            else:
+                widget.tag_add("highlight", start, end)
+                widget.tag_config("highlight", background="yellow", foreground="black")
+                print(f"✅ Highlighted: {widget.get(start, end)} from {start} to {end}")
+
+        except Exception as e:
+            print(f"❌ Failed to toggle highlight: {e}")
