@@ -10,35 +10,36 @@ class SplashScreen(ctk.CTkToplevel):
         self.title("Loading...")
         self.geometry("500x500")
         self.resizable(False, False)
+        self.iconbitmap(resource_path("icons/butterfly_icon.ico"))
 
         # Load Image
-        self.bg_image = ctk.CTkImage(light_image=Image.open(resource_path("icons/apotheca_logo.jpg")),
+        self.bg_image = ctk.CTkImage(light_image=Image.open(resource_path("icons/butterfly_splash.png")),
                                      size=(500, 500))  # Adjust size as needed
         
         # Background Label
-        self.bg_label = ctk.CTkLabel(self, image=self.bg_image, text="", corner_radius=0, fg_color="#dbdbdb")  
+        self.bg_label = ctk.CTkLabel(self, image=self.bg_image, text="", corner_radius=0, fg_color="#dbd7d1")  
         self.bg_label.place(relwidth=1, relheight=1)  # Cover full window
         
         # Progress Bar
         self.progress_bar = ctk.CTkProgressBar(self, corner_radius=0)
-        self.progress_bar.pack(pady=(460, 0), padx=40, fill="x")
+        self.progress_bar.pack(pady=(470, 0), padx=40, fill="x")
         self.progress_bar.set(0)  # Start at 0%
 
         # Frame for Progress and Timer Labels (Side-by-Side)
-        label_frame = ctk.CTkFrame(self, fg_color="#dbdbdb", corner_radius=0)
+        label_frame = ctk.CTkFrame(self, fg_color="#dbd7d1", corner_radius=0)
         label_frame.pack(pady=5, padx=40, fill="x")  # Align with progress bar width
 
         # Progress Label (Left)
         self.progress_label = ctk.CTkLabel(label_frame, text="Starting up...", 
-                                           font=("Helvetica", 14),
-                                           fg_color="#dbdbdb",
+                                           font=("Helvetica", 10),
+                                           fg_color="#dbd7d1",
                                            corner_radius=0)
         self.progress_label.pack(side="left", padx=10)
 
         # Timer Label (Right)
         self.timer_label = ctk.CTkLabel(label_frame, text="Elapsed Time: 0s", 
-                                        font=("Helvetica", 12),
-                                        fg_color="#dbdbdb",
+                                        font=("Helvetica", 10),
+                                        fg_color="#dbd7d1",
                                         corner_radius=0)
         self.timer_label.pack(side="right", padx=10)
 

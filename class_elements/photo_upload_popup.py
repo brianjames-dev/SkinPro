@@ -10,6 +10,7 @@ import sys
 import sqlite3
 import datetime
 from utils.path_utils import resource_path
+import tempfile
 
 
 class PhotoUploadPopup(ctk.CTkToplevel):
@@ -92,22 +93,22 @@ class PhotoUploadPopup(ctk.CTkToplevel):
                     return
 
                 # Update profile path in DB
-                self.parent.cursor.execute("""
+                self.main_app.conn.cursor().execute("""
                     UPDATE clients SET profile_picture = ? WHERE id = ?
                 """, (save_path, self.client_id))
 
                 # Ensure default zoom/shift exists
-                self.parent.cursor.execute("SELECT id FROM client_images WHERE client_id = ?", (self.client_id,))
-                if self.parent.cursor.fetchone():
-                    self.parent.cursor.execute("""
+                self.main_app.conn.cursor().execute("SELECT id FROM client_images WHERE client_id = ?", (self.client_id,))
+                if self.main_app.conn.cursor().fetchone():
+                    self.main_app.conn.cursor().execute("""
                         UPDATE client_images SET zoom = ?, shift = ? WHERE client_id = ?
                     """, (100, 0, self.client_id))
                 else:
-                    self.parent.cursor.execute("""
+                    self.main_app.conn.cursor().execute("""
                         INSERT INTO client_images (client_id, zoom, shift) VALUES (?, ?, ?)
                     """, (self.client_id, 100, 0))
 
-                self.parent.conn.commit()
+                self.main_app.conn.commit()
 
                 # Refresh profile picture UI
                 if hasattr(self, "profile_card") and self.profile_card:
@@ -124,7 +125,9 @@ class PhotoUploadPopup(ctk.CTkToplevel):
         # === APPOINTMENT PHOTO MODE ===
         safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in self.client_name).replace(" ", "_")
         date_formatted = self.appointment_date.replace("/", "-")
-        client_folder = self.main_app.data_manager.get_photo_path(f"{safe_name}_id_{self.client_id}", date_formatted)
+        client_folder = self.main_app.data_manager.get_photo_path(
+            f"{safe_name}_id_{self.client_id}", date_formatted
+        )
         os.makedirs(client_folder, exist_ok=True)
 
         file_paths = filedialog.askopenfilenames(
@@ -144,19 +147,20 @@ class PhotoUploadPopup(ctk.CTkToplevel):
                 new_path = os.path.join(client_folder, f"{name}_{counter}{ext}")
                 counter += 1
             shutil.copy(file_path, new_path)
-            self.parent.cursor.execute(
+            self.main_app.conn.cursor().execute(
                 "INSERT INTO photos (client_id, appointment_id, appt_date, file_path, type) VALUES (?, ?, ?, ?, ?)",
                 (self.client_id, self.appointment_id, self.appointment_date, new_path, self.appt_type)
             )
 
-        self.parent.cursor.execute("UPDATE appointments SET photos_taken = 'Yes' WHERE id = ?", (self.appointment_id,))
-        self.parent.conn.commit()
+        self.main_app.conn.cursor().execute("UPDATE appointments SET photos_taken = 'Yes' WHERE id = ?", (self.appointment_id,))
+        self.main_app.conn.commit()
         messagebox.showinfo("Success", f"{len(file_paths)} photo(s) uploaded successfully.")
 
         # Refresh UI
-        if "Photos" in self.parent.main_app.tabs:
-            self.parent.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
-        self.parent.load_client_appointments(self.client_id)
+        if "Photos" in self.main_app.tabs:
+            self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
+
+        self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
 
 
     def generate_qr(self):
@@ -180,13 +184,46 @@ class PhotoUploadPopup(ctk.CTkToplevel):
         """Launch Flask server in a background subprocess if not already running."""
         if not hasattr(sys, '_flask_server_started'):
             print("🟢 Starting Flask server...")
-            server_path = os.path.join(
-                getattr(sys, '_MEIPASS', os.path.abspath(".")),
-                "upload_server", "server.py"
-            )
-            subprocess.Popen([sys.executable, server_path])
-            print("🟢 Flask server launched!")
-            sys._flask_server_started = True
+
+            # Determine whether we're running from a PyInstaller .exe
+            is_frozen = getattr(sys, 'frozen', False)
+
+            if is_frozen:
+                # PyInstaller bundle: server.py is extracted into _MEIPASS
+                server_path = os.path.join(sys._MEIPASS, "upload_server", "server.py")
+                python_cmd = "python"  # assume installed system Python
+            else:
+                # Dev mode: use local path and Python executable
+                from utils.path_utils import resource_path
+                server_path = resource_path(os.path.join("upload_server", "server.py"))
+                python_cmd = sys.executable
+
+            # Check that python is available in frozen mode
+            if is_frozen:
+                try:
+                    result = subprocess.run(
+                        [python_cmd, "--version"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        creationflags=(subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+                    )
+                    if result.returncode != 0:
+                        raise EnvironmentError(f"Python not found: {result.stderr.strip()}")
+                    else:
+                        print(f"🧪 Found system Python: {result.stdout.strip()}")
+                except Exception as e:
+                    print(f"❌ Could not verify system Python: {e}")
+                    return
+
+            # Launch server
+            creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            try:
+                subprocess.Popen([python_cmd, server_path], creationflags=creationflags)
+                sys._flask_server_started = True
+                print(f"🟢 Flask server launched using {python_cmd}: {server_path}")
+            except Exception as e:
+                print(f"❌ Failed to start Flask server: {e}")
 
 
     def start_polling(self):
@@ -197,7 +234,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
     def check_for_uploaded_photos(self):
         try:
-            conn = sqlite3.connect(self.main_app.data_manager.db_path)
+            conn = sqlite3.connect(self.main_app.data_manager.db_path, check_same_thread=False)
             cursor = conn.cursor()
 
             if getattr(self, "is_profile_upload", False):

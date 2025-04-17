@@ -6,8 +6,16 @@ from class_elements.splash_screen import SplashScreen
 from class_elements.img_load_threading import ImageLoaderThread
 from utils.data_manager import DataDirectoryManager
 from utils.path_utils import resource_path
+import sys
+
 
 if __name__ == "__main__":
+    # Prevent launching the full UI if this is just the Flask subprocess
+    if "--run-flask" in sys.argv:
+        print("🌀 Launching Flask server subprocess (from --run-flask flag)...")
+        from upload_server import server
+        sys.exit()
+
     ctk.set_appearance_mode("Light")
     ctk.set_default_color_theme(resource_path("class_elements/corium_theme.json"))
 

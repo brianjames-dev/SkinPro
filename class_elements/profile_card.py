@@ -194,15 +194,12 @@ class ProfileCard:
             print("⚠ No client selected. Cannot upload profile picture.")
             return
 
-        # Reuse the QR code upload popup with a special flag for profile upload
         PhotoUploadPopup(
             parent=self.profile_frame,
             client_id=self.client_id,
             client_name=self.full_name,
             main_app=self.main_app,
             profile_card=self,
-            conn=self.conn,
-            cursor=self.cursor
         )
 
     def open_settings_popup(self):

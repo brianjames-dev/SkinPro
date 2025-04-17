@@ -91,6 +91,15 @@ class DataDirectoryManager:
             json.dump(config, f, indent=2)
 
 
+    def get_photo_path(self, client_folder_name: str, date_folder_name: str) -> str:
+        """
+        Constructs the full path to a client's appointment photo folder with correct formatting.
+        """
+        path = os.path.join(self.images_dir, client_folder_name, date_folder_name)
+        os.makedirs(path, exist_ok=True)
+        return path
+
+
     @property
     def db_path(self):
         return os.path.join(self.data_dir, "skinpro.db")

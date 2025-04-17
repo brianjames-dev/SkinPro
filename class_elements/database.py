@@ -10,7 +10,17 @@ def init_database(db_path, backup_dir):
     Weekly backups are made with a timestamped filename.
     """
     is_new = not os.path.exists(db_path)
-    conn = sqlite3.connect(db_path)
+
+    # Apply WAL mode only during initial connection
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+    except sqlite3.OperationalError as e:
+        print(f"⚠️ Could not apply WAL mode: {e}")
+    finally:
+        conn.commit()
+        
     cursor = conn.cursor()
 
     if is_new:

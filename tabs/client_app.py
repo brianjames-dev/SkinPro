@@ -8,6 +8,8 @@ from tabs._6_alerts_page import AlertsPage
 from class_elements.profile_card import ProfileCard
 from class_elements.splash_screen import SplashScreen
 from class_elements.img_load_threading import ImageLoaderThread
+from utils.path_utils import resource_path
+
 
 class ClientApp(ctk.CTk):
     def __init__(self, conn, image_cache, image_loader, data_manager):
@@ -15,6 +17,7 @@ class ClientApp(ctk.CTk):
 
         self.title("SkinPro")
         self.geometry("936x702")
+        self.iconbitmap(resource_path("icons/butterfly_icon.ico"))
 
         self.conn = conn  # Save the database connection
         self.cursor = self.conn.cursor()
@@ -183,7 +186,7 @@ class ClientApp(ctk.CTk):
 
     def init_alerts_tab(self):
         alerts_tab = self.tab_view.tab("Alerts")
-        self.tabs["Alerts"] = AlertsPage(alerts_tab, self.conn, self)
+        self.tabs["Alerts"] = AlertsPage(alerts_tab, self)
 
     def switch_to_tab(self, tab_name, data=None):
         """Switch to the specified tab by name."""

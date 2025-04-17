@@ -9,13 +9,22 @@ import json
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def load_data_paths():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.abspath(os.path.join(base_dir, "../config.json"))
+    """Load database and asset paths from config.json and paths.json."""
+    # Fallback: Known external config location (user's SkinProData folder)
+    fallback_dir = os.path.expanduser("~/OneDrive/Desktop/SkinProData")
+    fallback_config_path = os.path.join(fallback_dir, "config.json")
 
-    if not os.path.exists(config_path):
-        raise FileNotFoundError("❌ config.json not found. Please start the main SkinPro app at least once to initialize.")
+    # Try fallback location FIRST, because PyInstaller runs from temp dirs
+    if os.path.exists(fallback_config_path):
+        config_path = fallback_config_path
+    else:
+        # Then try the relative path (useful for development)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.abspath(os.path.join(base_dir, "../config.json"))
+        if not os.path.exists(config_path):
+            raise FileNotFoundError("❌ config.json not found. Please start the main SkinPro app at least once to initialize.")
 
-    # Load data_dir from config.json
+    # Load data_dir from config
     with open(config_path, "r") as f:
         config = json.load(f)
     data_dir = config.get("data_dir")
@@ -23,11 +32,10 @@ def load_data_paths():
     if not data_dir or not os.path.exists(data_dir):
         raise FileNotFoundError(f"❌ SkinProData directory not found at: {data_dir}")
 
-    # Load paths.json, or create if missing
+    # Load paths.json (or create fallback if missing)
     paths_path = os.path.join(data_dir, "paths.json")
-
     if not os.path.exists(paths_path):
-        print("⚠️ paths.json not found. Attempting to create a fallback.")
+        print("⚠️ paths.json not found. Creating fallback paths...")
         fallback_paths = {
             "database": os.path.join(data_dir, "skinpro.db"),
             "photos": os.path.join(data_dir, "images"),
@@ -39,7 +47,6 @@ def load_data_paths():
     else:
         print(f"📄 Loaded existing paths.json at: {paths_path}")
 
-    # Return the paths
     with open(paths_path, "r") as f:
         paths = json.load(f)
 
@@ -67,7 +74,7 @@ def upload_photos():
 
         # Fetch client name and appointment date
         try:
-            conn = sqlite3.connect(DB_PATH)
+            conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             cursor = conn.cursor()
 
             cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
@@ -143,7 +150,7 @@ def upload_photos():
                     print(f"⚠️ Could not fix orientation for {filename}: {e}")
 
                 # Insert into DB
-                conn = sqlite3.connect(DB_PATH)
+                conn = sqlite3.connect(DB_PATH, check_same_thread=False)
                 cursor = conn.cursor()
                 cursor.execute("""
                     INSERT INTO photos (client_id, appointment_id, appt_date, file_path, type)
@@ -163,7 +170,7 @@ def upload_photos():
         # Update appointment flag
         if successful_upload:
             try:
-                conn = sqlite3.connect(DB_PATH)
+                conn = sqlite3.connect(DB_PATH, check_same_thread=False)
                 cursor = conn.cursor()
                 cursor.execute("UPDATE appointments SET photos_taken = 'Yes' WHERE id = ?", (appointment_id,))
                 conn.commit()
@@ -181,7 +188,7 @@ def upload_photos():
         )
 
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         cursor = conn.cursor()
 
         cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
@@ -227,7 +234,7 @@ def upload_profile_pic():
 
         # Get client name
         try:
-            conn = sqlite3.connect(DB_PATH)
+            conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             cursor = conn.cursor()
             cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
             result = cursor.fetchone()
@@ -268,7 +275,7 @@ def upload_profile_pic():
                 print(f"⚠️ Could not fix EXIF orientation: {e}")
 
             # Update database
-            conn = sqlite3.connect(DB_PATH)
+            conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             cursor = conn.cursor()
             cursor.execute("UPDATE clients SET profile_picture = ? WHERE id = ?", (save_path, client_id))
             conn.commit()
@@ -286,7 +293,7 @@ def upload_profile_pic():
 
     # For GET request, show upload form
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
         result = cursor.fetchone()
@@ -304,9 +311,8 @@ def upload_profile_pic():
         appt_type="Upload"
     )
 
-
 if __name__ == "__main__":
     try:
-        app.run(host="0.0.0.0", port=8000, debug=True, use_reloader=False)
+        app.run(host="0.0.0.0", port=8000, debug=False, use_reloader=False)
     except SystemExit as e:
         print(f"⚠️ Flask shutdown with code {e}")

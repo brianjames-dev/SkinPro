@@ -1028,7 +1028,5 @@ class AppointmentsPage:
             client_name=client_name,
             appt_type=type,
             main_app=self.main_app,
-            conn=self.conn,
-            cursor=self.cursor
         )
         popup.grab_set()

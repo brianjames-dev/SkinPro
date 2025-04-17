@@ -6,14 +6,13 @@ from utils.path_utils import resource_path
 from class_elements.treeview_styling_light import style_treeview_light
 from datetime import datetime, timedelta
 import re
+import sqlite3
 
 
 class AlertsPage:
-    def __init__(self, parent, conn, main_app):
+    def __init__(self, parent, main_app):
         self.parent = parent
-        self.conn = conn
         self.main_app = main_app
-        self.cursor = conn.cursor()
         self.client_id = None
 
         # Main frame
@@ -126,8 +125,10 @@ class AlertsPage:
             JOIN clients c ON a.client_id = c.id
             ORDER BY a.deadline ASC
             """
-            self.cursor.execute(query)
-            alerts = self.cursor.fetchall()
+
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                alerts = cursor.execute(query).fetchall()
 
             # Populate the Treeview with the alerts
             for alert in alerts:
@@ -153,8 +154,14 @@ class AlertsPage:
 
         alert_id = selected_item[0]
 
-        self.cursor.execute("SELECT deadline, notes FROM alerts WHERE id = ?", (alert_id,))
-        alert_data = self.cursor.fetchone()
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT deadline, notes FROM alerts WHERE id = ?", (alert_id,))
+                alert_data = cursor.fetchone()
+        except Exception as e:
+            print(f"❌ Error fetching alert: {e}")
+            return
 
         if not alert_data:
             print("⚠ Alert not found in database.")
@@ -216,11 +223,12 @@ class AlertsPage:
             return
 
         try:
-            self.cursor.execute("""
-                UPDATE alerts SET deadline = ?, notes = ? WHERE id = ?
-            """, (new_deadline, new_notes, alert_id))
-            self.conn.commit()
-            print(f"✅ Alert {alert_id} updated.")
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE alerts SET deadline = ?, notes = ? WHERE id = ?
+                """, (new_deadline, new_notes, alert_id))
+                print(f"✅ Alert {alert_id} updated.")
 
             self.load_alerts()
             self.alert_window.destroy()
@@ -273,9 +281,10 @@ class AlertsPage:
     def _execute_delete_alert(self, alert_id, popup):
         """Delete the alert from the database and refresh the view."""
         try:
-            self.cursor.execute("DELETE FROM alerts WHERE id = ?", (alert_id,))
-            self.conn.commit()
-            print(f"🗑️ Deleted alert ID: {alert_id}")
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM alerts WHERE id = ?", (alert_id,))
+
             self.load_alerts()  # Refresh the list
         except Exception as e:
             print(f"❌ Error deleting alert: {e}")
@@ -443,12 +452,11 @@ class AlertsPage:
 
     def get_client_details(self, client_id):
         try:
-            self.cursor.execute("SELECT full_name, primary_phone FROM clients WHERE id = ?", (client_id,))
-            client_details = self.cursor.fetchone()
-            if client_details:
-                return client_details[0], client_details[1]  # Return full_name and phone #
-            else:
-                return None, None
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT full_name, primary_phone FROM clients WHERE id = ?", (client_id,))
+                result = cursor.fetchone()
+                return result if result else (None, None)
         except Exception as e:
             print(f"Error fetching client details: {e}")
             return None, None
@@ -460,10 +468,10 @@ class AlertsPage:
         VALUES (?, ?, ?)
         """
         try:
-            self.cursor.execute(query, (client_id, deadline, notes))
-            self.conn.commit()
-            alert_id = self.cursor.lastrowid  # Get the ID of the inserted row
-            return alert_id
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (client_id, deadline, notes))
+                return cursor.lastrowid
         
         except Exception as e:
             print(f"Error saving to database: {e}")
