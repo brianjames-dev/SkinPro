@@ -1,17 +1,23 @@
 import os
 import customtkinter as ctk
-from PIL import Image, ImageOps, ImageDraw
+from PIL import Image, ImageOps, ImageDraw, ImageFile
 from tkinter import filedialog
+from utils.path_utils import resource_path
+from class_elements.photo_upload_popup import PhotoUploadPopup
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 
 # Image size
 w, h = 58, 58
 
 class ProfileCard:
-    def __init__(self, parent, conn, cursor):
+    def __init__(self, parent, conn, cursor, data_manager, main_app):
         self.conn = conn                            # Store database connection
         self.cursor = cursor
+        self.data_manager = data_manager
+        self.main_app = main_app
         self.client_id = None                       # Selected client ID
-        self.profile_path = "icons/account_circle.png"   # Default placeholder
+        self.profile_path = resource_path("icons/account_circle.png")
 
         # Frame to hold the profile picture and name
         self.profile_frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -48,7 +54,7 @@ class ProfileCard:
         if client_id is None:
             print("🔄 Resetting Profile Card to default state...")
             self.client_id = None
-            self.profile_path = "icons/account_circle.png"
+            self.profile_path = resource_path("icons/account_circle.png")
             self.full_name = "No Client Selected"
 
             # Reset profile image
@@ -85,18 +91,19 @@ class ProfileCard:
         # Ensure profile image exists, otherwise fallback to default
         if not self.profile_path or not os.path.exists(self.profile_path):
             print(f"⚠ Image path not found: {self.profile_path}. Using default profile picture.")
-            self.profile_path = "icons/account_circle.png"
+            self.profile_path = resource_path("icons/account_circle.png")
 
         # Load and apply circular transformation only for real images
         try:
-            if self.profile_path == "icons/account_circle.png":
-                self.profile_image = ctk.CTkImage(Image.open(self.profile_path), size=(w, h))
+            default_path = resource_path("icons/account_circle.png")
+            if os.path.abspath(self.profile_path) == os.path.abspath(default_path):
+                self.profile_image = ctk.CTkImage(Image.open(default_path), size=(w, h))
             else:
                 processed_image = self.create_circular_image(Image.open(self.profile_path))
                 self.profile_image = ctk.CTkImage(processed_image, size=(w, h))
         except Exception as e:
             print(f"❌ Error processing image: {e}")
-            self.profile_image = ctk.CTkImage(Image.open("icons/account_circle.png"), size=(w, h))  # Ensure valid image object
+            self.profile_image = ctk.CTkImage(Image.open(resource_path("icons/account_circle.png")), size=(w, h))
 
         # Update UI
         self.profile_button.configure(image=self.profile_image)
@@ -111,7 +118,7 @@ class ProfileCard:
 
         # **Step 1: Determine Save Path (Temp or Final)**
         if self.client_id == -1:  
-            save_path = "images/profile_pics/temp_profile.png"  # Temporary location for new clients
+            save_path = os.path.join(self.data_manager.profile_pics_dir, "temp_profile.png")
         else:
             # Fetch Client's Full Name for File Naming
             self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
@@ -119,10 +126,16 @@ class ProfileCard:
 
             if result:
                 full_name = result[0].replace(" ", "_")  # Replace spaces with underscores
-                save_path = f"images/profile_pics/{full_name}_id_{self.client_id}.png"
+                save_path = os.path.join(
+                    self.data_manager.profile_pics_dir,
+                    f"{full_name}_id_{self.client_id}.png"
+                )
             else:
                 print(f"⚠ ERROR: No full_name found for client_id {self.client_id}. Using default name.")
-                save_path = f"images/profile_pics/client_{self.client_id}.png"
+                save_path = os.path.join(
+                    self.data_manager.profile_pics_dir,
+                    f"client_{self.client_id}.png"
+                )
 
         # **Step 2: Process and Save Image**
         edited_image = self.create_circular_image(Image.open(self.profile_path))
@@ -176,15 +189,21 @@ class ProfileCard:
         self.popup.destroy()
 
     def change_profile_picture(self):
-        """Step 1: Select a new image, then open the settings popup."""
-        file_path = filedialog.askopenfilename(
-            title="Select Profile Picture",
-            filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.bmp")]
+        """Trigger QR-based upload flow for profile picture."""
+        if self.client_id is None:
+            print("⚠ No client selected. Cannot upload profile picture.")
+            return
+
+        # Reuse the QR code upload popup with a special flag for profile upload
+        PhotoUploadPopup(
+            parent=self.profile_frame,
+            client_id=self.client_id,
+            client_name=self.full_name,
+            main_app=self.main_app,
+            profile_card=self,
+            conn=self.conn,
+            cursor=self.cursor
         )
-        if file_path:
-            self.profile_path = file_path  # Save the new image path
-            print(f"The path to the selected image: {self.profile_path}")
-            self.open_settings_popup()  # Open settings window after selecting
 
     def open_settings_popup(self):
         """Step 2: Open a settings popup with live preview & adjustment controls."""
@@ -199,10 +218,10 @@ class ProfileCard:
         self.popup.focus_force()  # Immediately focus the popup window
         
         # Load icons
-        zoom_in_icon = ctk.CTkImage(Image.open("icons/zoom_in.png"), size=(24, 24))
-        zoom_out_icon = ctk.CTkImage(Image.open("icons/zoom_out.png"), size=(24, 24))
-        arrow_up_icon = ctk.CTkImage(Image.open("icons/arrow_up.png"), size=(24, 24))
-        arrow_down_icon = ctk.CTkImage(Image.open("icons/arrow_down.png"), size=(24, 24))
+        zoom_in_icon = ctk.CTkImage(Image.open(resource_path("icons/zoom_in.png")), size=(24, 24))
+        zoom_out_icon = ctk.CTkImage(Image.open(resource_path("icons/zoom_out.png")), size=(24, 24))
+        arrow_up_icon = ctk.CTkImage(Image.open(resource_path("icons/arrow_up.png")), size=(24, 24))
+        arrow_down_icon = ctk.CTkImage(Image.open(resource_path("icons/arrow_down.png")), size=(24, 24))
 
         # Main frame
         main_frame = ctk.CTkFrame(self.popup)
@@ -296,6 +315,6 @@ class ProfileCard:
 
     def set_default_profile_picture(self):
         """Reset to default profile picture."""
-        self.profile_path = "icons/account_circle.png"
+        self.profile_path = resource_path("icons/account_circle.png")
         self.profile_image = ctk.CTkImage(Image.open(self.profile_path), size=(w, h))
         self.profile_button.configure(image=self.profile_image)

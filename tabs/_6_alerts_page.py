@@ -1,9 +1,8 @@
 import customtkinter as ctk
-from tkinter import ttk
+from tkinter import ttk, filedialog, messagebox
 import tkinter as tk
 from PIL import Image
-from tkinter import messagebox
-from tkinter import filedialog
+from utils.path_utils import resource_path
 from class_elements.treeview_styling_light import style_treeview_light
 from datetime import datetime, timedelta
 import re
@@ -56,7 +55,7 @@ class AlertsPage:
         self.notes_entry.bind("<Return>", lambda e: self.format_date())
 
         # Set Alert Button
-        alert_img = ctk.CTkImage(light_image=Image.open("icons/alert.png"), size=(24, 24))
+        alert_img = ctk.CTkImage(light_image=Image.open(resource_path("icons/alert.png")), size=(24, 24))
         self.set_alert_button = ctk.CTkButton(set_notes_frame, text="Set Alert", command=self.set_alert, image=alert_img, width=100)
         self.set_alert_button.grid(row=0, column=2, padx=10)
 
@@ -300,7 +299,7 @@ class AlertsPage:
             missing_fields.append("- Phone Number")
 
         if missing_fields:
-            messagebox.showerror("Error", f"Client profile is missing:\n\n" + "\n".join(missing_fields))
+            messagebox.showerror("Error", f"Client '{client_name}' is missing:\n\n" + "\n".join(missing_fields) + "\n\nPlease update their profile before setting an alert.")
             return
 
         deadline = self.deadline_entry.get()
@@ -329,6 +328,11 @@ class AlertsPage:
         """Open popup to create a new alert for the selected client (from another tab)."""
         if client_id is None:
             messagebox.showwarning("Warning", "No client is selected.")
+            return
+
+        client_name, client_phone = self.get_client_details(client_id)
+        if not client_phone:
+            messagebox.showerror("Missing Info", f"Client '{client_name}' is missing:\n\n- Phone Number\n\nPlease update their profile before setting an alert.")
             return
 
         self.alert_window = ctk.CTkToplevel()

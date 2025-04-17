@@ -60,7 +60,11 @@
         <div class="info">
             {{ uploaded }} file(s) successfully uploaded.<br><br>
             <strong>{{ full_name }}</strong><br>
-            {{ appointment_date }} | {{ appt_type }}
+            {% if appt_type == "Upload" and appointment_date == "Profile Picture" %}
+                Profile Picture
+            {% else %}
+                {{ appointment_date }} | {{ appt_type }}
+            {% endif %}
         </div>
         <p style="font-size: 15px; color: #777; margin-top: 20px;">
             You should now manually close this tab.

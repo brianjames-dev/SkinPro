@@ -90,8 +90,20 @@
 </head>
 <body>
     <div class="container">
-        <h1>Upload Photos</h1>
-        <div class="subheading">{{ full_name }} | {{ appointment_date }} | {{ appt_type }}</div>
+        <h1>
+            {% if appt_type == "Upload" and appointment_date == "Profile Picture" %}
+                Upload Profile Picture
+            {% else %}
+                Upload Photos
+            {% endif %}
+        </h1>
+        <div class="subheading">
+            {% if appt_type == "Upload" and appointment_date == "Profile Picture" %}
+                {{ full_name }}
+            {% else %}
+                {{ full_name }} | {{ appointment_date }} | {{ appt_type }}
+            {% endif %}
+        </div>
 
         <form id="uploadForm" action="" method="post" enctype="multipart/form-data" onsubmit="showSpinner()">
             <input type="file" name="photos" multiple accept="image/*,.heic,.HEIC">

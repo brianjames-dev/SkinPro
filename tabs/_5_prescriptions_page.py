@@ -1,6 +1,6 @@
 import customtkinter as ctk
 from customtkinter import CTkImage
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 from class_elements.treeview_styling_light import style_treeview_light
 import os
@@ -9,7 +9,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from datetime import datetime
 import textwrap
-from tkinter import messagebox
+from utils.path_utils import resource_path
 from class_elements.pdf_generators.pdf_2col import Pdf2ColGenerator
 from class_elements.pdf_generators.pdf_3col import Pdf3ColGenerator
 from class_elements.pdf_generators.pdf_4col import Pdf4ColGenerator
@@ -19,16 +19,17 @@ import json
 
 
 class PrescriptionsPage:
-    def __init__(self, parent, conn, main_app):
+    def __init__(self, parent, conn, main_app, data_manager):
         self.conn = conn
         self.cursor = conn.cursor() if conn else None
         self.main_app = main_app
+        self.data_manager = data_manager
         self.appointment_id = None
         self.current_prescription_id = None
         self.pdf_render_worker = PdfRenderWorker(self.display_rendered_pdf)
-        self.pdf_2col = Pdf2ColGenerator()
-        self.pdf_3col = Pdf3ColGenerator()
-        self.pdf_4col = Pdf4ColGenerator()
+        self.pdf_2col = Pdf2ColGenerator(data_manager)
+        self.pdf_3col = Pdf3ColGenerator(data_manager)
+        self.pdf_4col = Pdf4ColGenerator(data_manager)
 
         self.prescription_paths = {}  # {iid: filepath}
 
@@ -83,12 +84,13 @@ class PrescriptionsPage:
         for i in range(6):
             button_row_frame.columnconfigure(i, weight=1)
 
-        add_img = ctk.CTkImage(Image.open("icons/add.png"), size=(24, 24))
-        edit_img = ctk.CTkImage(Image.open("icons/edit_document.png"), size=(24, 24))
-        delete_img = ctk.CTkImage(Image.open("icons/delete.png"), size=(24, 24))
-        preview_img = ctk.CTkImage(Image.open("icons/preview.png"), size=(24, 24))
-        print_img = ctk.CTkImage(Image.open("icons/print.png"), size=(24, 24))
-        alert_img = ctk.CTkImage(Image.open("icons/alert.png"), size=(24, 24))
+        add_img = CTkImage(Image.open(resource_path("icons/add.png")), size=(24, 24))
+        edit_img = CTkImage(Image.open(resource_path("icons/edit_document.png")), size=(24, 24))
+        delete_img = CTkImage(Image.open(resource_path("icons/delete.png")), size=(24, 24))
+        preview_img = CTkImage(Image.open(resource_path("icons/preview.png")), size=(24, 24))
+        print_img = CTkImage(Image.open(resource_path("icons/print.png")), size=(24, 24))
+        alert_img = CTkImage(Image.open(resource_path("icons/alert.png")), size=(24, 24))
+
 
         # Create buttons in a row
         button_specs = [
@@ -146,7 +148,7 @@ class PrescriptionsPage:
             return
 
         cursor = self.conn.cursor()
-        PrescriptionEntryPopup(self.main_app, self.handle_prescription_submission, client_id, cursor)
+        PrescriptionEntryPopup(self.main_app, self.handle_prescription_submission, client_id, cursor, self.main_app.data_manager)
 
 
     def handle_prescription_submission(self, pdf_path, data):
@@ -275,6 +277,7 @@ class PrescriptionsPage:
                 lambda updated_path, updated_data: self.handle_edit_submission(prescription_id, updated_path, updated_data),
                 getattr(self.main_app.profile_card, "client_id", None),
                 self.cursor,
+                self.main_app.data_manager,
                 initial_data=parsed_data,
                 original_path=original_path
             )
@@ -371,6 +374,12 @@ class PrescriptionsPage:
                 os.remove(pdf_path)
                 print(f"🗑️ Deleted PDF file: {pdf_path}")
 
+                # Delete folder if empty
+                folder = os.path.dirname(pdf_path)
+                if os.path.exists(folder) and not os.listdir(folder):
+                    os.rmdir(folder)
+                    print(f"🗑️ Deleted empty folder: {folder}")
+
             # Delete from database
             self.cursor.execute("DELETE FROM prescriptions WHERE file_path = ?", (pdf_path,))
             self.conn.commit()
@@ -378,6 +387,10 @@ class PrescriptionsPage:
             # Remove from Treeview and internal state
             self.prescription_list.delete(iid)
             del self.prescription_paths[iid]
+
+            # Clear the PDF preview/render frame
+            for widget in self.preview_inner_frame.winfo_children():
+                widget.destroy()
 
             print("✅ Prescription successfully deleted.")
 

@@ -5,11 +5,13 @@ from class_elements.profile_card import ProfileCard
 from class_elements.treeview_styling_light import style_treeview_light
 from class_elements.photo_upload_popup import PhotoUploadPopup
 from upload_server.qr_helper import generate_upload_qr
+from utils.path_utils import resource_path
 from datetime import datetime
 from PIL import Image
 import re
 import os
 import shutil
+
 
 class AppointmentsPage:
     def __init__(self, parent, conn, main_app):
@@ -60,12 +62,10 @@ class AppointmentsPage:
         self.client_combobox.bind("<FocusIn>", self.clear_placeholder)  # Keyboard focus
 
         # Load images for buttons
-        add_appt = ctk.CTkImage(Image.open("icons/add.png"), size=(24, 24))
-
-        edit_appt = ctk.CTkImage(Image.open("icons/edit_appt.png"), size=(24, 24))
-        add_imgs = ctk.CTkImage(Image.open("icons/add_photo_alt.png"), size=(24, 24))
-
-        delete_appt = ctk.CTkImage(Image.open("icons/delete.png"), size=(24, 24))
+        add_appt = ctk.CTkImage(Image.open(resource_path("icons/add.png")), size=(24, 24))
+        edit_appt = ctk.CTkImage(Image.open(resource_path("icons/edit_appt.png")), size=(24, 24))
+        add_imgs = ctk.CTkImage(Image.open(resource_path("icons/add_photo_alt.png")), size=(24, 24))
+        delete_appt = ctk.CTkImage(Image.open(resource_path("icons/delete.png")), size=(24, 24))
 
         # Create Frame for Create Button
         create_frame = ctk.CTkFrame(main_frame)
@@ -905,7 +905,7 @@ class AppointmentsPage:
         # Step 3: Create Confirmation Pop-up
         confirmation = ctk.CTkToplevel()
         confirmation.title("Confirm Deletion")
-        confirmation.geometry("350x150")
+        confirmation.geometry("350x170")
         confirmation.resizable(False, False)
         
         # Make pop-up **always on top** and disable main window until closed
@@ -920,7 +920,7 @@ class AppointmentsPage:
         # Confirmation Message
         ctk.CTkLabel(
             main_frame, 
-            text="Are you sure you want to delete this appointment?",
+            text="Are you sure you want to permanently delete this appointment?\n\nAll associated photos will also be removed.",
             font=("Helvetica", 14), wraplength=300
         ).pack(pady=(25, 10))
 
@@ -941,19 +941,55 @@ class AppointmentsPage:
     def _execute_delete_appointment(self, appointment_id, confirmation_window):
         """Executes appointment deletion and closes the confirmation pop-up."""
         try:
-            # Step 4: Delete the appointment
+            # --- Fetch and delete photo files associated with this appointment ---
+            self.cursor.execute("SELECT file_path FROM photos WHERE appointment_id = ?", (appointment_id,))
+            photo_rows = self.cursor.fetchall()
+
+            folders_to_check = set()
+
+            for (file_path,) in photo_rows:
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        print(f"🗑️ Deleted photo file: {file_path}")
+
+                        # Track the folder path for cleanup check
+                        folder_path = os.path.dirname(file_path)
+                        folders_to_check.add(folder_path)
+
+                    except Exception as e:
+                        print(f"⚠️ Failed to delete file {file_path}: {e}")
+                else:
+                    print(f"⚠️ File not found, skipping: {file_path}")
+
+            # --- Attempt to delete now-empty folders ---
+            for folder in folders_to_check:
+                try:
+                    if os.path.exists(folder) and not os.listdir(folder):  # folder exists and is empty
+                        os.rmdir(folder)
+                        print(f"📂 Deleted empty folder: {folder}")
+                except Exception as e:
+                    print(f"⚠️ Failed to delete folder {folder}: {e}")
+
+            # --- Remove photo entries from DB ---
+            self.cursor.execute("DELETE FROM photos WHERE appointment_id = ?", (appointment_id,))
+            print(f"📷 Deleted {len(photo_rows)} photo record(s) from database.")
+
+            # --- Delete the appointment record itself ---
             self.cursor.execute("DELETE FROM appointments WHERE id = ?", (appointment_id,))
             self.conn.commit()
             print(f"🗑️ Appointment {appointment_id} deleted successfully.")
 
-            # Refresh appointments list
+            # --- Refresh UI ---
             self.load_client_appointments(self.client_id)
+            if "Photos" in self.main_app.tabs:
+                self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
 
         except Exception as e:
             print(f"❌ Error deleting appointment: {e}")
 
         finally:
-            confirmation_window.destroy()  # Close confirmation window
+            confirmation_window.destroy()
 
 
     def add_photos(self):
@@ -991,6 +1027,8 @@ class AppointmentsPage:
             appointment_date=appt_date,
             client_name=client_name,
             appt_type=type,
-            main_app=self.main_app
+            main_app=self.main_app,
+            conn=self.conn,
+            cursor=self.cursor
         )
         popup.grab_set()

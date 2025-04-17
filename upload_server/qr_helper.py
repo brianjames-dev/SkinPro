@@ -17,17 +17,21 @@ def get_local_ip():
     return ip
 
 
-def generate_upload_qr(client_id: int, appointment_id: int, output_dir: str = "./upload_server/qrcodes") -> str:
+def generate_upload_qr(client_id: int, appointment_id: int = None, data_manager=None, mode: str = "photo") -> str:
     """Generates a QR code linking to the upload page for this client/appointment."""
     ip = get_local_ip()
-    url = f"http://{ip}:8000/upload?cid={client_id}&aid={appointment_id}"
 
-    # Create output dir if it doesn't exist
+    if mode == "profile":
+        url = f"http://{ip}:8000/upload_profile_pic?cid={client_id}"
+    else:
+        url = f"http://{ip}:8000/upload?cid={client_id}&aid={appointment_id}"
+
+    # Determine QR code output path
+    output_dir = data_manager.get_path("qrcodes")
     os.makedirs(output_dir, exist_ok=True)
 
-    # Create generic temp filename for QR code rewriting
-    # This will be overwritten each time a new QR code is generated
-    filename = f"temp_qr_code.png"
+    # Fixed filename for temporary QR
+    filename = "temp_qr_code.png"
     filepath = os.path.join(output_dir, filename)
 
     # Generate QR code

@@ -4,18 +4,20 @@ from collections import OrderedDict
 from PIL import Image, ImageTk
 from customtkinter import CTkImage
 from tkinter import PhotoImage
+from utils.path_utils import resource_path
 
-CACHE_FILE = "class_elements/image_cache.json"
 
 class ImageCache:
-    def __init__(self, cache_size=500, thumbnail_cache_size=500, cache_file="class_elements/image_cache.json"):
+    def __init__(self, data_manager, cache_size=500, thumbnail_cache_size=500):
+        self.data_manager = data_manager
         self.cache_size = cache_size
         self.thumbnail_cache_size = thumbnail_cache_size
-        self.cache_file = cache_file
-        self.image_cache = OrderedDict()  # LRU Cache for full-size images
-        self.thumbnail_cache = OrderedDict()  # LRU Cache for thumbnails
 
-        print(f"✅ ImageCache initialized.")  # Debugging print
+        self.cache_file = os.path.join(data_manager.backups_dir, "image_cache.json")
+        self.image_cache = OrderedDict()
+        self.thumbnail_cache = OrderedDict()
+
+        print(f"✅ ImageCache initialized. Cache file at {self.cache_file}")
 
 
     #######################################
@@ -132,9 +134,9 @@ class ImageCache:
 
     def load_thumbnail_cache(self):
         """Load up to 25 thumbnails from disk, but allow cache to hold up to 500 thumbnails during runtime."""
-        if os.path.exists(CACHE_FILE):
+        if os.path.exists(self.cache_file):
             try:
-                with open(CACHE_FILE, "r") as f:
+                with open(self.cache_file, "r") as f:
                     data = json.load(f)
 
                 cached_paths = data.get("cached_paths", [])
@@ -150,7 +152,7 @@ class ImageCache:
         """Save up to 100 thumbnails to disk."""
         try:
             cache_data = list(self.thumbnail_cache.keys())[-25:]
-            with open(CACHE_FILE, "w") as f:
+            with open(self.cache_file, "w") as f:
                 json.dump({"cached_paths": cache_data}, f, indent=4)
             print(f"💾 Saved {len(cache_data)} cached thumbnails to disk.")
         except Exception as e:

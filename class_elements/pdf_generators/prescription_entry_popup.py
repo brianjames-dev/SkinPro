@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from tkinter import ttk, messagebox, Text
+from utils.path_utils import resource_path
 from class_elements.pdf_generators.pdf_2col import Pdf2ColGenerator
 from class_elements.pdf_generators.pdf_3col import Pdf3ColGenerator
 from class_elements.pdf_generators.pdf_4col import Pdf4ColGenerator
@@ -13,11 +14,12 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
     MAX_COLS = 4
     MAX_ROWS = 10
 
-    def __init__(self, parent, on_submit_callback, client_id, cursor, initial_data=None, original_path=None):
+    def __init__(self, parent, on_submit_callback, client_id, cursor, data_manager, initial_data=None, original_path=None):
         super().__init__(parent)
         self.on_submit_callback = on_submit_callback
         self.client_id = client_id
         self.cursor = cursor
+        self.data_manager = data_manager
         self.initial_data = initial_data
         self.original_path = original_path
         self.already_prefilled = False
@@ -26,12 +28,13 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         self.text_widgets = []
         self.grab_set()
 
-        add_row_img = ctk.CTkImage(Image.open("icons/add_row.png"), size=(24, 24))
-        add_column_img = ctk.CTkImage(Image.open("icons/add_column.png"), size=(24, 24))
-        delete_row_img = ctk.CTkImage(Image.open("icons/delete_row.png"), size=(24, 24))
-        delete_column_img = ctk.CTkImage(Image.open("icons/delete_column.png"), size=(24, 24))
-        highlighter_img = ctk.CTkImage(Image.open("icons/highlighter.png"), size=(22, 22))
-        save_img = ctk.CTkImage(Image.open("icons/save.png"), size=(24, 24))
+        add_row_img = ctk.CTkImage(Image.open(resource_path("icons/add_row.png")), size=(24, 24))
+        add_column_img = ctk.CTkImage(Image.open(resource_path("icons/add_column.png")), size=(24, 24))
+        delete_row_img = ctk.CTkImage(Image.open(resource_path("icons/delete_row.png")), size=(24, 24))
+        delete_column_img = ctk.CTkImage(Image.open(resource_path("icons/delete_column.png")), size=(24, 24))
+        highlighter_img = ctk.CTkImage(Image.open(resource_path("icons/highlighter.png")), size=(22, 22))
+        save_img = ctk.CTkImage(Image.open(resource_path("icons/save.png")), size=(24, 24))
+
 
         # Fetch the client's name
         self.client_name = "Unknown Client"
@@ -463,11 +466,11 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             return
 
         if self.num_cols == 2:
-            generator = Pdf2ColGenerator()
+            generator = Pdf2ColGenerator(self.data_manager)
         elif self.num_cols == 3:
-            generator = Pdf3ColGenerator()
+            generator = Pdf3ColGenerator(self.data_manager)
         elif self.num_cols == 4:
-            generator = Pdf4ColGenerator()
+            generator = Pdf4ColGenerator(self.data_manager)
         else:
             print("❌ Unsupported column count.")
             return

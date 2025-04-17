@@ -4,14 +4,19 @@ from class_elements.database import init_database
 from class_elements.image_cache import ImageCache
 from class_elements.splash_screen import SplashScreen
 from class_elements.img_load_threading import ImageLoaderThread
+from utils.data_manager import DataDirectoryManager
+from utils.path_utils import resource_path
 
 if __name__ == "__main__":
     ctk.set_appearance_mode("Light")
-    ctk.set_default_color_theme("class_elements/corium_theme.json")
+    ctk.set_default_color_theme(resource_path("class_elements/corium_theme.json"))
+
+    # 🔹 Initialize Data Folder Manager
+    data_manager = DataDirectoryManager()
 
     # 🔹 Initialize database & image cache (NO IMAGE LOADING YET)
-    conn = init_database()
-    image_cache = ImageCache()
+    conn = init_database(data_manager.db_path, data_manager.backups_dir)
+    image_cache = ImageCache(data_manager)
 
     # Define a temporary function that will be overridden
     def update_ui_stub(photo_id, thumbnail):
@@ -22,7 +27,7 @@ if __name__ == "__main__":
     image_loader.start()
 
     # 🔹 Create the main application but keep it hidden
-    app = ClientApp(conn, image_cache, image_loader)
+    app = ClientApp(conn, image_cache, image_loader, data_manager)
     app.update_idletasks()
     app.withdraw()  # Hide main UI until everything is loaded
 

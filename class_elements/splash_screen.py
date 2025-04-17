@@ -1,6 +1,8 @@
 import customtkinter as ctk
 from PIL import Image
 import time
+from utils.path_utils import resource_path
+
 
 class SplashScreen(ctk.CTkToplevel):
     def __init__(self, parent):
@@ -10,7 +12,7 @@ class SplashScreen(ctk.CTkToplevel):
         self.resizable(False, False)
 
         # Load Image
-        self.bg_image = ctk.CTkImage(light_image=Image.open("icons/apotheca_logo.jpg"),
+        self.bg_image = ctk.CTkImage(light_image=Image.open(resource_path("icons/apotheca_logo.jpg")),
                                      size=(500, 500))  # Adjust size as needed
         
         # Background Label

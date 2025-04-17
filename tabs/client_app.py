@@ -10,7 +10,7 @@ from class_elements.splash_screen import SplashScreen
 from class_elements.img_load_threading import ImageLoaderThread
 
 class ClientApp(ctk.CTk):
-    def __init__(self, conn, image_cache, image_loader):
+    def __init__(self, conn, image_cache, image_loader, data_manager):
         super().__init__()
 
         self.title("SkinPro")
@@ -20,6 +20,7 @@ class ClientApp(ctk.CTk):
         self.cursor = self.conn.cursor()
         self.image_cache = image_cache  # Store image cache reference
         self.image_loader = image_loader  # Now `self.image_loader` exists in ClientApp
+        self.data_manager= data_manager
         self.selected_client_id = None  # Store selected client ID
 
         # Hide the UI until everything is preloaded
@@ -130,7 +131,7 @@ class ClientApp(ctk.CTk):
     def init_ui(self):
         """Initialize the UI components after Tkinter is ready."""
         # Now it's safe to create UI components
-        self.profile_card = ProfileCard(self, self.conn, self.cursor)  
+        self.profile_card = ProfileCard(self, self.conn, self.cursor, self.data_manager, self)  
 
         # Main Tab View
         self.tab_view = ctk.CTkTabview(self, anchor="nw")
@@ -171,14 +172,14 @@ class ClientApp(ctk.CTk):
 
     def init_photos_tab(self):
         photos_tab = self.tab_view.tab("Photos")
-        photos_page = PhotosPage(photos_tab, self.conn, self, self.image_cache, self.image_loader)
+        photos_page = PhotosPage(photos_tab, self.conn, self, self.image_cache, self.image_loader, self.data_manager)
         self.tabs["Photos"] = photos_page
 
         self.image_loader.update_ui_callback = photos_page.update_ui_with_thumbnail
     
     def init_prescriptions_tab(self):
         prescriptions_tab = self.tab_view.tab("Prescriptions")
-        self.tabs["Prescriptions"] = PrescriptionsPage(prescriptions_tab, self.conn, self)
+        self.tabs["Prescriptions"] = PrescriptionsPage(prescriptions_tab, self.conn, self, self.data_manager)
 
     def init_alerts_tab(self):
         alerts_tab = self.tab_view.tab("Alerts")

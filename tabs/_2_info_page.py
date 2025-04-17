@@ -4,6 +4,7 @@ from class_elements.profile_card import ProfileCard
 import os
 import re
 from datetime import datetime
+from utils.path_utils import resource_path
 
 
 # Placeholder text phrases

@@ -6,6 +6,7 @@ from class_elements.treeview_styling_light import style_treeview_light
 from class_elements.ctk_popup import ConfirmationPopup
 import os
 import shutil
+from utils.path_utils import resource_path
 
 class ClientsPage:
     def __init__(self, parent, conn, main_app):
@@ -31,7 +32,7 @@ class ClientsPage:
         self.name_entry.grid(row=0, column=1, sticky="ew")
 
         # Add Client Button
-        add_client_icon = ctk.CTkImage(light_image=Image.open("icons/add_client.png"), size=(24, 24))
+        add_client_icon = ctk.CTkImage(light_image=Image.open(resource_path("icons/add_client.png")), size=(24, 24))
         add_client_button = ctk.CTkButton(
             search_frame,
             image=add_client_icon,
@@ -184,7 +185,7 @@ class ClientsPage:
 
 
     def jump_to_appt_tab(self, event):
-        """Switch to the Info tab when a client (row) is double-clicked in the TreeView."""
+        """Switch to the Appointments tab when a client is selected."""
     
         # Check where the click happened
         region = self.client_list.identify_region(event.x, event.y)
@@ -448,10 +449,8 @@ class ClientsPage:
 
     def delete_client_assets(self, client_name, client_id):
         """Delete all assets associated with the client."""
-        base_dir = os.getcwd()
-
         # Delete before/after images folder
-        img_folder = os.path.join(base_dir, "images", "before_after", f"{client_name}_id_{client_id}")
+        img_folder = self.main_app.data_manager.get_path("images", f"{client_name}_id_{client_id}")
         if os.path.exists(img_folder):
             print(f"🧹 Deleted image folder: {img_folder}")
             shutil.rmtree(img_folder)
@@ -459,7 +458,7 @@ class ClientsPage:
             print(f"⚠ No image folder found at: {img_folder}")
 
         # Delete prescriptions PDFs folder
-        prescriptions_dir = os.path.join(base_dir, "prescriptions", f"{client_name}_{client_id}")
+        prescriptions_dir = self.main_app.data_manager.get_path("prescriptions", f"{client_name}_{client_id}")
         if os.path.exists(prescriptions_dir):
             print(f"🧻 Deleted prescription folder: {prescriptions_dir}")
             shutil.rmtree(prescriptions_dir)

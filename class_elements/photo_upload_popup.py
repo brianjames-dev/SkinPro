@@ -8,14 +8,20 @@ from customtkinter import CTkImage
 import subprocess
 import sys
 import sqlite3
+import datetime
+from utils.path_utils import resource_path
+
 
 class PhotoUploadPopup(ctk.CTkToplevel):
-    def __init__(self, parent, client_id, appointment_id, appointment_date, client_name, appt_type, main_app):
+    def __init__(self, parent, client_id, appointment_id=None, appointment_date=None, client_name="", appt_type="", main_app=None, profile_card=None):
         super().__init__(parent)
         self.title("Upload Photos")
         self.geometry("300x360")
         self.resizable(False, False)
 
+        self._polling_task = None
+        self.profile_card = profile_card
+        self.is_profile_upload = profile_card is not None
         self.client_id = client_id
         self.appointment_id = appointment_id
         self.appointment_date = appointment_date
@@ -23,6 +29,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
         self.appt_type = appt_type
         self.parent = parent
         self.main_app = main_app
+        self.start_time = datetime.datetime.now().timestamp()
 
         # Lock interaction to this pop-up
         self.transient(main_app)
@@ -57,14 +64,67 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
         # Setup and start
         self.generate_qr()
-        self.after(3000, self.check_for_uploaded_photos)
+        self.start_polling()
 
 
     def upload_local_photos(self):
-        # Sanitize folder name
+        if getattr(self, "is_profile_upload", False):
+            # === PROFILE PICTURE UPLOAD ===
+            file_path = filedialog.askopenfilename(
+                title="Select Profile Picture",
+                filetypes=[("Image Files", "*.jpg *.jpeg *.png *.bmp *.gif")]
+            )
+            if not file_path:
+                return
+
+            try:
+                # Generate a standardized profile picture filename
+                safe_name = self.client_name.replace(" ", "_")
+                filename = f"{safe_name}_id_{self.client_id}.png"
+                save_path = os.path.join(self.main_app.data_manager.profile_pics_dir, filename)
+
+                try:
+                    image = Image.open(file_path)
+                    image.save(save_path)
+                except Exception as e:
+                    print(f"❌ Error saving image: {e}")
+                    messagebox.showerror("Error", "The selected image could not be processed.")
+                    return
+
+                # Update profile path in DB
+                self.parent.cursor.execute("""
+                    UPDATE clients SET profile_picture = ? WHERE id = ?
+                """, (save_path, self.client_id))
+
+                # Ensure default zoom/shift exists
+                self.parent.cursor.execute("SELECT id FROM client_images WHERE client_id = ?", (self.client_id,))
+                if self.parent.cursor.fetchone():
+                    self.parent.cursor.execute("""
+                        UPDATE client_images SET zoom = ?, shift = ? WHERE client_id = ?
+                    """, (100, 0, self.client_id))
+                else:
+                    self.parent.cursor.execute("""
+                        INSERT INTO client_images (client_id, zoom, shift) VALUES (?, ?, ?)
+                    """, (self.client_id, 100, 0))
+
+                self.parent.conn.commit()
+
+                # Refresh profile picture UI
+                if hasattr(self, "profile_card") and self.profile_card:
+                    self.profile_card.load_client(self.client_id)
+
+                messagebox.showinfo("Success", "Profile picture uploaded successfully.")
+                self.destroy()
+
+            except Exception as e:
+                print(f"❌ Failed to upload profile picture: {e}")
+                messagebox.showerror("Error", "Could not upload profile picture.")
+            return
+
+        # === APPOINTMENT PHOTO MODE ===
         safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in self.client_name).replace(" ", "_")
         date_formatted = self.appointment_date.replace("/", "-")
-        client_folder = os.path.join("images", "before_after", f"{safe_name}_id_{self.client_id}", date_formatted)
+        client_folder = self.main_app.data_manager.get_photo_path(f"{safe_name}_id_{self.client_id}", date_formatted)
         os.makedirs(client_folder, exist_ok=True)
 
         file_paths = filedialog.askopenfilenames(
@@ -101,7 +161,10 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
     def generate_qr(self):
         self.ensure_server_running()
-        qr_path = generate_upload_qr(self.client_id, self.appointment_id)
+        if self.is_profile_upload:
+            qr_path = generate_upload_qr(self.client_id, None, self.main_app.data_manager, mode="profile")
+        else:
+            qr_path = generate_upload_qr(self.client_id, self.appointment_id, self.main_app.data_manager)
 
         try:
             image = Image.open(qr_path)
@@ -117,14 +180,57 @@ class PhotoUploadPopup(ctk.CTkToplevel):
         """Launch Flask server in a background subprocess if not already running."""
         if not hasattr(sys, '_flask_server_started'):
             print("🟢 Starting Flask server...")
-            subprocess.Popen(["python", "upload_server/server.py"])
+            server_path = os.path.join(
+                getattr(sys, '_MEIPASS', os.path.abspath(".")),
+                "upload_server", "server.py"
+            )
+            subprocess.Popen([sys.executable, server_path])
+            print("🟢 Flask server launched!")
             sys._flask_server_started = True
+
+
+    def start_polling(self):
+        if self._polling_task is not None:
+            self.after_cancel(self._polling_task)
+        self._polling_task = self.after(3000, self.check_for_uploaded_photos)
 
 
     def check_for_uploaded_photos(self):
         try:
-            conn = sqlite3.connect("client_database.db")
+            conn = sqlite3.connect(self.main_app.data_manager.db_path)
             cursor = conn.cursor()
+
+            if getattr(self, "is_profile_upload", False):
+                # === Profile Picture Upload Mode ===
+                cursor.execute("SELECT profile_picture FROM clients WHERE id = ?", (self.client_id,))
+                result = cursor.fetchone()
+                conn.close()
+
+                if not result or not result[0] or not os.path.exists(result[0]):
+                    self._polling_task = self.after(3000, self.check_for_uploaded_photos)
+                    return
+
+                modified_time = os.path.getmtime(result[0])
+                if modified_time < self.start_time:
+                    print("⏳ File exists but not newly modified. Waiting...")
+                    self._polling_task = self.after(3000, self.check_for_uploaded_photos)
+                    return
+
+                self.status_label.configure(text="Profile Picture Uploaded ✅")
+
+                if self.profile_card:
+                    self.profile_card.load_client(self.client_id)
+                    self.after(200, lambda: self.profile_card.open_settings_popup())
+
+                if self._polling_task:
+                    self.after_cancel(self._polling_task)
+                    self._polling_task = None
+
+                messagebox.showinfo("Upload Complete", "Profile picture uploaded successfully!")
+                self.destroy()
+                return
+
+            # === Appointment Photo Upload Mode ===
             cursor.execute("""
                 SELECT COUNT(*) FROM photos
                 WHERE client_id = ? AND appointment_id = ?
@@ -136,7 +242,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
                 self.initial_photo_count = count
                 self.last_seen_count = count
                 self.stable_count_checks = 0
-                self.after(2000, self.check_for_uploaded_photos)
+                self._polling_task = self.after(2000, self.check_for_uploaded_photos)
                 return
 
             if count > self.initial_photo_count:
@@ -160,11 +266,11 @@ class PhotoUploadPopup(ctk.CTkToplevel):
                 self.stable_count_checks = 0
                 self.last_seen_count = count
 
-            self.after(2000, self.check_for_uploaded_photos)
+            self._polling_task = self.after(2000, self.check_for_uploaded_photos)
 
         except Exception as e:
             print(f"❌ Error checking for uploaded photos: {e}")
-            self.after(3000, self.check_for_uploaded_photos)
+            self._polling_task = self.after(3000, self.check_for_uploaded_photos)
 
 
     def finish_success_popup(self, num_uploaded):
@@ -172,4 +278,6 @@ class PhotoUploadPopup(ctk.CTkToplevel):
         messagebox.showinfo("Upload Complete", f"{num_uploaded} photo(s) uploaded successfully!")
         self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
         self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
+        self.after_cancel(self._polling_task)
+        self._polling_task = None
         self.destroy()

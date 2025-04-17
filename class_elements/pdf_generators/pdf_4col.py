@@ -1,11 +1,14 @@
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from utils.path_utils import resource_path
 import os
 import re
 
 class Pdf4ColGenerator:
-    def __init__(self, output_dir="prescriptions"):
-        self.output_dir = os.path.join(os.getcwd(), output_dir)
+    def __init__(self, data_manager):
+        self.data_manager = data_manager
+
+        self.output_dir = self.data_manager.get_path("prescriptions")
         os.makedirs(self.output_dir, exist_ok=True)
 
 
@@ -31,7 +34,7 @@ class Pdf4ColGenerator:
         top_margin = 730
 
         # === Logo ===
-        logo_path = "icons/corium_logo.webp"
+        logo_path = resource_path("icons/corium_logo.webp")
         c.drawImage(logo_path, 20, top_margin - 60, width=142, height=110, mask='auto')
 
         # === Title ===
@@ -214,7 +217,7 @@ class Pdf4ColGenerator:
             row_heights.append(cell_height)
 
         # === Watermark at Fixed Position ===
-        watermark_path = "icons/corium_logo.webp"
+        watermark_path = resource_path("icons/corium_logo.webp")
         aspect_ratio = 1200 / 930
         watermark_width = 500
         watermark_height = watermark_width / aspect_ratio

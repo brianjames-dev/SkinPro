@@ -4,13 +4,55 @@ import sqlite3
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from PIL import Image, ExifTags
+import json
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.abspath(os.path.join(BASE_DIR, "../client_database.db"))
-UPLOAD_BASE_DIR = os.path.abspath(os.path.join(BASE_DIR, "../images/before_after"))
+
+def load_data_paths():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.abspath(os.path.join(base_dir, "../config.json"))
+
+    if not os.path.exists(config_path):
+        raise FileNotFoundError("❌ config.json not found. Please start the main SkinPro app at least once to initialize.")
+
+    # Load data_dir from config.json
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    data_dir = config.get("data_dir")
+
+    if not data_dir or not os.path.exists(data_dir):
+        raise FileNotFoundError(f"❌ SkinProData directory not found at: {data_dir}")
+
+    # Load paths.json, or create if missing
+    paths_path = os.path.join(data_dir, "paths.json")
+
+    if not os.path.exists(paths_path):
+        print("⚠️ paths.json not found. Attempting to create a fallback.")
+        fallback_paths = {
+            "database": os.path.join(data_dir, "skinpro.db"),
+            "photos": os.path.join(data_dir, "images"),
+            "profile_pictures": os.path.join(data_dir, "profile_pictures")
+        }
+        with open(paths_path, "w") as f:
+            json.dump(fallback_paths, f, indent=2)
+        print(f"✅ Created fallback paths.json at: {paths_path}")
+    else:
+        print(f"📄 Loaded existing paths.json at: {paths_path}")
+
+    # Return the paths
+    with open(paths_path, "r") as f:
+        paths = json.load(f)
+
+    return (
+        paths["database"],
+        paths["photos"],
+        paths.get("profile_pictures", os.path.join(data_dir, "profile_pictures"))
+    )
+
+DB_PATH, UPLOAD_BASE_DIR, PROFILE_PIC_DIR = load_data_paths()
+
 
 app = Flask(__name__)
-
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_photos():
     client_id = request.args.get('cid')
@@ -166,7 +208,105 @@ def upload_photos():
         appt_type=appt_type
     )
 
-try:
-    app.run(host="0.0.0.0", port=8000, debug=True, use_reloader=False)
-except SystemExit as e:
-    print(f"⚠️ Flask shutdown with code {e}")
+
+@app.route('/upload_profile_pic', methods=['GET', 'POST'])
+def upload_profile_pic():
+    client_id = request.args.get('cid')
+
+    if not client_id:
+        return jsonify({"status": "error", "message": "Missing client ID"}), 400
+
+    if request.method == 'POST':
+        files = request.files.getlist('photos')
+        if not files:
+            return jsonify({"status": "error", "message": "No files received."}), 400
+
+        file = files[0]  # Only use the first image
+        if not file:
+            return jsonify({"status": "error", "message": "Invalid file."}), 400
+
+        # Get client name
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
+            result = cursor.fetchone()
+            if not result:
+                return jsonify({"status": "error", "message": "Client not found."}), 404
+            full_name = result[0]
+            conn.close()
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"DB error: {e}"}), 500
+
+        # Create save path
+        safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in full_name).replace(" ", "_")
+        filename = f"{safe_name}_id_{client_id}.png"
+        save_path = os.path.join(PROFILE_PIC_DIR, filename)
+
+        try:
+            # Save image
+            file.save(save_path)
+
+            # Fix orientation if needed
+            try:
+                image = Image.open(save_path)
+                for orientation in ExifTags.TAGS:
+                    if ExifTags.TAGS[orientation] == "Orientation":
+                        break
+                exif = image._getexif()
+                if exif is not None:
+                    orientation_value = exif.get(orientation)
+                    if orientation_value == 3:
+                        image = image.rotate(180, expand=True)
+                    elif orientation_value == 6:
+                        image = image.rotate(270, expand=True)
+                    elif orientation_value == 8:
+                        image = image.rotate(90, expand=True)
+                    image.save(save_path)
+                    print(f"✅ Orientation fixed for: {save_path}")
+            except Exception as e:
+                print(f"⚠️ Could not fix EXIF orientation: {e}")
+
+            # Update database
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("UPDATE clients SET profile_picture = ? WHERE id = ?", (save_path, client_id))
+            conn.commit()
+            conn.close()
+
+            return render_template(
+                "upload_success.html",
+                uploaded=1,
+                full_name=full_name,
+                appointment_date="Profile Picture",
+                appt_type="Upload"
+            )
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"Save error: {e}"}), 500
+
+    # For GET request, show upload form
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
+        result = cursor.fetchone()
+        conn.close()
+        if not result:
+            return "Client not found", 404
+        full_name = result[0]
+    except Exception as e:
+        return f"DB error: {e}", 500
+
+    return render_template(
+        "upload.html",
+        full_name=full_name,
+        appointment_date="Profile Picture",
+        appt_type="Upload"
+    )
+
+
+if __name__ == "__main__":
+    try:
+        app.run(host="0.0.0.0", port=8000, debug=True, use_reloader=False)
+    except SystemExit as e:
+        print(f"⚠️ Flask shutdown with code {e}")

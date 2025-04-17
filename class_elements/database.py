@@ -4,16 +4,13 @@ import os
 import shutil
 
 
-def init_database():
+def init_database(db_path, backup_dir):
     """
     Initialize or reuse the existing database.
     Weekly backups are made with a timestamped filename.
     """
-    base_db = "client_database.db"
-
-    # Create or reuse the main database
-    is_new = not os.path.exists(base_db)
-    conn = sqlite3.connect(base_db)
+    is_new = not os.path.exists(db_path)
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     if is_new:
@@ -21,26 +18,26 @@ def init_database():
         create_tables(cursor)
         conn.commit()
     else:
-        print("🟢 Reusing existing database...")
+        print("🟢 Reusing existing database: {db_path}")
 
     # Weekly backup logic
-    backup_folder = "db_backups"
-    os.makedirs(backup_folder, exist_ok=True)
+    os.makedirs(backup_dir, exist_ok=True)
 
     today = datetime.date.today()
     current_week = today.isocalendar()[1]  # Get ISO week number
     year = today.year
 
-    backup_name = f"client_database_{year}_W{current_week}.db"
-    backup_path = os.path.join(backup_folder, backup_name)
+    db_name = os.path.basename(db_path).replace(".db", "")
+    backup_name = f"{db_name}_{year}_W{current_week}.db"
+    backup_path = os.path.join(backup_dir, backup_name)
 
     if not os.path.exists(backup_path):
         print(f"📦 Creating weekly backup: {backup_name}")
-        shutil.copyfile(base_db, backup_path)
+        shutil.copyfile(db_path, backup_path)
     else:
         print(f"✅ Weekly backup already exists: {backup_name}")
 
-    print(f"✅ Database ready: {base_db}")
+    print(f"✅ Database ready: {db_path}")
     return conn
 
 def create_tables(cursor):

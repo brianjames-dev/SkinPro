@@ -3,16 +3,18 @@ from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 from customtkinter import CTkImage
 from class_elements.treeview_styling_light import style_treeview_light
+from utils.path_utils import resource_path
 import os
 
 
 class PhotosPage:
-    def __init__(self, parent, conn, main_app, image_cache, image_loader):
+    def __init__(self, parent, conn, main_app, image_cache, image_loader, data_manager):
         self.conn = conn
         self.cursor = conn.cursor()
         self.main_app = main_app        # Reference to main app
         self.image_cache = image_cache  # Store reference to the shared image cache
         self.image_loader = image_loader
+        self.data_manager = data_manager
         self.client_id = None           # Store selected client ID
 
         self.before_image_index = -1  # Track navigation index
@@ -24,8 +26,8 @@ class PhotosPage:
         self.thumbnails = {}  # Stores {photo_id: thumbnail image} for Treeview
         
         # Load images for buttons
-        back_arrow = ctk.CTkImage(Image.open("icons/arrow_back.png"), size=(16, 16))
-        fwd_arrow = ctk.CTkImage(Image.open("icons/arrow_forward.png"), size=(16, 16))
+        back_arrow = ctk.CTkImage(Image.open(resource_path("icons/arrow_back.png")), size=(16, 16))
+        fwd_arrow = ctk.CTkImage(Image.open(resource_path("icons/arrow_forward.png")), size=(16, 16))
 
         # Create Main Frame
         main_frame = ctk.CTkFrame(parent)
