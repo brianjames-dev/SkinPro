@@ -5,15 +5,14 @@ from tkinter import filedialog
 from utils.path_utils import resource_path
 from class_elements.photo_upload_popup import PhotoUploadPopup
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+import sqlite3
 
 
 # Image size
 w, h = 58, 58
 
 class ProfileCard:
-    def __init__(self, parent, conn, cursor, data_manager, main_app):
-        self.conn = conn                            # Store database connection
-        self.cursor = cursor
+    def __init__(self, parent, data_manager, main_app):
         self.data_manager = data_manager
         self.main_app = main_app
         self.client_id = None                       # Selected client ID
@@ -50,52 +49,51 @@ class ProfileCard:
         """Load client details and apply saved zoom/shift to profile picture."""
         self.client_id = client_id
 
-        # If no client ID is given, reset to default state
         if client_id is None:
             print("🔄 Resetting Profile Card to default state...")
             self.client_id = None
             self.profile_path = resource_path("icons/account_circle.png")
             self.full_name = "No Client Selected"
 
-            # Reset profile image
             self.profile_image = ctk.CTkImage(Image.open(self.profile_path), size=(w, h))
             self.profile_button.configure(image=self.profile_image)
-
-            # Reset name label
             self.name_label.configure(text=self.full_name)
-            return  # Exit early
-    
-        # Fetch profile_picture, full_name from `clients`, and zoom/shift from `client_images`
-        self.cursor.execute("""
-            SELECT c.full_name, c.profile_picture, COALESCE(ci.zoom, 100), COALESCE(ci.shift, 0)
-            FROM clients c
-            LEFT JOIN client_images ci ON c.id = ci.client_id
-            WHERE c.id = ?
-        """, (client_id,))
-        
-        client_data = self.cursor.fetchone()
+            return
 
-        if not client_data:  # No data found
+        # --- Fetch from database ---
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT c.full_name, c.profile_picture, COALESCE(ci.zoom, 100), COALESCE(ci.shift, 0)
+                    FROM clients c
+                    LEFT JOIN client_images ci ON c.id = ci.client_id
+                    WHERE c.id = ?
+                """, (client_id,))
+                client_data = cursor.fetchone()
+        except Exception as e:
+            print(f"❌ Error loading client from database: {e}")
+            client_data = None
+
+        if not client_data:
             print(f"⚠ No saved client found for ID: {client_id}. Using default.")
-            self.full_name = "Unknown Client"  # Assign default name
-            self.profile_path = "icons/account_circle.png"
+            self.full_name = "Unknown Client"
+            self.profile_path = resource_path("icons/account_circle.png")
             self.zoom = 100
             self.shift = 0
         else:
             self.full_name, self.profile_path, self.zoom, self.shift = client_data
             print(f"🟢 Loaded Client: {self.full_name} | Image: {self.profile_path} | Zoom: {self.zoom}, Shift: {self.shift}")
 
-        # Update Name Label with Selected Client’s Name
-        self.name_label.configure(text=self.full_name)  # Now self.full_name is always set
+        self.name_label.configure(text=self.full_name)
 
-        # Ensure profile image exists, otherwise fallback to default
-        if not self.profile_path or not os.path.exists(self.profile_path):
-            print(f"⚠ Image path not found: {self.profile_path}. Using default profile picture.")
-            self.profile_path = resource_path("icons/account_circle.png")
-
-        # Load and apply circular transformation only for real images
+        # --- Load image safely ---
         try:
             default_path = resource_path("icons/account_circle.png")
+            if not self.profile_path or not os.path.exists(self.profile_path):
+                print(f"⚠ Image path not found: {self.profile_path}. Using default profile picture.")
+                self.profile_path = default_path
+
             if os.path.abspath(self.profile_path) == os.path.abspath(default_path):
                 self.profile_image = ctk.CTkImage(Image.open(default_path), size=(w, h))
             else:
@@ -105,7 +103,7 @@ class ProfileCard:
             print(f"❌ Error processing image: {e}")
             self.profile_image = ctk.CTkImage(Image.open(resource_path("icons/account_circle.png")), size=(w, h))
 
-        # Update UI
+        # --- Apply image to UI ---
         self.profile_button.configure(image=self.profile_image)
 
     def apply_changes(self):
@@ -117,74 +115,81 @@ class ProfileCard:
         print("✅ Applying picture changes and updating database...")
 
         # **Step 1: Determine Save Path (Temp or Final)**
-        if self.client_id == -1:  
+        if self.client_id == -1:
             save_path = os.path.join(self.data_manager.profile_pics_dir, "temp_profile.png")
         else:
-            # Fetch Client's Full Name for File Naming
-            self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
-            result = self.cursor.fetchone()
+            try:
+                with sqlite3.connect(self.data_manager.db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
+                    result = cursor.fetchone()
 
-            if result:
-                full_name = result[0].replace(" ", "_")  # Replace spaces with underscores
-                save_path = os.path.join(
-                    self.data_manager.profile_pics_dir,
-                    f"{full_name}_id_{self.client_id}.png"
-                )
-            else:
-                print(f"⚠ ERROR: No full_name found for client_id {self.client_id}. Using default name.")
-                save_path = os.path.join(
-                    self.data_manager.profile_pics_dir,
-                    f"client_{self.client_id}.png"
-                )
+                if result:
+                    full_name = result[0].replace(" ", "_")
+                    save_path = os.path.join(
+                        self.data_manager.profile_pics_dir,
+                        f"{full_name}_id_{self.client_id}.png"
+                    )
+                else:
+                    print(f"⚠ ERROR: No full_name found for client_id {self.client_id}. Using default name.")
+                    save_path = os.path.join(
+                        self.data_manager.profile_pics_dir,
+                        f"client_{self.client_id}.png"
+                    )
+            except Exception as e:
+                print(f"❌ Failed to fetch client name: {e}")
+                return
 
         # **Step 2: Process and Save Image**
         edited_image = self.create_circular_image(Image.open(self.profile_path))
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)  # Ensure folder exists
-        edited_image.save(save_path)  # Save processed image
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        edited_image.save(save_path)
 
-        # **Step 3: Store Temporary Path if Not Saved Yet**
+        # **Step 3: Temporary client handling**
         if self.client_id == -1:
             print("⚠ Temporary client: Profile picture will be finalized upon save.")
             self.profile_path = save_path
-
-            # Update ProfileCard UI Immediately
             self.profile_image = ctk.CTkImage(Image.open(save_path), size=(w, h))
-            self.profile_button.configure(image=self.profile_image)  # Update UI
-
+            self.profile_button.configure(image=self.profile_image)
             self.popup.destroy()
-            return  # Exit early, don't store in database yet
-    
-        # **Step 4: Update profile picture path in `clients` table**
-        cursor = self.conn.cursor()
-        cursor.execute("""
-            UPDATE clients 
-            SET profile_picture = ? 
-            WHERE id = ?""", 
-            (save_path, self.client_id))
+            return
 
-        # **Step 5: Update or Insert zoom/shift in `client_images` table**
-        cursor.execute("SELECT id FROM client_images WHERE client_id = ?", (self.client_id,))
-        existing_entry = cursor.fetchone()
+        # **Step 4 + 5: Update clients and client_images tables**
+        try:
+            with sqlite3.connect(self.data_manager.db_path) as conn:
+                cursor = conn.cursor()
 
-        if existing_entry:
-            # Update existing entry
-            cursor.execute("""
-                UPDATE client_images 
-                SET zoom = ?, shift = ? 
-                WHERE client_id = ?""", 
-                (self.zoom, self.shift, self.client_id))
-        else:
-            # Insert new entry
-            cursor.execute("""
-                INSERT INTO client_images (client_id, zoom, shift) 
-                VALUES (?, ?, ?)""", 
-                (self.client_id, self.zoom, self.shift))
+                # Update profile picture path
+                cursor.execute("""
+                    UPDATE clients 
+                    SET profile_picture = ? 
+                    WHERE id = ?
+                """, (save_path, self.client_id))
 
-        # Commit changes to the database
-        self.conn.commit()
-        print(f"💾 Profile picture saved at {save_path} for Client ID {self.client_id}")
+                # Check if zoom/shift already exists
+                cursor.execute("SELECT id FROM client_images WHERE client_id = ?", (self.client_id,))
+                existing_entry = cursor.fetchone()
 
-        # Refresh and close the popup window
+                if existing_entry:
+                    cursor.execute("""
+                        UPDATE client_images 
+                        SET zoom = ?, shift = ? 
+                        WHERE client_id = ?
+                    """, (self.zoom, self.shift, self.client_id))
+                else:
+                    cursor.execute("""
+                        INSERT INTO client_images (client_id, zoom, shift) 
+                        VALUES (?, ?, ?)
+                    """, (self.client_id, self.zoom, self.shift))
+
+                conn.commit()
+                print(f"💾 Profile picture saved at {save_path} for Client ID {self.client_id}")
+
+        except Exception as e:
+            print(f"❌ Failed to update client picture info: {e}")
+            return
+
+        # **Final UI Updates**
         self.load_client(self.client_id)
         self.popup.destroy()
 
@@ -204,15 +209,22 @@ class ProfileCard:
 
     def open_settings_popup(self):
         """Step 2: Open a settings popup with live preview & adjustment controls."""
+        if hasattr(self, "popup") and self.popup.winfo_exists():
+            print("⚠️ Settings popup already exists. Skipping duplicate.")
+            return
+
+        print("⚙️ open_settings_popup() called.")
         self.popup = ctk.CTkToplevel()
         self.popup.title("Adjust Profile Picture")
         self.popup.geometry("250x250")
         self.popup.resizable(False, False)
         
-        # **Force focus and keep on top**
-        self.popup.transient(self.profile_frame.winfo_toplevel())  # Link to main window
-        self.popup.grab_set()  # Prevent interactions with the main app until closed
-        self.popup.focus_force()  # Immediately focus the popup window
+        try:
+            self.popup.transient(self.profile_frame.winfo_toplevel())
+            self.popup.grab_set()
+            self.popup.focus_force()
+        except Exception as e:
+            print(f"❌ Failed to focus settings popup: {e}")
         
         # Load icons
         zoom_in_icon = ctk.CTkImage(Image.open(resource_path("icons/zoom_in.png")), size=(24, 24))
@@ -228,6 +240,9 @@ class ProfileCard:
         self.preview_label = ctk.CTkLabel(main_frame, text="")  # Placeholder label for preview
         self.preview_label.pack(pady=5)
         self.update_preview()  # Load initial preview
+
+        # 🔁 Delay preview update to allow image to fully render
+        self.popup.after(100, self.update_preview)
 
         # Zoom controls
         zoom_frame = ctk.CTkFrame(main_frame)

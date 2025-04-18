@@ -7,13 +7,15 @@ from class_elements.ctk_popup import ConfirmationPopup
 import os
 import shutil
 from utils.path_utils import resource_path
+import sqlite3
+
 
 class ClientsPage:
-    def __init__(self, parent, conn, main_app):
+    def __init__(self, parent, main_app, data_manager):
         self.parent = parent
-        self.conn = conn
         self.main_app = main_app
-        self.cursor = conn.cursor()
+        self.client_id = None
+        self.data_manager = data_manager
 
         # Frame for Search and Treeview
         main_frame = ctk.CTkFrame(parent)
@@ -126,10 +128,16 @@ class ClientsPage:
 
         self.client_list.delete(*self.client_list.get_children())  # Clear existing rows
 
-        self.cursor.execute("""
-            SELECT id, full_name, gender, birthdate, primary_phone, email, address1 || ' ' || address2 FROM clients
-        """)
-        results = self.cursor.fetchall()
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, full_name, gender, birthdate, primary_phone, email, address1 || ' ' || address2 FROM clients
+                """)
+                results = cursor.fetchall()
+        except Exception as e:
+            print(f"❌ Error loading clients: {e}")
+            return
 
         if not results:
             print("⚠ No clients found in the database!")  # Debugging
@@ -155,15 +163,19 @@ class ClientsPage:
 
         if query:
             self.client_list.delete(*self.client_list.get_children())  # Clear existing rows
-
-            # Include client_id in the query (important for selection!)
-            self.cursor.execute("""
-                SELECT id, full_name, gender, birthdate, primary_phone, email, address1 || ' ' || address2 
-                FROM clients 
-                WHERE full_name LIKE ?
-            """, (f"%{query}%",))
+            try:
+                with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT id, full_name, gender, birthdate, primary_phone, email, address1 || ' ' || address2 
+                        FROM clients 
+                        WHERE full_name LIKE ?
+                    """, (f"%{query}%",))
+                    results = cursor.fetchall()
+            except Exception as e:
+                print(f"❌ Error searching clients: {e}")
+                return
             
-            results = self.cursor.fetchall()
             if results:
                 for row in results:
                     client_id = row[0]  # Extract client_id
@@ -270,8 +282,14 @@ class ClientsPage:
             return  # Prevent empty input
 
         # Check for duplicate name in the database
-        self.cursor.execute("SELECT COUNT(*) FROM clients WHERE LOWER(full_name) = LOWER(?)", (full_name,))
-        existing_count = self.cursor.fetchone()[0]
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM clients WHERE LOWER(full_name) = LOWER(?)", (full_name,))
+                existing_count = cursor.fetchone()[0]
+        except Exception as e:
+            print(f"❌ Error checking for duplicate client: {e}")
+            return
 
         if existing_count > 0:
              # Show the confirmation popup, calling `handle_duplicate_response` on Yes/No
@@ -339,8 +357,15 @@ class ClientsPage:
             return
 
         client_id = selected_client[0]  # Get the selected client's ID
-        self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
-        client_name = self.cursor.fetchone()
+
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
+                result = cursor.fetchone()
+        except Exception as e:
+            print(f"❌ Error fetching client name: {e}")
+            return
 
         if not client_name:
             print("❌ ERROR: Client ID not found in database.")
@@ -385,58 +410,53 @@ class ClientsPage:
 
 
     def delete_client(self, response, client_id, confirmation_window):
-        """Deletes the client, their profile picture, and all associated records if confirmed."""
         if not response:
             print("🔴 User canceled deletion.")
-            confirmation_window.destroy()  # Destroy the confirmation window even on cancellation
-            return  # Stop if the user selects "No"
+            confirmation_window.destroy()
+            return
 
         try:
             print(f"🗑️ Deleting client ID: {client_id}")
 
-            # Fetch the profile picture path before deletion
-            self.cursor.execute("SELECT profile_picture FROM clients WHERE id = ?", (client_id,))
-            result = self.cursor.fetchone()
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
 
-            if result and result[0]:  # Ensure a valid path exists
-                profile_picture_path = result[0]
-                print(f"🖼️ Attempting to delete profile image: {profile_picture_path}")
+                # Get profile picture
+                cursor.execute("SELECT profile_picture FROM clients WHERE id = ?", (client_id,))
+                result = cursor.fetchone()
+                profile_picture_path = result[0] if result and result[0] else None
 
-                # Check if the file exists before attempting to delete
-                if os.path.exists(profile_picture_path):
+                if profile_picture_path and os.path.exists(profile_picture_path):
                     os.remove(profile_picture_path)
                     print("✅ Profile image successfully deleted.")
                 else:
-                    print("⚠ Profile image file not found, skipping deletion.")
+                    print("⚠ Profile image not found or empty.")
 
-            self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
-            client_name_result = self.cursor.fetchone()
+                # Get full name for asset deletion
+                cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
+                name_result = cursor.fetchone()
 
-            # Clear preview image if it's currently loaded
+                if name_result:
+                    safe_name = name_result[0].replace(" ", "_")
+                    self.delete_client_assets(safe_name, client_id)
+
+                # Delete client from DB
+                cursor.execute("DELETE FROM clients WHERE id = ?", (client_id,))
+                conn.commit()
+
             if hasattr(self.main_app.tabs["Photos"], "preview_label"):
                 self.main_app.tabs["Photos"].preview_label.configure(image=None)
                 self.main_app.tabs["Photos"].preview_label.image = None
 
-            if result:
-                client_name = client_name_result[0].replace(" ", "_")  # convert to safe folder name
-                self.delete_client_assets(client_name, client_id)
-            
-            # Delete the client from the database (ON DELETE CASCADE removes linked data)
-            self.cursor.execute("DELETE FROM clients WHERE id = ?", (client_id,))
-            self.conn.commit()
-            
-            # Refresh UI after deletion
             self.load_clients()
-
-            self.main_app.tabs["Info"].clear_info()  # Clear Info tab
+            self.main_app.tabs["Info"].clear_info()
             self.main_app.tabs["Appointments"].clear_appointments()
             self.main_app.tabs["Photos"].clear_photos_list()
             self.main_app.tabs["Prescriptions"].clear_prescriptions_list()
             self.main_app.tabs["Alerts"].load_alerts()
 
-            # Reset ProfileCard (Loads default state)
             if hasattr(self.main_app, "profile_card"):
-                self.main_app.profile_card.load_client(None)  # Reset profile card
+                self.main_app.profile_card.load_client(None)
 
             print(f"✅ Successfully deleted Client ID: {client_id} and their profile image.")
 
@@ -444,7 +464,7 @@ class ClientsPage:
             print(f"❌ Database error during deletion: {e}")
 
         finally:
-            confirmation_window.destroy()  # Ensure the confirmation window is closed after the operation
+            confirmation_window.destroy()
 
 
     def delete_client_assets(self, client_name, client_id):

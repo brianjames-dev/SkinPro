@@ -5,37 +5,29 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 from PIL import Image, ExifTags
 import json
+import sys
 
+print(f"🧠 Running with: {sys.executable}")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def load_data_paths():
-    """Load database and asset paths from config.json and paths.json."""
-    # Fallback: Known external config location (user's SkinProData folder)
+    """Ensure config is loaded from external SkinProData and fallback if needed."""
     fallback_dir = os.path.expanduser("~/OneDrive/Desktop/SkinProData")
-    fallback_config_path = os.path.join(fallback_dir, "config.json")
+    config_path = os.path.join(fallback_dir, "config.json")
 
-    # Try fallback location FIRST, because PyInstaller runs from temp dirs
-    if os.path.exists(fallback_config_path):
-        config_path = fallback_config_path
-    else:
-        # Then try the relative path (useful for development)
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.path.abspath(os.path.join(base_dir, "../config.json"))
-        if not os.path.exists(config_path):
-            raise FileNotFoundError("❌ config.json not found. Please start the main SkinPro app at least once to initialize.")
+    if not os.path.exists(config_path):
+        raise FileNotFoundError("❌ config.json not found in SkinProData. Please start the main SkinPro app first.")
 
-    # Load data_dir from config
     with open(config_path, "r") as f:
         config = json.load(f)
+
     data_dir = config.get("data_dir")
-
     if not data_dir or not os.path.exists(data_dir):
-        raise FileNotFoundError(f"❌ SkinProData directory not found at: {data_dir}")
+        raise FileNotFoundError(f"❌ data_dir not found or invalid in config.json: {data_dir}")
 
-    # Load paths.json (or create fallback if missing)
+    # Ensure paths.json exists
     paths_path = os.path.join(data_dir, "paths.json")
     if not os.path.exists(paths_path):
-        print("⚠️ paths.json not found. Creating fallback paths...")
         fallback_paths = {
             "database": os.path.join(data_dir, "skinpro.db"),
             "photos": os.path.join(data_dir, "images"),
@@ -44,8 +36,6 @@ def load_data_paths():
         with open(paths_path, "w") as f:
             json.dump(fallback_paths, f, indent=2)
         print(f"✅ Created fallback paths.json at: {paths_path}")
-    else:
-        print(f"📄 Loaded existing paths.json at: {paths_path}")
 
     with open(paths_path, "r") as f:
         paths = json.load(f)

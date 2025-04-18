@@ -5,12 +5,11 @@ from customtkinter import CTkImage
 from class_elements.treeview_styling_light import style_treeview_light
 from utils.path_utils import resource_path
 import os
+import sqlite3
 
 
 class PhotosPage:
-    def __init__(self, parent, conn, main_app, image_cache, image_loader, data_manager):
-        self.conn = conn
-        self.cursor = conn.cursor()
+    def __init__(self, parent, main_app, image_cache, image_loader, data_manager):
         self.main_app = main_app        # Reference to main app
         self.image_cache = image_cache  # Store reference to the shared image cache
         self.image_loader = image_loader
@@ -216,20 +215,29 @@ class PhotosPage:
         file_path = self.photo_paths[self.before_image_index]
         new_description = self.before_desc_textbox.get("1.0", "end").strip()
 
-        self.cursor.execute("SELECT id FROM photos WHERE file_path = ?", (file_path,))
-        result = self.cursor.fetchone()
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
 
-        if result:
-            photo_id = result[0]
-            self.cursor.execute("UPDATE photos SET description = ? WHERE id = ?", (new_description, photo_id))
-            self.conn.commit()
-            print(f"✅ Saved description for Before Image (Photo ID: {photo_id})")
+                cursor.execute("SELECT id FROM photos WHERE file_path = ?", (file_path,))
+                result = cursor.fetchone()
 
-            # Store new description as the original
-            self.before_original_text = new_description
+                if result:
+                    photo_id = result[0]
+                    cursor.execute("UPDATE photos SET description = ? WHERE id = ?", (new_description, photo_id))
+                    conn.commit()
+                    print(f"✅ Saved description for Before Image (Photo ID: {photo_id})")
 
-            # Disable Save button after saving
-            self.before_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
+                    # Store new description as the original
+                    self.before_original_text = new_description
+
+                    # Disable Save button after saving
+                    self.before_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
+                else:
+                    print("❌ No photo record found for the selected file path.")
+
+        except Exception as e:
+            print(f"❌ Failed to save before image description: {e}")
 
 
     def save_after_description(self):
@@ -241,20 +249,29 @@ class PhotosPage:
         file_path = self.photo_paths[self.after_image_index]
         new_description = self.after_desc_textbox.get("1.0", "end").strip()
 
-        self.cursor.execute("SELECT id FROM photos WHERE file_path = ?", (file_path,))
-        result = self.cursor.fetchone()
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
 
-        if result:
-            photo_id = result[0]
-            self.cursor.execute("UPDATE photos SET description = ? WHERE id = ?", (new_description, photo_id))
-            self.conn.commit()
-            print(f"✅ Saved description for After Image (Photo ID: {photo_id})")
+                cursor.execute("SELECT id FROM photos WHERE file_path = ?", (file_path,))
+                result = cursor.fetchone()
 
-            # Store new description as the original
-            self.after_original_text = new_description
+                if result:
+                    photo_id = result[0]
+                    cursor.execute("UPDATE photos SET description = ? WHERE id = ?", (new_description, photo_id))
+                    conn.commit()
+                    print(f"✅ Saved description for After Image (Photo ID: {photo_id})")
 
-            # Disable Save button after saving
-            self.after_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
+                    # Store new description as the original
+                    self.after_original_text = new_description
+
+                    # Disable Save button after saving
+                    self.after_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
+                else:
+                    print("❌ No photo record found for the selected file path.")
+
+        except Exception as e:
+            print(f"❌ Failed to save after image description: {e}")
 
 
     def on_before_text_change(self, event):
@@ -320,36 +337,41 @@ class PhotosPage:
             print(f"⚠ Warning: No file path provided for metadata lookup.")
             return
 
-        self.cursor.execute("SELECT appt_date, description FROM photos WHERE file_path = ?", (file_path,))  # Fix column name
-        result = self.cursor.fetchone()
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT appt_date, description FROM photos WHERE file_path = ?", (file_path,))
+                result = cursor.fetchone()
 
-        if result:
-            appointment_date, description = result
+            if result:
+                appointment_date, description = result
 
-            # Debugging log
-            print(f"🟢 Retrieved metadata → Date: {appointment_date}, Description: {description}")
+                print(f"🟢 Retrieved metadata → Date: {appointment_date}, Description: {description}")
 
-            if frame_type == "before":
-                self.before_date_label.configure(text=appointment_date)
+                if frame_type == "before":
+                    self.before_date_label.configure(text=appointment_date)
 
-                self.before_desc_textbox.unbind("<KeyRelease>")  # Temporarily unbind event
-                self.before_desc_textbox.delete("1.0", "end")
-                self.before_desc_textbox.insert("1.0", description if description else "<No Description Yet>")
-                self.before_desc_textbox.bind("<KeyRelease>", self.on_before_text_change)  # Rebind event
+                    self.before_desc_textbox.unbind("<KeyRelease>")
+                    self.before_desc_textbox.delete("1.0", "end")
+                    self.before_desc_textbox.insert("1.0", description if description else "<No Description Yet>")
+                    self.before_desc_textbox.bind("<KeyRelease>", self.on_before_text_change)
 
-                self.before_original_text = description if description else ""
+                    self.before_original_text = description if description else ""
 
-            elif frame_type == "after":
-                self.after_date_label.configure(text=appointment_date)
+                elif frame_type == "after":
+                    self.after_date_label.configure(text=appointment_date)
 
-                self.after_desc_textbox.unbind("<KeyRelease>")
-                self.after_desc_textbox.delete("1.0", "end")
-                self.after_desc_textbox.insert("1.0", description if description else "<No Description Yet>")
-                self.after_desc_textbox.bind("<KeyRelease>", self.on_after_text_change)
+                    self.after_desc_textbox.unbind("<KeyRelease>")
+                    self.after_desc_textbox.delete("1.0", "end")
+                    self.after_desc_textbox.insert("1.0", description if description else "<No Description Yet>")
+                    self.after_desc_textbox.bind("<KeyRelease>", self.on_after_text_change)
 
-                self.after_original_text = description if description else ""
-        else:
-            print(f"⚠ Warning: No metadata found for {file_path}")
+                    self.after_original_text = description if description else ""
+            else:
+                print(f"⚠ Warning: No metadata found for {file_path}")
+
+        except Exception as e:
+            print(f"❌ Failed to retrieve photo metadata: {e}")
 
 
     def navigate_image(self, direction, frame_type):
@@ -412,44 +434,48 @@ class PhotosPage:
         # Clear previous photos
         self.clear_photos_list()
 
-        # Fetch all photos for the selected client, sorted by most recent
-        self.cursor.execute("SELECT id, appt_date, type, file_path FROM photos WHERE client_id = ? ORDER BY appt_date DESC", (client_id,))
-        photos = self.cursor.fetchall()
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, appt_date, type, file_path 
+                    FROM photos 
+                    WHERE client_id = ? 
+                    ORDER BY appt_date DESC
+                """, (client_id,))
+                photos = cursor.fetchall()
 
-        print(f"🟢 Debug: Fetched {len(photos)} photos for Client ID {client_id}")
-        if not photos:
-            print(f"⚠ No photos found for Client ID {client_id}")
-            return
+            print(f"🟢 Debug: Fetched {len(photos)} photos for Client ID {client_id}")
+            if not photos:
+                print(f"⚠ No photos found for Client ID {client_id}")
+                return
 
-        for index, photo in enumerate(photos):
-            photo_id, appt_date, type, file_path = photo  # Unpack data
+            for index, photo in enumerate(photos):
+                photo_id, appt_date, type, file_path = photo
 
-            # Ensure `photo_id` is unique in the Treeview
-            if self.photo_list.exists(str(photo_id)):
-                continue  
+                if self.photo_list.exists(str(photo_id)):
+                    continue
 
-            # Store the valid thumbnail reference
-            self.photo_file_paths[photo_id] = file_path  
-            self.photo_paths.append(file_path)
+                self.photo_file_paths[photo_id] = file_path
+                self.photo_paths.append(file_path)
 
-            # Insert row into Treeview
-            self.photo_list.insert(
-                "", "end", iid=str(photo_id),  # Tkinter requires `iid` as a string
-                values=(appt_date, type)
-            )
+                self.photo_list.insert(
+                    "", "end", iid=str(photo_id),
+                    values=(appt_date, type)
+                )
 
-            # Retrieve cached thumbnail first
-            thumbnail = self.image_cache.get_thumbnail(file_path)
+                thumbnail = self.image_cache.get_thumbnail(file_path)
 
-            if thumbnail is None:
-                # Add task to worker thread to generate the thumbnail asynchronously
-                self.image_loader.add_task(file_path, photo_id)
-            else:
-                # Store the reference
-                self.thumbnails[str(photo_id)] = thumbnail
-                self.photo_list.item(str(photo_id), image=thumbnail)
+                if thumbnail is None:
+                    self.image_loader.add_task(file_path, photo_id)
+                else:
+                    self.thumbnails[str(photo_id)] = thumbnail
+                    self.photo_list.item(str(photo_id), image=thumbnail)
 
-        print(f"🔍 Debug: Thumbnail cache contains {len(self.image_cache.thumbnail_cache)} entries")
+            print(f"🔍 Debug: Thumbnail cache contains {len(self.image_cache.thumbnail_cache)} entries")
+
+        except Exception as e:
+            print(f"❌ Failed to refresh photo list: {e}")
 
 
     def clear_photos_list(self):
@@ -470,35 +496,38 @@ class PhotosPage:
         if not confirm:
             return
 
-        for iid in selected:
-            # Get the photo ID (iid is already a string of the photo_id)
-            photo_id = int(iid)
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
 
-            # Retrieve file path from our internal dictionary
-            file_path = self.photo_file_paths.get(photo_id)
+                for iid in selected:
+                    photo_id = int(iid)
+                    file_path = self.photo_file_paths.get(photo_id)
 
-            try:
-                # Delete file from disk
-                if file_path and os.path.exists(file_path):
-                    os.remove(file_path)
+                    # Delete file from disk
+                    if file_path and os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                        except Exception as e:
+                            print(f"⚠️ Failed to delete file {file_path}: {e}")
 
-                # Delete from DB
-                self.cursor.execute("DELETE FROM photos WHERE id = ?", (photo_id,))
-                self.conn.commit()
+                    # Delete from DB
+                    cursor.execute("DELETE FROM photos WHERE id = ?", (photo_id,))
+                    print(f"🗑️ Deleted: {file_path}")
 
-                print(f"🗑️ Deleted: {file_path}")
+                    # Remove from Treeview
+                    self.photo_list.delete(iid)
 
-                # Remove from Treeview
-                self.photo_list.delete(iid)
+                    # Clean up internal references
+                    if file_path in self.photo_paths:
+                        self.photo_paths.remove(file_path)
+                    self.photo_file_paths.pop(photo_id, None)
+                    self.thumbnails.pop(str(photo_id), None)
 
-                # Clean up internal references
-                if file_path in self.photo_paths:
-                    self.photo_paths.remove(file_path)
-                self.photo_file_paths.pop(photo_id, None)
-                self.thumbnails.pop(str(photo_id), None)
+                conn.commit()
 
-            except Exception as e:
-                print(f"❌ Failed to delete {file_path}: {e}")
+        except Exception as e:
+            print(f"❌ Failed to delete photo(s): {e}")
 
         # Optional: reset image previews if deleted image was being shown
         self.before_label.configure(text="<No Image Selected>", image="")

@@ -5,8 +5,8 @@ from tkinter import filedialog, messagebox
 
 class DataDirectoryManager:
     def __init__(self, config_filename="config.json"):
-        self.base_path = self.get_base_dir()
-        self.config_path = os.path.join(self.base_path, config_filename)
+        self.default_data_dir = os.path.expanduser("~/OneDrive/Desktop/SkinProData")
+        self.config_path = os.path.join(self.default_data_dir, config_filename)
         self.data_dir = None
         self._load_or_create_config()
 
@@ -19,15 +19,16 @@ class DataDirectoryManager:
 
 
     def _load_or_create_config(self):
+        os.makedirs(self.default_data_dir, exist_ok=True)
+
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, "r") as f:
                     config = json.load(f)
                     self.data_dir = config.get("data_dir")
 
-                    # If still missing, trigger setup
-                    if not self.data_dir:
-                        raise ValueError("Missing 'data_dir' in config.")
+                    if not self.data_dir or not os.path.exists(self.data_dir):
+                        raise ValueError("Invalid or missing data_dir in config.")
 
             except (json.JSONDecodeError, ValueError) as e:
                 print(f"⚠️ Invalid config file: {e}. Regenerating...")
@@ -45,11 +46,12 @@ class DataDirectoryManager:
         self.data_dir = os.path.join(folder, "SkinProData")
         os.makedirs(self.data_dir, exist_ok=True)
         self._create_subfolders()
-        
+
         with open(self.config_path, "w") as f:
             json.dump({"data_dir": self.data_dir}, f)
 
         self.save_data_paths()
+
 
     def _create_subfolders(self):
         for subfolder in ["images", "prescriptions", "profile_pictures", "backups", "qrcodes"]:

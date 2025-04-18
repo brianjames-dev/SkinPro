@@ -11,15 +11,15 @@ from PIL import Image
 import re
 import os
 import shutil
+import sqlite3
 
 
 class AppointmentsPage:
-    def __init__(self, parent, conn, main_app):
-        self.conn = conn
-        self.cursor = conn.cursor()
+    def __init__(self, parent, main_app, data_manager):
         self.main_app = main_app  # Reference to main app (to update ProfileCard & InfoPage)
         self.client_id = None  # Store selected client ID
         self.sort_orders = {}  # Store sort order (ascending/descending) for each column
+        self.data_manager = data_manager
 
         # Create Main frame (holds both Treeview and Details frame)
         main_frame = ctk.CTkFrame(parent)
@@ -175,8 +175,10 @@ class AppointmentsPage:
             self.client_combobox.set("Select a client...")  # Restore placeholder
             return  # Exit early, don't process selection
 
-        self.cursor.execute("SELECT id FROM clients WHERE full_name = ?", (selected_client,))
-        result = self.cursor.fetchone()
+        with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM clients WHERE full_name = ?", (selected_client,))
+            result = cursor.fetchone()
 
         if result:
             self.client_id = result[0]  # Store the client ID
@@ -199,25 +201,18 @@ class AppointmentsPage:
 
     def filter_clients(self, event):
         """Dynamically update the client dropdown based on user input."""
-        query = self.client_combobox.get().strip()  # Get the current text
+        query = self.client_combobox.get().strip()
+        if query:
+            self.client_combobox.configure(text_color="#000000")
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT full_name FROM clients WHERE full_name LIKE ? LIMIT 10", (f"%{query}%",))
+                matches = [row[0] for row in cursor.fetchall()]
 
-        if query:  # Only search if there's input
-            self.client_combobox.configure(text_color="#000000")  # Change text color to black
-
-            self.cursor.execute(
-                "SELECT full_name FROM clients WHERE full_name LIKE ? LIMIT 10", (f"%{query}%",)
-            )
-            matches = [row[0] for row in self.cursor.fetchall()]
-
-            if matches:
-                self.client_combobox.configure(values=matches)  # Update dropdown with results
-            else:
-                self.client_combobox.configure(values=["No matches found"])  # Indicate no matches
-
+            self.client_combobox.configure(values=matches if matches else ["No matches found"])
         else:
-            self.client_combobox.configure(values=[])  # Clear suggestions if input is empty
-
-        self.client_combobox.focus()  # Ensure the combobox remains focused
+            self.client_combobox.configure(values=[])
+        self.client_combobox.focus()
 
 
     def restore_placeholder(self, event=None):
@@ -237,50 +232,36 @@ class AppointmentsPage:
 
 
     def load_client_appointments(self, client_id):
-        """Load appointments for the selected client into the Treeview."""
-        # If client_id changed, reset the combobox to placeholder otherwise retain white text color
         if self.client_id != client_id:
             self.client_combobox.set("Select a client...")
             self.client_combobox.configure(text_color="#797e82")
-
         else:
             self.client_combobox.configure(text_color="#000000")
 
-        # STORE CURRENT CLIENT ID
-        self.client_id = client_id  
-
-        # CLEAR DATA --> Reset Treeview & Textboxes  
+        self.client_id = client_id
         self.appointments_table.delete(*self.appointments_table.get_children())
-        self.all_notes_textbox.configure(state="normal")  # Enable Editing
+        self.all_notes_textbox.configure(state="normal")
         self.all_notes_textbox.delete("1.0", "end")
-        self.all_notes_textbox.configure(state="disabled")  # Disable Again
+        self.all_notes_textbox.configure(state="disabled")
 
         try:
-            # FETCH APPT DATA --> Load appointments into selected client variable
-            self.cursor.execute("""
-                SELECT id, date, type, treatment, price, photos_taken, treatment_notes 
-                FROM appointments 
-                WHERE client_id = ?
-                ORDER BY date DESC
-            """, (client_id,))
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, date, type, treatment, price, photos_taken, treatment_notes 
+                    FROM appointments 
+                    WHERE client_id = ?
+                    ORDER BY date DESC
+                """, (client_id,))
+                appointments = cursor.fetchall()
 
-            # Convert fetched rows into a list of tuples
-            appointments = self.cursor.fetchall()
-
-            # Insert sorted appointments into the TreeView with alternate row coloring
             for index, row in enumerate(appointments):
                 appointment_id, date, type, treatment, price, photos_taken, treatment_notes = row
                 tag = 'alternate' if index % 2 == 1 else None
-                self.appointments_table.insert(
-                    "", "end", iid=str(appointment_id), values=(date, type, treatment, price, photos_taken), tags=(tag,)
-                )
+                self.appointments_table.insert("", "end", iid=str(appointment_id), values=(date, type, treatment, price, photos_taken), tags=(tag,))
 
-            # Apply styling for alternate rows
-            self.appointments_table.tag_configure('alternate', background="#b3b3b3")  # Assuming MID_GRAY = '#b3b3b3'
-
-            # LOAD ALL NOTES --> Load compilation of treatment notes in "All Notes" view 
+            self.appointments_table.tag_configure('alternate', background="#b3b3b3")
             self.load_all_treatment_notes()
-                
         except Exception as e:
             print(f"❌ Error loading appointments: {e}")
 
@@ -388,16 +369,17 @@ class AppointmentsPage:
             print("⚠ No client selected. Cannot load notes.")
             return
 
-        self.cursor.execute("""
-            SELECT date, treatment, treatment_notes 
-            FROM appointments 
-            WHERE client_id = ? 
-            AND treatment_notes IS NOT NULL 
-            AND treatment_notes != ''
-            ORDER BY date DESC
-        """, (self.client_id,))
-        
-        all_notes = self.cursor.fetchall()
+        with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, treatment, treatment_notes 
+                FROM appointments 
+                WHERE client_id = ? 
+                AND treatment_notes IS NOT NULL 
+                AND treatment_notes != ''
+                ORDER BY date DESC
+            """, (self.client_id,))
+            all_notes = cursor.fetchall()
 
         # Clear existing notes
         self.all_notes_textbox.configure(state="normal")  # Enable Editing
@@ -583,12 +565,13 @@ class AppointmentsPage:
         print(f"🆕 Creating Appointment for Client ID {self.client_id}: {date}, {type}, {treatment}, {price}, {treatment_notes}")
 
         try:
-            # Insert into database
-            self.cursor.execute("""
-                INSERT INTO appointments (client_id, date, type, treatment, price, photos_taken, treatment_notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (self.client_id, date, type, treatment, price, "No", treatment_notes if treatment_notes else "<No notes added>"))
-            self.conn.commit()
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO appointments (client_id, date, type, treatment, price, photos_taken, treatment_notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (self.client_id, date, type, treatment, price, "No", treatment_notes if treatment_notes else "<No notes added>"))
+                conn.commit()
 
             print(f"✅ New appointment created for Client ID {self.client_id} on {date} at {type}.")
 
@@ -615,12 +598,13 @@ class AppointmentsPage:
             print("⚠ Unable to determine appointment ID.")
             return
 
-        date, type, treatment, price, photos_taken = item_data
+        with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT treatment_notes FROM appointments WHERE id = ?", (appointment_id,))
+            treatment_notes_result = cursor.fetchone()
+            treatment_notes = treatment_notes_result[0] if treatment_notes_result else ""
 
-        # Fetch treatment notes from the database
-        self.cursor.execute("SELECT treatment_notes FROM appointments WHERE id = ?", (appointment_id,))
-        treatment_notes_result = self.cursor.fetchone()
-        treatment_notes = treatment_notes_result[0] if treatment_notes_result else ""
+        date, type, treatment, price, photos_taken = item_data
 
         # CREATE POP-UP WINDOW --> Update Appointment
         self.appointment_window = ctk.CTkToplevel()
@@ -733,14 +717,15 @@ class AppointmentsPage:
         print(f"✏️ Updating Appointment ID {appointment_id}: {date}, {type}, {treatment}, {price}, {treatment_notes}")
 
         try:
-            # Update the database
-            self.cursor.execute("""
-                UPDATE appointments 
-                SET date = ?, type = ?, treatment = ?, price = ?, treatment_notes = ?
-                WHERE id = ?
-            """, (date, type, treatment, price, treatment_notes if treatment_notes else "<No notes added>", appointment_id))
-            self.conn.commit()
-            print(f"Appointment {appointment_id} updated successfully.")
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE appointments 
+                    SET date = ?, type = ?, treatment = ?, price = ?, treatment_notes = ?
+                    WHERE id = ?
+                """, (date, type, treatment, price, treatment_notes if treatment_notes else "<No notes added>", appointment_id))
+                conn.commit()
+                print(f"✅ Appointment {appointment_id} updated successfully.")
 
             # Refresh the appointment list and close the window
             self.load_client_appointments(self.client_id)
@@ -751,13 +736,15 @@ class AppointmentsPage:
 
         # Update photos table to sync with the edited appointment
         try:
-            self.cursor.execute("""
-                UPDATE photos
-                SET appt_date = ?, type = ?
-                WHERE appointment_id = ?
-            """, (date, type, appointment_id))
-            self.conn.commit()
-            print(f"✅ Synced photos with updated appointment {appointment_id}")
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE photos
+                    SET appt_date = ?, type = ?
+                    WHERE appointment_id = ?
+                """, (date, type, appointment_id))
+                conn.commit()
+                print(f"✅ Synced photos with updated appointment {appointment_id}")
 
             self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
 
@@ -776,13 +763,19 @@ class AppointmentsPage:
 
     def get_treatment_notes(self, appointment_id):
         """Fetch treatment notes for an appointment."""
-        self.cursor.execute("""
-                            SELECT treatment_notes 
-                            FROM appointments 
-                            WHERE id = ?
-        """, (appointment_id,))
-        result = self.cursor.fetchone()
-        return result[0] if result else ""
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT treatment_notes 
+                    FROM appointments 
+                    WHERE id = ?
+                """, (appointment_id,))
+                result = cursor.fetchone()
+                return result[0] if result else ""
+        except Exception as e:
+            print(f"❌ Failed to fetch treatment notes for appointment {appointment_id}: {e}")
+            return ""
 
 
     def format_date(self):
@@ -942,8 +935,10 @@ class AppointmentsPage:
         """Executes appointment deletion and closes the confirmation pop-up."""
         try:
             # --- Fetch and delete photo files associated with this appointment ---
-            self.cursor.execute("SELECT file_path FROM photos WHERE appointment_id = ?", (appointment_id,))
-            photo_rows = self.cursor.fetchall()
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT file_path FROM photos WHERE appointment_id = ?", (appointment_id,))
+                photo_rows = cursor.fetchall()
 
             folders_to_check = set()
 
@@ -971,14 +966,15 @@ class AppointmentsPage:
                 except Exception as e:
                     print(f"⚠️ Failed to delete folder {folder}: {e}")
 
-            # --- Remove photo entries from DB ---
-            self.cursor.execute("DELETE FROM photos WHERE appointment_id = ?", (appointment_id,))
-            print(f"📷 Deleted {len(photo_rows)} photo record(s) from database.")
+            # --- Delete from database ---
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM photos WHERE appointment_id = ?", (appointment_id,))
+                print(f"📷 Deleted {len(photo_rows)} photo record(s) from database.")
 
-            # --- Delete the appointment record itself ---
-            self.cursor.execute("DELETE FROM appointments WHERE id = ?", (appointment_id,))
-            self.conn.commit()
-            print(f"🗑️ Appointment {appointment_id} deleted successfully.")
+                cursor.execute("DELETE FROM appointments WHERE id = ?", (appointment_id,))
+                conn.commit()
+                print(f"🗑️ Appointment {appointment_id} deleted successfully.")
 
             # --- Refresh UI ---
             self.load_client_appointments(self.client_id)
@@ -1011,13 +1007,20 @@ class AppointmentsPage:
         type = appointment_data[1]  # Fetch type name
 
         # Fetch full name of client using client id
-        self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
-        result = self.cursor.fetchone()
-        if not result:
-            messagebox.showerror("Error", "Failed to retrieve client's full name from database.")
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
+                result = cursor.fetchone()
+                if not result:
+                    messagebox.showerror("Error", "Failed to retrieve client's full name from database.")
+                    return
+                client_name = result[0]
+                print(f"🟢 Retrieved Client: {client_name} (ID: {self.client_id}) | Appointment Date: {appt_date} (ID: {appointment_id})")
+        except Exception as e:
+            print(f"❌ Database error while fetching client name: {e}")
+            messagebox.showerror("Error", "An error occurred while accessing the database.")
             return
-        client_name = result[0]
-        print(f"🟢 Retrieved Client: {client_name} (ID: {self.client_id}) | Appointment Date: {appt_date} (ID: {appointment_id})")  # Debugging print
 
         # Launch popup and pass necessary info
         popup = PhotoUploadPopup(

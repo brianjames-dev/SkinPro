@@ -35,7 +35,7 @@ if __name__ == "__main__":
     image_loader.start()
 
     # 🔹 Create the main application but keep it hidden
-    app = ClientApp(conn, image_cache, image_loader, data_manager)
+    app = ClientApp(image_cache, image_loader, data_manager)
     app.update_idletasks()
     app.withdraw()  # Hide main UI until everything is loaded
 

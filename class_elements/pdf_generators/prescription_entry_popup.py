@@ -8,17 +8,17 @@ from datetime import datetime
 from PIL import Image, ImageTk
 import pprint
 import re
+import sqlite3
 
 
 class PrescriptionEntryPopup(ctk.CTkToplevel):
     MAX_COLS = 4
     MAX_ROWS = 10
 
-    def __init__(self, parent, on_submit_callback, client_id, cursor, data_manager, initial_data=None, original_path=None):
+    def __init__(self, parent, on_submit_callback, client_id, data_manager, initial_data=None, original_path=None):
         super().__init__(parent)
         self.on_submit_callback = on_submit_callback
         self.client_id = client_id
-        self.cursor = cursor
         self.data_manager = data_manager
         self.initial_data = initial_data
         self.original_path = original_path
@@ -37,10 +37,11 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
 
 
         # Fetch the client's name
-        self.client_name = "Unknown Client"
         try:
-            self.cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
-            result = self.cursor.fetchone()
+            with sqlite3.connect(self.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT full_name FROM clients WHERE id = ?", (self.client_id,))
+                result = cursor.fetchone()
             if result:
                 self.client_name = result[0]
         except Exception as e:

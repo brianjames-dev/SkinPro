@@ -190,7 +190,7 @@ class Pdf2ColGenerator:
                     for text, hl in chunk_line:
                         if hl:
                             c.saveState()
-                            c.setFillAlpha(0.5)
+                            c.setFillAlpha(0.6)
                             c.setFillColorRGB(1, 1, 0)
                             text_width = c.stringWidth(text, "Helvetica", font_size)
                             c.rect(draw_x - 1, line_y - 3, text_width + 1, line_height, fill=True, stroke=0)

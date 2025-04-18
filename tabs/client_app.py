@@ -12,15 +12,13 @@ from utils.path_utils import resource_path
 
 
 class ClientApp(ctk.CTk):
-    def __init__(self, conn, image_cache, image_loader, data_manager):
+    def __init__(self, image_cache, image_loader, data_manager):
         super().__init__()
 
         self.title("SkinPro")
         self.geometry("936x702")
         self.iconbitmap(resource_path("icons/butterfly_icon.ico"))
 
-        self.conn = conn  # Save the database connection
-        self.cursor = self.conn.cursor()
         self.image_cache = image_cache  # Store image cache reference
         self.image_loader = image_loader  # Now `self.image_loader` exists in ClientApp
         self.data_manager= data_manager
@@ -134,7 +132,7 @@ class ClientApp(ctk.CTk):
     def init_ui(self):
         """Initialize the UI components after Tkinter is ready."""
         # Now it's safe to create UI components
-        self.profile_card = ProfileCard(self, self.conn, self.cursor, self.data_manager, self)  
+        self.profile_card = ProfileCard(self, self.data_manager, self)  
 
         # Main Tab View
         self.tab_view = ctk.CTkTabview(self, anchor="nw")
@@ -163,30 +161,30 @@ class ClientApp(ctk.CTk):
 
     def init_clients_tab(self):
         clients_tab = self.tab_view.tab("Clients")
-        self.tabs["Clients"] = ClientsPage(clients_tab, self.conn, self)  
+        self.tabs["Clients"] = ClientsPage(clients_tab, self, self.data_manager)  
 
     def init_info_tab(self):
         info_tab = self.tab_view.tab("Info")
-        self.tabs["Info"] = InfoPage(info_tab, self.conn, self)  
+        self.tabs["Info"] = InfoPage(info_tab, self, self.data_manager)  
 
     def init_appointments_tab(self):
         appointments_tab = self.tab_view.tab("Appointments")
-        self.tabs["Appointments"] = AppointmentsPage(appointments_tab, self.conn, self)  
+        self.tabs["Appointments"] = AppointmentsPage(appointments_tab, self, self.data_manager)  
 
     def init_photos_tab(self):
         photos_tab = self.tab_view.tab("Photos")
-        photos_page = PhotosPage(photos_tab, self.conn, self, self.image_cache, self.image_loader, self.data_manager)
+        photos_page = PhotosPage(photos_tab, self, self.image_cache, self.image_loader, self.data_manager)
         self.tabs["Photos"] = photos_page
 
         self.image_loader.update_ui_callback = photos_page.update_ui_with_thumbnail
     
     def init_prescriptions_tab(self):
         prescriptions_tab = self.tab_view.tab("Prescriptions")
-        self.tabs["Prescriptions"] = PrescriptionsPage(prescriptions_tab, self.conn, self, self.data_manager)
+        self.tabs["Prescriptions"] = PrescriptionsPage(prescriptions_tab, self, self.data_manager)
 
     def init_alerts_tab(self):
         alerts_tab = self.tab_view.tab("Alerts")
-        self.tabs["Alerts"] = AlertsPage(alerts_tab, self)
+        self.tabs["Alerts"] = AlertsPage(alerts_tab, self, self.data_manager)
 
     def switch_to_tab(self, tab_name, data=None):
         """Switch to the specified tab by name."""

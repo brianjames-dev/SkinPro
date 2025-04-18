@@ -16,12 +16,11 @@ from class_elements.pdf_generators.pdf_4col import Pdf4ColGenerator
 from class_elements.pdf_generators.prescription_entry_popup import PrescriptionEntryPopup
 from class_elements.PdfRenderThread import PdfRenderWorker
 import json
+import sqlite3
 
 
 class PrescriptionsPage:
-    def __init__(self, parent, conn, main_app, data_manager):
-        self.conn = conn
-        self.cursor = conn.cursor() if conn else None
+    def __init__(self, parent, main_app, data_manager):
         self.main_app = main_app
         self.data_manager = data_manager
         self.appointment_id = None
@@ -147,8 +146,12 @@ class PrescriptionsPage:
             messagebox.showwarning("Warning", "Please select a client first.")
             return
 
-        cursor = self.conn.cursor()
-        PrescriptionEntryPopup(self.main_app, self.handle_prescription_submission, client_id, cursor, self.main_app.data_manager)
+        PrescriptionEntryPopup(
+            self.main_app,
+            self.handle_prescription_submission,
+            client_id,
+            self.main_app.data_manager  # Pass this instead of cursor
+        )
 
 
     def handle_prescription_submission(self, pdf_path, data):
@@ -161,75 +164,76 @@ class PrescriptionsPage:
             print("❌ No client selected.")
             return
 
-        # Store in DB
-        self.cursor.execute("""
-            INSERT INTO prescriptions (client_id, form_type, file_path, data_json, start_date)
-            VALUES (?, ?, ?, ?, ?)
-        """, (
-            client_id,
-            form_type,
-            pdf_path,
-            json.dumps(data),
-            start_date
-        ))
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO prescriptions (client_id, form_type, file_path, data_json, start_date)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    client_id,
+                    form_type,
+                    pdf_path,
+                    json.dumps(data),
+                    start_date
+                ))
 
-        # Get the inserted row ID
-        prescription_id = self.cursor.lastrowid
+                prescription_id = cursor.lastrowid
+                conn.commit()
 
-        self.conn.commit()
+            # Add to Treeview
+            iid = self.prescription_list.insert(
+                "", "end",
+                iid=str(prescription_id),
+                values=(start_date, form_type)
+            )
+            self.prescription_paths[str(prescription_id)] = pdf_path
+            self.prescription_list.selection_set(iid)
+            self.render_pdf_to_preview(pdf_path)
 
-        # Add to Treeview
-        iid = self.prescription_list.insert(
-            "", "end",
-            iid=str(prescription_id),
-            values=(start_date, form_type)
-        )
-        self.prescription_paths[str(prescription_id)] = pdf_path
-        self.prescription_list.selection_set(iid)
-        self.render_pdf_to_preview(pdf_path)
+        except Exception as e:
+            print(f"❌ Failed to save prescription: {e}")
 
 
     def load_prescriptions_for_client(self, client_id):
         self.clear_prescriptions_list()
 
-        self.cursor.execute("""
-            SELECT id, form_type, file_path, start_date FROM prescriptions
-            WHERE client_id = ?
-            ORDER BY start_date DESC
-        """, (client_id,))
-        prescriptions = self.cursor.fetchall()
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, form_type, file_path, start_date FROM prescriptions
+                    WHERE client_id = ?
+                    ORDER BY start_date DESC
+                """, (client_id,))
+                prescriptions = cursor.fetchall()
 
-        for index, pres in enumerate(prescriptions):
-            pres_id, form_type, file_path, start_date = pres
+            for index, pres in enumerate(prescriptions):
+                pres_id, form_type, file_path, start_date = pres
 
-            # Determine the appropriate tag based on the row index
-            tag = 'alternate' if index % 2 == 1 else None
-            
-            # Example: use file creation/modification time as "date" column value
-            if os.path.exists(file_path):
-                created_date = start_date
-            else:
-                created_date = "Unknown"
+                tag = 'alternate' if index % 2 == 1 else None
+                created_date = start_date if os.path.exists(file_path) else "Unknown"
 
-            iid = self.prescription_list.insert(
-                "", "end",
-                iid=str(pres_id),
-                values=(created_date, form_type),
-                tags=(tag,)  # Apply the tag for alternating row colors
-            )
-            self.prescription_paths[iid] = file_path
-        
-        children = self.prescription_list.get_children()
-        if children:
-            self.prescription_list.selection_set(children[0])
-            self.on_prescription_select(None)
-        
-        # Clear previous image
-        for widget in self.preview_inner_frame.winfo_children():
-            widget.destroy()
+                iid = self.prescription_list.insert(
+                    "", "end",
+                    iid=str(pres_id),
+                    values=(created_date, form_type),
+                    tags=(tag,)
+                )
+                self.prescription_paths[iid] = file_path
 
-        # Ensure the alternate tag is properly styled
-        self.prescription_list.tag_configure('alternate', background='#b3b3b3')  # You should set this in your style setup
+            children = self.prescription_list.get_children()
+            if children:
+                self.prescription_list.selection_set(children[0])
+                self.on_prescription_select(None)
+
+            for widget in self.preview_inner_frame.winfo_children():
+                widget.destroy()
+
+            self.prescription_list.tag_configure('alternate', background='#b3b3b3')
+
+        except Exception as e:
+            print(f"❌ Failed to load prescriptions for client {client_id}: {e}")
 
 
     def clear_prescriptions_list(self):
@@ -257,12 +261,14 @@ class PrescriptionsPage:
         prescription_id = int(iid)
 
         try:
-            self.cursor.execute("""
-                SELECT data_json, file_path, form_type
-                FROM prescriptions
-                WHERE id = ?
-            """, (prescription_id,))
-            result = self.cursor.fetchone()
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT data_json, file_path, form_type
+                    FROM prescriptions
+                    WHERE id = ?
+                """, (prescription_id,))
+                result = cursor.fetchone()
 
             if not result:
                 print("❌ Prescription not found in database.")
@@ -276,8 +282,7 @@ class PrescriptionsPage:
                 self.main_app,
                 lambda updated_path, updated_data: self.handle_edit_submission(prescription_id, updated_path, updated_data),
                 getattr(self.main_app.profile_card, "client_id", None),
-                self.cursor,
-                self.main_app.data_manager,
+                data_manager=self.main_app.data_manager,
                 initial_data=parsed_data,
                 original_path=original_path
             )
@@ -291,18 +296,20 @@ class PrescriptionsPage:
             form_type = f"{sum(1 for key in updated_data if key.startswith('Col') and '_Header' in key)}-column"
             start_date = updated_data.get("start_date")
 
-            self.cursor.execute("""
-                UPDATE prescriptions
-                SET form_type = ?, file_path = ?, data_json = ?, start_date = ?
-                WHERE id = ?
-            """, (
-                form_type,
-                updated_path,
-                json.dumps(updated_data),
-                start_date,
-                prescription_id
-            ))
-            self.conn.commit()
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE prescriptions
+                    SET form_type = ?, file_path = ?, data_json = ?, start_date = ?
+                    WHERE id = ?
+                """, (
+                    form_type,
+                    updated_path,
+                    json.dumps(updated_data),
+                    start_date,
+                    prescription_id
+                ))
+                conn.commit()
 
             # Update Treeview visually
             if self.prescription_list.exists(str(prescription_id)):
@@ -381,8 +388,10 @@ class PrescriptionsPage:
                     print(f"🗑️ Deleted empty folder: {folder}")
 
             # Delete from database
-            self.cursor.execute("DELETE FROM prescriptions WHERE file_path = ?", (pdf_path,))
-            self.conn.commit()
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM prescriptions WHERE file_path = ?", (pdf_path,))
+                conn.commit()
 
             # Remove from Treeview and internal state
             self.prescription_list.delete(iid)

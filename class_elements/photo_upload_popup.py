@@ -17,12 +17,13 @@ class PhotoUploadPopup(ctk.CTkToplevel):
     def __init__(self, parent, client_id, appointment_id=None, appointment_date=None, client_name="", appt_type="", main_app=None, profile_card=None):
         super().__init__(parent)
         self.title("Upload Photos")
-        self.geometry("300x360")
+        self.geometry("300x150")
         self.resizable(False, False)
 
         self._polling_task = None
         self.profile_card = profile_card
         self.is_profile_upload = profile_card is not None
+        self.qr_mode_enabled = False
         self.client_id = client_id
         self.appointment_id = appointment_id
         self.appointment_date = appointment_date
@@ -30,7 +31,11 @@ class PhotoUploadPopup(ctk.CTkToplevel):
         self.appt_type = appt_type
         self.parent = parent
         self.main_app = main_app
+        self._launch_settings_after_close = False
         self.start_time = datetime.datetime.now().timestamp()
+
+        self.qr_icon = CTkImage(light_image=Image.open(resource_path("icons/qr_code.png")), size=(20, 20))
+        self.upload_icon = CTkImage(light_image=Image.open(resource_path("icons/upload.png")), size=(20, 20))
 
         # Lock interaction to this pop-up
         self.transient(main_app)
@@ -41,45 +46,75 @@ class PhotoUploadPopup(ctk.CTkToplevel):
         main_frame = ctk.CTkFrame(self)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Grid setup for layout control
-        main_frame.rowconfigure(0, weight=0)
-        main_frame.rowconfigure(1, weight=1)
-        main_frame.rowconfigure(2, weight=0)
+        # Row configuration
+        main_frame.rowconfigure(0, weight=0)  # Title
+        main_frame.rowconfigure(1, weight=0)  # QR button
+        main_frame.rowconfigure(2, weight=0)  # Local upload button
+        main_frame.rowconfigure(3, weight=0)  # QR code + status
         main_frame.columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(main_frame, text=f"Add Photos for\n{client_name}", font=("Helvetica", 16, "bold")).grid(row=0, column=0, pady=(10, 5), sticky="n")
+        # Title
+        ctk.CTkLabel(
+            main_frame,
+            text=f"Upload Photos for\n{client_name}",
+            font=("Helvetica", 16, "bold")
+        ).grid(row=0, column=0, pady=(10, 0), sticky="n")
 
-        # === QR + status in sub-frame
-        center_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        center_frame.grid(row=1, column=0, sticky="nsew")
-        center_frame.columnconfigure(0, weight=1)
+        # === Button Row Frame ===
+        button_wrapper = ctk.CTkFrame(main_frame, fg_color="transparent")
+        button_wrapper.grid(row=1, column=0, pady=(20, 0), sticky="n")
+        button_wrapper.columnconfigure(0, weight=1)
 
-        self.qr_label = ctk.CTkLabel(center_frame, text="")
-        self.qr_label.grid(row=0, column=0, pady=(5, 5), sticky="n")
+        inner_button_row = ctk.CTkFrame(button_wrapper, fg_color="transparent")
+        inner_button_row.grid(row=0, column=0)
 
-        self.status_label = ctk.CTkLabel(center_frame, text="", font=("Helvetica", 14))
-        self.status_label.grid(row=1, column=0, pady=(0, 5), sticky="n")
+        inner_button_row.columnconfigure((0, 1), weight=0)
 
-        # Upload Local Button
-        ctk.CTkButton(main_frame, text="Upload Local Photos", command=self.upload_local_photos).grid(row=2, column=0, pady=(10, 10), sticky="n")
+        # Enable QR Button (Left)
+        ctk.CTkButton(
+            inner_button_row,
+            text="QR",
+            image=self.qr_icon,
+            compound="left",
+            command=self.enable_qr_mode,
+            width=90  # slightly wider for better icon+text layout
+        ).grid(row=0, column=0, padx=(0, 5))
 
-        # Setup and start
+        # Upload Local Button (Right)
+        ctk.CTkButton(
+            inner_button_row,
+            text="Local",
+            image=self.upload_icon,
+            compound="left",
+            command=self.upload_local_photos,
+            width=90
+        ).grid(row=0, column=1, padx=(5, 0))
+
+        self.center_frame = None
+        self.qr_label = None
+        self.status_label = None
+
+
+    def enable_qr_mode(self):
+        if not self.appointment_id and not self.is_profile_upload:
+            messagebox.showwarning("Missing Appointment", "QR upload is only available with an appointment.")
+            return
+
+        self.qr_mode_enabled = True
         self.generate_qr()
         self.start_polling()
 
 
     def upload_local_photos(self):
-        if getattr(self, "is_profile_upload", False):
-            # === PROFILE PICTURE UPLOAD ===
-            file_path = filedialog.askopenfilename(
-                title="Select Profile Picture",
-                filetypes=[("Image Files", "*.jpg *.jpeg *.png *.bmp *.gif")]
-            )
-            if not file_path:
-                return
+        try:
+            if self.is_profile_upload:
+                file_path = filedialog.askopenfilename(
+                    title="Select Profile Picture",
+                    filetypes=[("Image Files", "*.jpg *.jpeg *.png *.bmp *.gif")]
+                )
+                if not file_path:
+                    return
 
-            try:
-                # Generate a standardized profile picture filename
                 safe_name = self.client_name.replace(" ", "_")
                 filename = f"{safe_name}_id_{self.client_id}.png"
                 save_path = os.path.join(self.main_app.data_manager.profile_pics_dir, filename)
@@ -92,79 +127,140 @@ class PhotoUploadPopup(ctk.CTkToplevel):
                     messagebox.showerror("Error", "The selected image could not be processed.")
                     return
 
-                # Update profile path in DB
-                self.main_app.conn.cursor().execute("""
-                    UPDATE clients SET profile_picture = ? WHERE id = ?
-                """, (save_path, self.client_id))
+                with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE clients SET profile_picture = ? WHERE id = ?
+                    """, (save_path, self.client_id))
 
-                # Ensure default zoom/shift exists
-                self.main_app.conn.cursor().execute("SELECT id FROM client_images WHERE client_id = ?", (self.client_id,))
-                if self.main_app.conn.cursor().fetchone():
-                    self.main_app.conn.cursor().execute("""
-                        UPDATE client_images SET zoom = ?, shift = ? WHERE client_id = ?
-                    """, (100, 0, self.client_id))
-                else:
-                    self.main_app.conn.cursor().execute("""
-                        INSERT INTO client_images (client_id, zoom, shift) VALUES (?, ?, ?)
-                    """, (self.client_id, 100, 0))
+                    cursor.execute("SELECT id FROM client_images WHERE client_id = ?", (self.client_id,))
+                    if cursor.fetchone():
+                        cursor.execute("""
+                            UPDATE client_images SET zoom = ?, shift = ? WHERE client_id = ?
+                        """, (100, 0, self.client_id))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO client_images (client_id, zoom, shift) VALUES (?, ?, ?)
+                        """, (self.client_id, 100, 0))
 
-                self.main_app.conn.commit()
-
-                # Refresh profile picture UI
-                if hasattr(self, "profile_card") and self.profile_card:
+                # === Reload UI and launch settings popup
+                if self.profile_card:
                     self.profile_card.load_client(self.client_id)
 
-                messagebox.showinfo("Success", "Profile picture uploaded successfully.")
-                self.destroy()
+                    # Tell main app that settings popup should be triggered after this closes
+                    self._launch_settings_after_close = True
+                else:
+                    self._launch_settings_after_close = False
 
-            except Exception as e:
-                print(f"❌ Failed to upload profile picture: {e}")
-                messagebox.showerror("Error", "Could not upload profile picture.")
-            return
+                self.after(100, self._cleanup_and_close)
+                return
 
-        # === APPOINTMENT PHOTO MODE ===
-        safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in self.client_name).replace(" ", "_")
-        date_formatted = self.appointment_date.replace("/", "-")
-        client_folder = self.main_app.data_manager.get_photo_path(
-            f"{safe_name}_id_{self.client_id}", date_formatted
-        )
-        os.makedirs(client_folder, exist_ok=True)
+            safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in self.client_name).replace(" ", "_")
+            date_formatted = self.appointment_date.replace("/", "-")
+            client_folder = self.main_app.data_manager.get_photo_path(
+                f"{safe_name}_id_{self.client_id}", date_formatted
+            )
+            os.makedirs(client_folder, exist_ok=True)
 
-        file_paths = filedialog.askopenfilenames(
-            title="Select Photos",
-            filetypes=[("Image Files", "*.jpg *.jpeg *.png *.bmp *.gif")]
-        )
-
-        if not file_paths:
-            return
-
-        for file_path in file_paths:
-            filename = os.path.basename(file_path)
-            new_path = os.path.join(client_folder, filename)
-            counter = 1
-            while os.path.exists(new_path):
-                name, ext = os.path.splitext(filename)
-                new_path = os.path.join(client_folder, f"{name}_{counter}{ext}")
-                counter += 1
-            shutil.copy(file_path, new_path)
-            self.main_app.conn.cursor().execute(
-                "INSERT INTO photos (client_id, appointment_id, appt_date, file_path, type) VALUES (?, ?, ?, ?, ?)",
-                (self.client_id, self.appointment_id, self.appointment_date, new_path, self.appt_type)
+            file_paths = filedialog.askopenfilenames(
+                title="Select Photos",
+                filetypes=[("Image Files", "*.jpg *.jpeg *.png *.bmp *.gif")]
             )
 
-        self.main_app.conn.cursor().execute("UPDATE appointments SET photos_taken = 'Yes' WHERE id = ?", (self.appointment_id,))
-        self.main_app.conn.commit()
-        messagebox.showinfo("Success", f"{len(file_paths)} photo(s) uploaded successfully.")
+            if not file_paths:
+                return
 
-        # Refresh UI
-        if "Photos" in self.main_app.tabs:
-            self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                for file_path in file_paths:
+                    filename = os.path.basename(file_path)
+                    new_path = os.path.join(client_folder, filename)
+                    counter = 1
+                    while os.path.exists(new_path):
+                        name, ext = os.path.splitext(filename)
+                        new_path = os.path.join(client_folder, f"{name}_{counter}{ext}")
+                        counter += 1
+                    shutil.copy(file_path, new_path)
+                    cursor.execute(
+                        "INSERT INTO photos (client_id, appointment_id, appt_date, file_path, type) VALUES (?, ?, ?, ?, ?)",
+                        (self.client_id, self.appointment_id, self.appointment_date, new_path, self.appt_type)
+                    )
 
-        self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
+                cursor.execute("UPDATE appointments SET photos_taken = 'Yes' WHERE id = ?", (self.appointment_id,))
+
+            if "Photos" in self.main_app.tabs:
+                self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
+
+            self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
+
+            self.after(100, lambda: self._show_success_and_close(len(file_paths)))
+
+        except Exception as e:
+            print(f"❌ Failed to upload photos: {e}")
+            messagebox.showerror("Error", "Failed to upload photos. Please try again.")
+
+
+    def _show_success_and_close(self, num_uploaded):
+        messagebox.showinfo("Upload Complete", f"{num_uploaded} photo(s) uploaded successfully!")
+        self._cleanup_and_close()
+
+
+    def _cleanup_and_close(self):
+        if self._polling_task:
+            self.after_cancel(self._polling_task)
+            self._polling_task = None
+
+        # Delay destruction and trigger the next popup after
+        self.after(100, self._delayed_close)
+
+
+    def _delayed_close(self):
+        self.destroy()
+        if self._launch_settings_after_close and self.profile_card:
+            print("✅ Post-destroy: Launching profile image settings popup...")
+            self.profile_card.open_settings_popup()
+
+
+    def _delayed_profile_success(self):
+        if self._polling_task:
+            self.after_cancel(self._polling_task)
+            self._polling_task = None
+
+        print("🟣 Closing popup — final success handler.")
+
+        should_launch_editor = False
+        if self.profile_card:
+            print("🟢 Loaded profile_card — refreshing client data")
+            self.profile_card.load_client(self.client_id)
+            should_launch_editor = True
+        else:
+            print("⚠️ No profile_card available. Skipping editor popup.")
+
+        self.destroy()
+
+        # Launch settings popup **after** window is safely destroyed
+        if should_launch_editor:
+            self.after(300, lambda: self.profile_card.open_settings_popup())
 
 
     def generate_qr(self):
         self.ensure_server_running()
+
+        if self.center_frame is None:
+            # Create center frame and QR widgets dynamically
+            self.center_frame = ctk.CTkFrame(self.nametowidget(self.winfo_children()[0]), fg_color="transparent")
+            self.center_frame.grid(row=3, column=0, sticky="nsew")
+            self.center_frame.columnconfigure(0, weight=1)
+
+            self.qr_label = ctk.CTkLabel(self.center_frame, text="")
+            self.qr_label.grid(row=0, column=0, pady=(5, 5), sticky="n")
+
+            self.status_label = ctk.CTkLabel(self.center_frame, text="", font=("Helvetica", 14))
+            self.status_label.grid(row=1, column=0, pady=(0, 5), sticky="n")
+
+            # Resize window now that we added content
+            self.geometry("300x370")
+
         if self.is_profile_upload:
             qr_path = generate_upload_qr(self.client_id, None, self.main_app.data_manager, mode="profile")
         else:
@@ -205,8 +301,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
                         [python_cmd, "--version"],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
-                        text=True,
-                        creationflags=(subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+                        text=True
                     )
                     if result.returncode != 0:
                         raise EnvironmentError(f"Python not found: {result.stderr.strip()}")
@@ -216,10 +311,9 @@ class PhotoUploadPopup(ctk.CTkToplevel):
                     print(f"❌ Could not verify system Python: {e}")
                     return
 
-            # Launch server
-            creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            # 🚨 DO NOT hide the terminal — this keeps it visible for debugging
             try:
-                subprocess.Popen([python_cmd, server_path], creationflags=creationflags)
+                subprocess.Popen([python_cmd, server_path])  # ← no creationflags!
                 sys._flask_server_started = True
                 print(f"🟢 Flask server launched using {python_cmd}: {server_path}")
             except Exception as e:
@@ -233,6 +327,9 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
 
     def check_for_uploaded_photos(self):
+        if not self.qr_mode_enabled:
+            return  # Exit immediately if QR mode isn't active
+
         try:
             conn = sqlite3.connect(self.main_app.data_manager.db_path, check_same_thread=False)
             cursor = conn.cursor()
@@ -255,16 +352,12 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
                 self.status_label.configure(text="Profile Picture Uploaded ✅")
 
-                if self.profile_card:
-                    self.profile_card.load_client(self.client_id)
-                    self.after(200, lambda: self.profile_card.open_settings_popup())
-
                 if self._polling_task:
                     self.after_cancel(self._polling_task)
                     self._polling_task = None
 
-                messagebox.showinfo("Upload Complete", "Profile picture uploaded successfully!")
-                self.destroy()
+                print("✅ Upload complete. Waiting briefly before closing and opening popup...")
+                self.after(400, self._delayed_profile_success)
                 return
 
             # === Appointment Photo Upload Mode ===
@@ -311,10 +404,12 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
 
     def finish_success_popup(self, num_uploaded):
+        if self._polling_task:
+            self.after_cancel(self._polling_task)
+            self._polling_task = None
+
         self.status_label.configure(text="Upload Complete!")
         messagebox.showinfo("Upload Complete", f"{num_uploaded} photo(s) uploaded successfully!")
         self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
         self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
-        self.after_cancel(self._polling_task)
-        self._polling_task = None
         self.destroy()

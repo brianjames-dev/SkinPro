@@ -5,6 +5,7 @@ import os
 import re
 from datetime import datetime
 from utils.path_utils import resource_path
+import sqlite3
 
 
 # Placeholder text phrases
@@ -28,11 +29,10 @@ other_notes_placeholder         = "Add any relevant notes (Optional)"
 desired_improvement_placeholder = "What improvement is the client seeking?"
 
 class InfoPage:
-    def __init__(self, parent, conn, main_app):
-        self.conn = conn
-        self.cursor = conn.cursor()
+    def __init__(self, parent, main_app, data_manager):
         self.main_app = main_app
         self.client_id = None
+        self.data_manager = data_manager
 
         # Create a frame to hold all input fields
         form_frame = ctk.CTkFrame(parent)
@@ -293,27 +293,23 @@ class InfoPage:
         except IndexError:
             pass  # In case no trace exists yet  
 
-        # Fetch general client information
-        self.cursor.execute("""
-            SELECT 
-                full_name, gender, birthdate, 
-                address1, address2, city, 
-                state, zip, primary_phone, secondary_phone, email, referred_by
-            FROM clients 
-            WHERE id = ?
-        """, (client_id,))
-        client_result = self.cursor.fetchone()
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT full_name, gender, birthdate, address1, address2, city, state, zip, primary_phone, secondary_phone, email, referred_by
+                    FROM clients WHERE id = ?
+                """, (client_id,))
+                client_result = cursor.fetchone()
 
-        # Fetch health-related client information
-        self.cursor.execute("""
-            SELECT 
-                allergies, health_conditions, health_risks, medications, 
-                treatment_areas, current_products, skin_conditions, 
-                other_notes, desired_improvement 
-            FROM client_health_info 
-            WHERE client_id = ?
-        """, (client_id,))
-        health_result = self.cursor.fetchone()
+                cursor.execute("""
+                    SELECT allergies, health_conditions, health_risks, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement
+                    FROM client_health_info WHERE client_id = ?
+                """, (client_id,))
+                health_result = cursor.fetchone()
+        except Exception as e:
+            print(f"❌ Error loading client info: {e}")
+            return
 
         if client_result:
             (
@@ -518,23 +514,24 @@ class InfoPage:
 
     def update_referred_by_suggestions(self, event=None):
         """Update the dropdown suggestions in real-time based on user input."""
-        query = self.referred_by_combobox.get().strip()  # Get the current text
+        query = self.referred_by_combobox.get().strip()
 
-        if query:  # Only search if there's input
-            self.cursor.execute(
-                "SELECT full_name FROM clients WHERE full_name LIKE ? LIMIT 10", (f"%{query}%",)
-            )
-            matches = [row[0] for row in self.cursor.fetchall()]
+        if not query:
+            self.referred_by_combobox.configure(values=[])
+            self.referred_by_combobox.focus()
+            return
 
-            if matches:
-                self.referred_by_combobox.configure(values=matches)  # Update values dynamically
-            else:
-                self.referred_by_combobox.configure(values=["No matches found"])  # Indicate no matches
+        try:
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT full_name FROM clients WHERE full_name LIKE ? LIMIT 10", (f"%{query}%",))
+                matches = [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"❌ Error fetching referral suggestions: {e}")
+            matches = []
 
-        else:
-            self.referred_by_combobox.configure(values=[])  # Clear suggestions if input is empty
-
-        self.referred_by_combobox.focus()  # Ensure the combo box is focused
+        self.referred_by_combobox.configure(values=matches if matches else ["No matches found"])
+        self.referred_by_combobox.focus()
 
     def setup_combobox_tracking(self):
         """Attach variable tracking to enable the save button when combobox changes."""
@@ -552,14 +549,9 @@ class InfoPage:
             self.save_button.configure(state="normal", text="Save", fg_color="#563A9C")  # Re-enable
 
     def save_client_data(self):
-        """Save or update client information in the database."""
-        # Step 1: Get client_id from ProfileCard
         if hasattr(self.main_app, "profile_card"):
-            self.client_id = self.main_app.profile_card.client_id  # Use the stored client_id
+            self.client_id = self.main_app.profile_card.client_id
 
-        print(f"\n🔎 DEBUG: Checking client_id before saving: {self.client_id}")
-
-        # Step 2: Collect data from the form
         full_name = self.full_name_entry.get().strip()
         gender = self.gender_entry.get().strip()
         birthdate = self.birthdate_entry.get().strip()
@@ -572,8 +564,6 @@ class InfoPage:
         state = self.state_entry.get().strip()
         zip = self.zip_entry.get().strip()
         referred_by = self.referred_by_combobox.get().strip()
-
-        # Health Info
         allergies = self.allergies_entry.get().strip()
         health_conditions = self.health_conditions_entry.get().strip()
         health_risks = self.health_risks_entry.get().strip()
@@ -584,111 +574,77 @@ class InfoPage:
         other_notes = self.other_notes_entry.get().strip()
         desired_improvement = self.desired_improvement_entry.get().strip()
 
-        # Ensure a full name is provided
-        if not full_name.strip():  
+        if not full_name:
             print("Error: Full Name is required!")
             return
 
         try:
-            if self.client_id == -1:  # If it's a new client
-                print(f"🆕 Inserting new client: {full_name}")
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
 
-                # Insert the new client into the `clients` table
-                self.cursor.execute("""
-                    INSERT INTO clients (full_name, gender, birthdate, primary_phone, secondary_phone, email, address1, address2, city, state, zip, referred_by) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (full_name, gender, birthdate, primary, secondary, email, address1, address2, city, state, zip, referred_by))
+                if self.client_id == -1:
+                    cursor.execute("""
+                        INSERT INTO clients (full_name, gender, birthdate, primary_phone, secondary_phone, email, address1, address2, city, state, zip, referred_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (full_name, gender, birthdate, primary, secondary, email, address1, address2, city, state, zip, referred_by))
 
-                # Get the newly inserted client_id
-                self.client_id = self.cursor.lastrowid
-                print(f"🆕 Assigned new client_id: {self.client_id}")
+                    self.client_id = cursor.lastrowid
 
-                # Insert new Health Info
-                self.cursor.execute("""
-                    INSERT INTO client_health_info (client_id, allergies, health_conditions, health_risks, medications, treatment_areas, 
-                        current_products, skin_conditions, other_notes, desired_improvement) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (self.client_id, allergies, health_conditions, health_risks, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
-
-            else:  # If updating an existing client
-                print(f"✏️ Updating client ID: {self.client_id} ({full_name}) in the database...")
-                
-                # Update client info in the `clients` table
-                self.cursor.execute("""
-                    UPDATE clients 
-                    SET full_name = ?, gender = ?, birthdate = ?, primary_phone = ?, secondary_phone = ?, email = ?, 
-                        address1 = ?, address2 = ?, city = ?, state = ?, zip = ?, referred_by = ? 
-                    WHERE id = ?
-                """, (full_name, gender, birthdate, primary, secondary, email, address1, address2, city, state, zip, referred_by, self.client_id))
-
-                # Check if health info exists for this client
-                self.cursor.execute("SELECT COUNT(*) FROM client_health_info WHERE client_id = ?", (self.client_id,))
-                health_info_exists = self.cursor.fetchone()[0]
-
-                if health_info_exists:
-                    # Update existing Health Info
-                    self.cursor.execute("""
-                        UPDATE client_health_info 
-                        SET allergies = ?, health_conditions = ?, health_risks = ?, medications = ?, treatment_areas = ?, 
-                            current_products = ?, skin_conditions = ?, other_notes = ?, desired_improvement = ? 
-                        WHERE client_id = ?
-                    """, (allergies, health_conditions, health_risks, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement, self.client_id))
-                else:
-                    # Insert new Health Info (if missing)
-                    self.cursor.execute("""
-                        INSERT INTO client_health_info (client_id, allergies, health_conditions, health_risks, medications, treatment_areas, 
-                            current_products, skin_conditions, other_notes, desired_improvement) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    cursor.execute("""
+                        INSERT INTO client_health_info (client_id, allergies, health_conditions, health_risks, medications, treatment_areas,
+                            current_products, skin_conditions, other_notes, desired_improvement)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (self.client_id, allergies, health_conditions, health_risks, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
+                else:
+                    cursor.execute("""
+                        UPDATE clients SET full_name=?, gender=?, birthdate=?, primary_phone=?, secondary_phone=?, email=?,
+                            address1=?, address2=?, city=?, state=?, zip=?, referred_by=? WHERE id=?
+                    """, (full_name, gender, birthdate, primary, secondary, email, address1, address2, city, state, zip, referred_by, self.client_id))
 
-            # Step 4: Commit changes
-            self.conn.commit()
-            print(f"💾 Changes committed to the database.")
+                    cursor.execute("SELECT COUNT(*) FROM client_health_info WHERE client_id = ?", (self.client_id,))
+                    if cursor.fetchone()[0]:
+                        cursor.execute("""
+                            UPDATE client_health_info SET allergies=?, health_conditions=?, health_risks=?, medications=?, treatment_areas=?,
+                                current_products=?, skin_conditions=?, other_notes=?, desired_improvement=? WHERE client_id=?
+                        """, (allergies, health_conditions, health_risks, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement, self.client_id))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO client_health_info (client_id, allergies, health_conditions, health_risks, medications, treatment_areas,
+                                current_products, skin_conditions, other_notes, desired_improvement)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (self.client_id, allergies, health_conditions, health_risks, medications, treatment_areas, current_products, skin_conditions, other_notes, desired_improvement))
 
-            # Step 5: Refresh TreeView in ClientsPage and select the updated/new client
-            if hasattr(self.main_app, "tabs") and "Clients" in self.main_app.tabs:
-                print("🔄 Refreshing Client List in TreeView...")
-                self.main_app.tabs["Clients"].load_clients()  # Reload all clients in TreeView
+                    temp_profile_path = "images/clients/temp_profile.png"
+                    final_profile_path = f"images/clients/{full_name.replace(' ', '_')}.png"
+                    if os.path.exists(temp_profile_path):
+                        os.rename(temp_profile_path, final_profile_path)
+                        cursor.execute("UPDATE clients SET profile_picture = ? WHERE id = ?", (final_profile_path, self.client_id))
 
-                # Select and bring the client into view
-                self.main_app.tabs["Clients"].client_list.selection_set(str(self.client_id))
-                self.main_app.tabs["Clients"].client_list.see(str(self.client_id))  # Jump to selected client
-                self.main_app.tabs["Clients"].restore_placeholder()
+                conn.commit()
 
-            # Step 6: Finalize Temporary Profile Picture
-            temp_profile_path = "images/clients/temp_profile.png"
-            final_profile_path = f"images/clients/{full_name.replace(' ', '_')}.png"
-
-            if os.path.exists(temp_profile_path):
-                os.rename(temp_profile_path, final_profile_path)
-                print(f"📁 Moved temporary profile picture to {final_profile_path}")
-
-                self.cursor.execute("""
-                    UPDATE clients SET profile_picture = ? WHERE id = ?""",
-                    (final_profile_path, self.client_id))
-                self.conn.commit()
-
-            # Step 6: Refresh ProfileCard Full Name
-            if hasattr(self.main_app, "profile_card"):
-                print("🔄 Updating ProfileCard Name...")
-                self.main_app.profile_card.client_id = self.client_id
-                self.main_app.profile_card.full_name = full_name
-                self.main_app.profile_card.name_label.configure(text=full_name)
-
-            # Force set self.client_id's in other tabs
-            if hasattr(self.main_app, "tabs") and "Appointments" in self.main_app.tabs:
-                self.main_app.tabs["Appointments"].client_id = self.client_id
-                print(f"✅ Force-set Appointments tab client_id = {self.client_id}")
-            
-            if hasattr(self.main_app, "tabs") and "Alerts" in self.main_app.tabs:
-                self.main_app.tabs["Alerts"].client_id = self.client_id
-                print(f"✅ Force-set Alerts tab client_id = {self.client_id}")
-
-            # Step 7: Disable save button and change label after successful save
-            self.save_button.configure(state="disabled", text="Saved!", fg_color="#696969", text_color="#ebebeb")
-
+        except sqlite3.OperationalError as e:
+            print(f"❌ SQLite operational error: {e}")
         except Exception as e:
-            print(f"❌ Database error: {e}")
+            print(f"❌ Unexpected database error: {e}")
+
+        if hasattr(self.main_app, "tabs") and "Clients" in self.main_app.tabs:
+            self.main_app.tabs["Clients"].load_clients()
+            self.main_app.tabs["Clients"].client_list.selection_set(str(self.client_id))
+            self.main_app.tabs["Clients"].client_list.see(str(self.client_id))
+            self.main_app.tabs["Clients"].restore_placeholder()
+
+        if hasattr(self.main_app, "profile_card"):
+            self.main_app.profile_card.client_id = self.client_id
+            self.main_app.profile_card.full_name = full_name
+            self.main_app.profile_card.name_label.configure(text=full_name)
+
+        if hasattr(self.main_app, "tabs") and "Appointments" in self.main_app.tabs:
+            self.main_app.tabs["Appointments"].client_id = self.client_id
+
+        if hasattr(self.main_app, "tabs") and "Alerts" in self.main_app.tabs:
+            self.main_app.tabs["Alerts"].client_id = self.client_id
+
+        self.save_button.configure(state="disabled", text="Saved!", fg_color="#696969", text_color="#ebebeb")
         
 
     def format_birthdate(self, event=None):

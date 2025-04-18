@@ -10,10 +10,11 @@ import sqlite3
 
 
 class AlertsPage:
-    def __init__(self, parent, main_app):
+    def __init__(self, parent, main_app, data_manager):
         self.parent = parent
         self.main_app = main_app
         self.client_id = None
+        self.data_manager = data_manager
 
         # Main frame
         main_frame = ctk.CTkFrame(parent)
