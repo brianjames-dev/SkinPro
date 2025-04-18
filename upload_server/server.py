@@ -6,8 +6,17 @@ from datetime import datetime
 from PIL import Image, ExifTags
 import json
 import sys
+import logging
 
-print(f"🧠 Running with: {sys.executable}")
+logging.basicConfig(
+    filename="flask_server.log",
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+
+DB_PATH = None
+UPLOAD_BASE_DIR = None
+PROFILE_PIC_DIR = None
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def load_data_paths():
@@ -45,8 +54,6 @@ def load_data_paths():
         paths["photos"],
         paths.get("profile_pictures", os.path.join(data_dir, "profile_pictures"))
     )
-
-DB_PATH, UPLOAD_BASE_DIR, PROFILE_PIC_DIR = load_data_paths()
 
 
 app = Flask(__name__)
@@ -301,8 +308,19 @@ def upload_profile_pic():
         appt_type="Upload"
     )
 
-if __name__ == "__main__":
+def start_flask_server():
+    global DB_PATH, UPLOAD_BASE_DIR, PROFILE_PIC_DIR
+
     try:
+        DB_PATH, UPLOAD_BASE_DIR, PROFILE_PIC_DIR = load_data_paths()
+    except Exception as e:
+        logging.error(f"❌ Failed to load data paths: {e}")
+        return  # Abort if config is missing
+
+    try:
+        logging.info("🚀 Starting Flask server on port 8000...")
         app.run(host="0.0.0.0", port=8000, debug=False, use_reloader=False)
     except SystemExit as e:
-        print(f"⚠️ Flask shutdown with code {e}")
+        logging.warning(f"⚠️ Flask shutdown with code {e}")
+    except Exception as e:
+        logging.error(f"🔥 Flask server crashed unexpectedly: {e}")

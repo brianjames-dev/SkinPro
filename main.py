@@ -7,21 +7,28 @@ from class_elements.img_load_threading import ImageLoaderThread
 from utils.data_manager import DataDirectoryManager
 from utils.path_utils import resource_path
 import sys
+import threading
+from upload_server import server
 
+# Store server thread globally for health checks or shutdown logic
+flask_thread = None
+
+def start_server_in_thread():
+    global flask_thread
+    if flask_thread is None or not flask_thread.is_alive():
+        flask_thread = threading.Thread(target=server.start_flask_server, daemon=True)
+        flask_thread.start()
+        sys._flask_server_started = True
+        print("🟢 Flask server launched from main.py")
 
 if __name__ == "__main__":
-    # Prevent launching the full UI if this is just the Flask subprocess
-    if "--run-flask" in sys.argv:
-        print("🌀 Launching Flask server subprocess (from --run-flask flag)...")
-        from upload_server import server
-        sys.exit()
-
     ctk.set_appearance_mode("Light")
     ctk.set_default_color_theme(resource_path("class_elements/corium_theme.json"))
 
     # 🔹 Initialize Data Folder Manager
     data_manager = DataDirectoryManager()
-
+    start_server_in_thread()
+    
     # 🔹 Initialize database & image cache (NO IMAGE LOADING YET)
     conn = init_database(data_manager.db_path, data_manager.backups_dir)
     image_cache = ImageCache(data_manager)
@@ -45,6 +52,12 @@ if __name__ == "__main__":
 
     # 🔹 Start loading assets **after** splash screen is drawn
     splash_screen.after(2000, lambda: app.preload_assets(splash_screen))
+
+    def on_close():
+        print("🔻 App is closing — attempting to clean up...")
+        # Add any other shutdown logic here
+        app.quit()
+    app.protocol("WM_DELETE_WINDOW", on_close)
 
     # 🔹 Start Tkinter main loop for splash screen (ensures it's visible)
     splash_screen.mainloop()

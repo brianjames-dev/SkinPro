@@ -11,6 +11,8 @@ import sqlite3
 import datetime
 from utils.path_utils import resource_path
 import tempfile
+import threading
+import time
 
 
 class PhotoUploadPopup(ctk.CTkToplevel):
@@ -277,47 +279,29 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
 
     def ensure_server_running(self):
-        """Launch Flask server in a background subprocess if not already running."""
-        if not hasattr(sys, '_flask_server_started'):
-            print("🟢 Starting Flask server...")
+        """Start or restart the Flask server thread if it's not alive."""
+        if not hasattr(sys, '_flask_thread'):
+            sys._flask_thread = None
 
-            # Determine whether we're running from a PyInstaller .exe
-            is_frozen = getattr(sys, 'frozen', False)
+        # If thread doesn't exist or is dead, restart it
+        if sys._flask_thread is None or not sys._flask_thread.is_alive():
+            print("🟢 Flask thread not running. Launching or restarting...")
 
-            if is_frozen:
-                # PyInstaller bundle: server.py is extracted into _MEIPASS
-                server_path = os.path.join(sys._MEIPASS, "upload_server", "server.py")
-                python_cmd = "python"  # assume installed system Python
-            else:
-                # Dev mode: use local path and Python executable
-                from utils.path_utils import resource_path
-                server_path = resource_path(os.path.join("upload_server", "server.py"))
-                python_cmd = sys.executable
+            from upload_server import server
 
-            # Check that python is available in frozen mode
-            if is_frozen:
+            def run_flask():
                 try:
-                    result = subprocess.run(
-                        [python_cmd, "--version"],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True
-                    )
-                    if result.returncode != 0:
-                        raise EnvironmentError(f"Python not found: {result.stderr.strip()}")
-                    else:
-                        print(f"🧪 Found system Python: {result.stdout.strip()}")
+                    server.start_flask_server()
                 except Exception as e:
-                    print(f"❌ Could not verify system Python: {e}")
-                    return
+                    print(f"🔥 Flask server crashed: {e}")
+                    # Optional: wait and try again
+                    time.sleep(2)
+                    print("🔁 Retrying Flask server...")
+                    run_flask()
 
-            # 🚨 DO NOT hide the terminal — this keeps it visible for debugging
-            try:
-                subprocess.Popen([python_cmd, server_path])  # ← no creationflags!
-                sys._flask_server_started = True
-                print(f"🟢 Flask server launched using {python_cmd}: {server_path}")
-            except Exception as e:
-                print(f"❌ Failed to start Flask server: {e}")
+            t = threading.Thread(target=run_flask, daemon=True)
+            t.start()
+            sys._flask_thread = t
 
 
     def start_polling(self):
