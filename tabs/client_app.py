@@ -79,7 +79,7 @@ class ClientApp(ctk.CTk):
         self.image_cache.get_image(file_path)  # Load image
 
         progress = 0.05 + (index + 1) * step_full  # Smoothly increments between 5% and 50%
-        splash_screen.update_progress(progress, f"Loading images... ({index + 1}/{len(full_images)})")
+        splash_screen.update_progress(progress, f"Loading images... ({index + 1:02}/{len(full_images)})")
 
         # Schedule the next image load asynchronously
         self.after(10, lambda: self.load_full_images(full_images, thumbnails, splash_screen, index + 1, step_full, step_thumb))
@@ -114,7 +114,7 @@ class ClientApp(ctk.CTk):
                 self.main_app.after(0, lambda: self.update_ui_with_thumbnail(i, thumbnail))
 
             progress = start_progress + ((i + 1) * step_thumb)
-            splash_screen.update_progress(progress, f"Loading thumbnails... ({i+1}/{total_thumbnails})")
+            splash_screen.update_progress(progress, f"Loading thumbnails... ({i+1:02}/{total_thumbnails})")
             
             # Schedule the next thumbnail to load asynchronously
             self.after(10, lambda: process_thumbnail(i + 1))
