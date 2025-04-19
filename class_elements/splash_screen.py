@@ -14,47 +14,54 @@ class SplashScreen(ctk.CTkToplevel):
 
         # Load Image
         self.bg_image = ctk.CTkImage(light_image=Image.open(resource_path("icons/butterfly_splash.png")),
-                                     size=(500, 500))  # Adjust size as needed
-        
-        # Background Label
-        self.bg_label = ctk.CTkLabel(self, image=self.bg_image, text="", corner_radius=0, fg_color="#dbd7d1")  
-        self.bg_label.place(relwidth=1, relheight=1)  # Cover full window
-        
-        # Progress Bar
-        self.progress_bar = ctk.CTkProgressBar(self, corner_radius=0)
-        self.progress_bar.pack(pady=(470, 0), padx=40, fill="x")
-        self.progress_bar.set(0)  # Start at 0%
+                                     size=(500, 500))
 
-        # Frame for Progress and Timer Labels (Side-by-Side)
-        label_frame = ctk.CTkFrame(self, fg_color="#dbd7d1", corner_radius=0)
-        label_frame.pack(pady=5, padx=40, fill="x")  # Align with progress bar width
+        # Background Label
+        self.bg_label = ctk.CTkLabel(self, image=self.bg_image, text="", corner_radius=0, fg_color="#dbd7d1")
+        self.bg_label.place(relwidth=1, relheight=1)
+
+        # Frame for Progress and Timer Labels (just above the progress bar)
+        label_frame = ctk.CTkFrame(self, fg_color="#dbd7d1", corner_radius=0, height=5)
+        label_frame.place(relx=0.5, rely=1, y=-3, anchor="s", relwidth=1.0)  # Move it closer to the bar
 
         # Progress Label (Left)
-        self.progress_label = ctk.CTkLabel(label_frame, text="Starting up...", 
-                                           font=("Helvetica", 10),
-                                           fg_color="#dbd7d1",
-                                           corner_radius=0)
-        self.progress_label.pack(side="left", padx=10)
-
-        # Timer Label (Right)
-        self.timer_label = ctk.CTkLabel(label_frame, text="Elapsed Time: 0s", 
-                                        font=("Helvetica", 10),
+        self.progress_label = ctk.CTkLabel(label_frame, text="Starting up...",
+                                        font=("Helvetica", 11),
                                         fg_color="#dbd7d1",
                                         corner_radius=0)
-        self.timer_label.pack(side="right", padx=10)
+        self.progress_label.pack(side="left", padx=10)  # Slight nudge lower
 
-        # Timer Variables
+        # Timer Label (Right)
+        self.timer_label = ctk.CTkLabel(label_frame, text="Elapsed Time: 0s",
+                                        font=("Helvetica", 11),
+                                        fg_color="#dbd7d1",
+                                        corner_radius=0)
+        self.timer_label.pack(side="right", padx=10)  # Same nudge
+
+        # Progress Bar (Bottom of window)
+        self.progress_bar = ctk.CTkProgressBar(self, corner_radius=0, height=8)
+        self.progress_bar.place(x=0, rely=1.0, relwidth=1.0, anchor="sw")
+        self.progress_bar.set(0)
+
+        # Timer Logic
         self.start_time = time.time()
-        self.timer_running = True  
-        self.update_timer()  
+        self.timer_running = True
+        self.update_timer()
 
         self.update_idletasks()
+
 
     def update_progress(self, progress, message):
         """Update the progress bar and label text dynamically."""
         self.progress_bar.set(progress)
-        self.progress_label.configure(text=message)
-        self.update_idletasks()  # Force UI refresh
+        
+        # Force redraw to clear ghost characters
+        self.progress_label.configure(text="")               # Clear old text
+        self.update_idletasks()
+        
+        self.progress_label.configure(text=message)          # Now set correct message
+        self.update_idletasks()                              # Refresh UI again
+
 
     def update_timer(self):
         """Update the elapsed time and refresh UI at regular intervals."""
@@ -64,6 +71,7 @@ class SplashScreen(ctk.CTkToplevel):
         elapsed_time = time.time() - self.start_time
         self.timer_label.configure(text=f"Elapsed Time: {elapsed_time:.0f}s")
         self.after(100, self.update_timer)  # Update every 100ms
+
 
     def stop_timer(self):
         """Stops the timer when loading completes."""
