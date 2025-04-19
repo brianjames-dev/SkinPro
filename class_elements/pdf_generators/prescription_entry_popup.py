@@ -641,5 +641,9 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
                 widget.tag_config("highlight", background="yellow", foreground="black")
                 print(f"✅ Highlighted: {widget.get(start, end)} from {start} to {end}")
 
+            # Remove selection coloring immediately after toggling
+            widget.tag_remove("sel", "1.0", "end")
+            widget.tag_remove("highlight_selected", "1.0", "end")
+
         except Exception as e:
             print(f"❌ Failed to toggle highlight: {e}")
