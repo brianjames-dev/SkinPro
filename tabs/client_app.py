@@ -10,7 +10,6 @@ from class_elements.splash_screen import SplashScreen
 from class_elements.img_load_threading import ImageLoaderThread
 from utils.path_utils import resource_path
 
-
 class ClientApp(ctk.CTk):
     def __init__(self, image_cache, image_loader, data_manager):
         super().__init__()

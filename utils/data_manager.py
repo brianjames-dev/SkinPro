@@ -2,10 +2,11 @@ import os
 import json
 import shutil
 from tkinter import filedialog, messagebox
+import time
 
 class DataDirectoryManager:
     def __init__(self, config_filename="config.json"):
-        self.default_data_dir = os.path.expanduser("~/OneDrive/Desktop/SkinProData")
+        self.default_data_dir = os.path.join(os.path.expanduser("~"), "SkinProData")
         self.config_path = os.path.join(self.default_data_dir, config_filename)
         self.data_dir = None
         self._load_or_create_config()
@@ -27,8 +28,13 @@ class DataDirectoryManager:
                     config = json.load(f)
                     self.data_dir = config.get("data_dir")
 
-                    if not self.data_dir or not os.path.exists(self.data_dir):
-                        raise ValueError("Invalid or missing data_dir in config.")
+                    while not self.data_dir or not os.path.exists(self.data_dir):
+                        msg = (f"The 'SkinProData' folder is missing from its expected location:\n\n"
+                            f"{self.data_dir}\n\n"
+                            f"Please move the folder back to this location.\n\n"
+                            "The app will resume once the folder is restored.")
+                        messagebox.showerror("Missing SkinProData Folder", msg)
+                        time.sleep(5)  # Wait and check again in a loop
 
             except (json.JSONDecodeError, ValueError) as e:
                 print(f"⚠️ Invalid config file: {e}. Regenerating...")
@@ -58,22 +64,22 @@ class DataDirectoryManager:
             os.makedirs(os.path.join(self.data_dir, subfolder), exist_ok=True)
 
 
-    def change_data_directory(self):
-        old_dir = self.data_dir
-        new_root = filedialog.askdirectory(title="Select New SkinProData Location")
-        if not new_root:
-            return  # Cancelled
+    # def change_data_directory(self):
+    #     old_dir = self.data_dir
+    #     new_root = filedialog.askdirectory(title="Select New SkinProData Location")
+    #     if not new_root:
+    #         return  # Cancelled
 
-        new_dir = os.path.join(new_root, "SkinProData")
-        shutil.copytree(old_dir, new_dir, dirs_exist_ok=True)
+    #     new_dir = os.path.join(new_root, "SkinProData")
+    #     shutil.copytree(old_dir, new_dir, dirs_exist_ok=True)
 
-        self.data_dir = new_dir
-        with open(self.config_path, "w") as f:
-            json.dump({"data_dir": self.data_dir}, f)
+    #     self.data_dir = new_dir
+    #     with open(self.config_path, "w") as f:
+    #         json.dump({"data_dir": self.data_dir}, f)
 
-        self.save_data_paths()
+    #     self.save_data_paths()
 
-        messagebox.showinfo("Folder Updated", "SkinProData folder has been moved.\nPlease restart the application.")
+    #     messagebox.showinfo("Folder Updated", "SkinProData folder has been moved.\nPlease restart the application.")
 
 
     def get_path(self, subfolder, filename=None):

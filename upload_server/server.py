@@ -7,12 +7,7 @@ from PIL import Image, ExifTags
 import json
 import sys
 import logging
-
-logging.basicConfig(
-    filename="flask_server.log",
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
+from tkinter import Tk, messagebox
 
 DB_PATH = None
 UPLOAD_BASE_DIR = None
@@ -21,20 +16,18 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def load_data_paths():
     """Ensure config is loaded from external SkinProData and fallback if needed."""
-    fallback_dir = os.path.expanduser("~/OneDrive/Desktop/SkinProData")
-    config_path = os.path.join(fallback_dir, "config.json")
+    fallback_config_path = os.path.expanduser("~/SkinProData/config.json")
 
-    if not os.path.exists(config_path):
-        raise FileNotFoundError("❌ config.json not found in SkinProData. Please start the main SkinPro app first.")
+    if not os.path.exists(fallback_config_path):
+        raise FileNotFoundError("❌ config.json not found in expected location.")
 
-    with open(config_path, "r") as f:
+    with open(fallback_config_path, "r") as f:
         config = json.load(f)
 
     data_dir = config.get("data_dir")
     if not data_dir or not os.path.exists(data_dir):
         raise FileNotFoundError(f"❌ data_dir not found or invalid in config.json: {data_dir}")
 
-    # Ensure paths.json exists
     paths_path = os.path.join(data_dir, "paths.json")
     if not os.path.exists(paths_path):
         fallback_paths = {
@@ -44,7 +37,6 @@ def load_data_paths():
         }
         with open(paths_path, "w") as f:
             json.dump(fallback_paths, f, indent=2)
-        print(f"✅ Created fallback paths.json at: {paths_path}")
 
     with open(paths_path, "r") as f:
         paths = json.load(f)
@@ -308,14 +300,44 @@ def upload_profile_pic():
         appt_type="Upload"
     )
 
+
 def start_flask_server():
     global DB_PATH, UPLOAD_BASE_DIR, PROFILE_PIC_DIR
+    
+    fallback_config_path = os.path.expanduser("~/SkinProData/config.json")
 
-    try:
-        DB_PATH, UPLOAD_BASE_DIR, PROFILE_PIC_DIR = load_data_paths()
-    except Exception as e:
-        logging.error(f"❌ Failed to load data paths: {e}")
-        return  # Abort if config is missing
+    while True:
+        try:
+            DB_PATH, UPLOAD_BASE_DIR, PROFILE_PIC_DIR = load_data_paths()
+            break
+        except Exception as e:
+            print(f"❌ Failed to load data paths: {e}")
+
+            expected_path = None
+            if os.path.exists(fallback_config_path):
+                try:
+                    with open(fallback_config_path, "r") as f:
+                        expected_path = json.load(f).get("data_dir")
+                except:
+                    pass
+
+            root = Tk()
+            root.withdraw()
+            messagebox.showerror(
+                "Missing Data Folder",
+                f"The 'SkinProData' folder is missing.\n\n"
+                f"Expected at: {expected_path if expected_path else '(unknown path)'}\n\n"
+                "Please move it back to the original location."
+            )
+            root.destroy()
+
+    log_path = os.path.join(os.path.dirname(DB_PATH), "flask_server_logs.log")
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    logging.basicConfig(
+        filename=log_path,
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s"
+    )
 
     try:
         logging.info("🚀 Starting Flask server on port 8000...")
