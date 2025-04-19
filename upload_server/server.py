@@ -8,6 +8,9 @@ import json
 import sys
 import logging
 from tkinter import Tk, messagebox
+import time
+import threading
+
 
 DB_PATH = None
 UPLOAD_BASE_DIR = None
@@ -15,19 +18,33 @@ PROFILE_PIC_DIR = None
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def load_data_paths():
-    """Ensure config is loaded from external SkinProData and fallback if needed."""
-    fallback_config_path = os.path.expanduser("~/SkinProData/config.json")
+    """Load SkinProData paths from user's selected config location."""
+    # Step 1: Look for the global pointer config in the user's home directory
+    pointer_path = os.path.join(os.path.expanduser("~"), ".skinpro_config_location.json")
 
-    if not os.path.exists(fallback_config_path):
-        raise FileNotFoundError("❌ config.json not found in expected location.")
+    if not os.path.exists(pointer_path):
+        raise FileNotFoundError("❌ Global SkinPro pointer not found. Run main SkinPro app first.")
 
-    with open(fallback_config_path, "r") as f:
+    with open(pointer_path, "r") as f:
+        pointer_config = json.load(f)
+        skinpro_data_dir = pointer_config.get("data_dir")
+
+    if not skinpro_data_dir or not os.path.exists(skinpro_data_dir):
+        raise FileNotFoundError(f"❌ data_dir missing or invalid in pointer config: {skinpro_data_dir}")
+
+    # Step 2: Load actual config.json from SkinProData folder
+    config_path = os.path.join(skinpro_data_dir, "config.json")
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"❌ config.json not found at: {config_path}")
+
+    with open(config_path, "r") as f:
         config = json.load(f)
 
     data_dir = config.get("data_dir")
     if not data_dir or not os.path.exists(data_dir):
-        raise FileNotFoundError(f"❌ data_dir not found or invalid in config.json: {data_dir}")
+        raise FileNotFoundError(f"❌ data_dir invalid or missing in config.json: {data_dir}")
 
+    # Step 3: Load or create paths.json
     paths_path = os.path.join(data_dir, "paths.json")
     if not os.path.exists(paths_path):
         fallback_paths = {
@@ -46,6 +63,7 @@ def load_data_paths():
         paths["photos"],
         paths.get("profile_pictures", os.path.join(data_dir, "profile_pictures"))
     )
+
 
 
 app = Flask(__name__)
@@ -303,9 +321,28 @@ def upload_profile_pic():
 
 def start_flask_server():
     global DB_PATH, UPLOAD_BASE_DIR, PROFILE_PIC_DIR
-    
-    fallback_config_path = os.path.expanduser("~/SkinProData/config.json")
 
+    pointer_path = os.path.join(os.path.expanduser("~"), ".skinpro_config_location.json")
+
+    def show_missing_folder_popup(expected_path):
+        def run_popup():
+            popup_root = Tk()
+            popup_root.withdraw()
+            messagebox.showerror(
+                "Missing SkinProData Folder",
+                f"The 'SkinProData' folder is missing from its expected location:\n"
+                f"{expected_path or '(unknown path)'}\n\n"
+                "Please move the folder back to this location.\n"
+                "The server will resume once the folder is restored."
+            )
+            popup_root.destroy()
+
+        if threading.current_thread() is threading.main_thread():
+            run_popup()
+        else:
+            print(f"⚠️ Missing folder: {expected_path}. Cannot show popup from background thread.")
+
+    # Retry loop until config loads successfully
     while True:
         try:
             DB_PATH, UPLOAD_BASE_DIR, PROFILE_PIC_DIR = load_data_paths()
@@ -314,23 +351,17 @@ def start_flask_server():
             print(f"❌ Failed to load data paths: {e}")
 
             expected_path = None
-            if os.path.exists(fallback_config_path):
+            if os.path.exists(pointer_path):
                 try:
-                    with open(fallback_config_path, "r") as f:
+                    with open(pointer_path, "r") as f:
                         expected_path = json.load(f).get("data_dir")
                 except:
-                    pass
+                    expected_path = None
 
-            root = Tk()
-            root.withdraw()
-            messagebox.showerror(
-                "Missing Data Folder",
-                f"The 'SkinProData' folder is missing.\n\n"
-                f"Expected at: {expected_path if expected_path else '(unknown path)'}\n\n"
-                "Please move it back to the original location."
-            )
-            root.destroy()
+            show_missing_folder_popup(expected_path)
+            time.sleep(5)
 
+    # Launch the server
     log_path = os.path.join(os.path.dirname(DB_PATH), "flask_server_logs.log")
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     logging.basicConfig(
@@ -342,7 +373,5 @@ def start_flask_server():
     try:
         logging.info("🚀 Starting Flask server on port 8000...")
         app.run(host="0.0.0.0", port=8000, debug=False, use_reloader=False)
-    except SystemExit as e:
-        logging.warning(f"⚠️ Flask shutdown with code {e}")
     except Exception as e:
         logging.error(f"🔥 Flask server crashed unexpectedly: {e}")

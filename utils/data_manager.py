@@ -6,9 +6,10 @@ import time
 
 class DataDirectoryManager:
     def __init__(self, config_filename="config.json"):
-        self.default_data_dir = os.path.join(os.path.expanduser("~"), "SkinProData")
-        self.config_path = os.path.join(self.default_data_dir, config_filename)
+        self.pointer_path = os.path.join(os.path.expanduser("~"), ".skinpro_config_location.json")
+        self.config_filename = config_filename
         self.data_dir = None
+        self.config_path = None
         self._load_or_create_config()
 
 
@@ -20,27 +21,50 @@ class DataDirectoryManager:
 
 
     def _load_or_create_config(self):
-        os.makedirs(self.default_data_dir, exist_ok=True)
-
-        if os.path.exists(self.config_path):
+        if os.path.exists(self.pointer_path):
             try:
-                with open(self.config_path, "r") as f:
-                    config = json.load(f)
-                    self.data_dir = config.get("data_dir")
+                with open(self.pointer_path, "r") as f:
+                    pointer = json.load(f)
+                    self.data_dir = pointer.get("data_dir")
 
-                    while not self.data_dir or not os.path.exists(self.data_dir):
-                        msg = (f"The 'SkinProData' folder is missing from its expected location:\n\n"
-                            f"{self.data_dir}\n\n"
-                            f"Please move the folder back to this location.\n\n"
-                            "The app will resume once the folder is restored.")
-                        messagebox.showerror("Missing SkinProData Folder", msg)
-                        time.sleep(5)  # Wait and check again in a loop
+                # Check if it's missing or empty
+                if not self.data_dir:
+                    print("⚠️ Empty data_dir in pointer — running first-time setup...")
+                    self._show_initial_warning()
+                    self.select_data_directory()
+                    return
+
+                # Set config_path
+                self.config_path = os.path.join(self.data_dir, self.config_filename)
+
+                # ❗ Folder missing? Wait in loop until user restores it
+                while not os.path.exists(self.data_dir):
+                    msg = (
+                        f"The 'SkinProData' folder is missing from its expected location:\n\n"
+                        f"{self.data_dir}\n\n"
+                        "Please move the folder back to this location.\n\n"
+                        "The app will resume once the folder is restored."
+                    )
+                    messagebox.showerror("Missing SkinProData Folder", msg)
+                    time.sleep(5)
 
             except (json.JSONDecodeError, ValueError) as e:
-                print(f"⚠️ Invalid config file: {e}. Regenerating...")
+                print(f"⚠️ Invalid pointer file: {e}. Regenerating pointer...")
+                self._show_initial_warning()
                 self.select_data_directory()
         else:
+            # No pointer at all — first ever run
+            self._show_initial_warning()
             self.select_data_directory()
+
+
+    def _show_initial_warning(self):
+        messagebox.showinfo(
+            "Set SkinProData Location",
+            "You are about to choose a permanent location for the SkinProData folder.\n\n"
+            "Please select a reliable place on your computer.\n\n"
+            "⚠️ Avoid temporary or cloud-sync folders unless you're confident."
+        )
 
 
     def select_data_directory(self):
@@ -53,6 +77,13 @@ class DataDirectoryManager:
         os.makedirs(self.data_dir, exist_ok=True)
         self._create_subfolders()
 
+        self.config_path = os.path.join(self.data_dir, self.config_filename)
+
+        # Save pointer to user home directory
+        with open(self.pointer_path, "w") as f:
+            json.dump({"data_dir": self.data_dir}, f)
+
+        # Save config file inside SkinProData folder
         with open(self.config_path, "w") as f:
             json.dump({"data_dir": self.data_dir}, f)
 

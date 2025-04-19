@@ -357,12 +357,15 @@ class ClientsPage:
             return
 
         client_id = selected_client[0]  # Get the selected client's ID
+        client_name = None
 
         try:
             with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
                 result = cursor.fetchone()
+                if result:
+                    client_name = result[0]
         except Exception as e:
             print(f"❌ Error fetching client name: {e}")
             return
@@ -370,8 +373,6 @@ class ClientsPage:
         if not client_name:
             print("❌ ERROR: Client ID not found in database.")
             return
-
-        client_name = client_name[0]  # Extract name from tuple
 
         # Create Confirmation Pop-up
         confirmation = ctk.CTkToplevel()
@@ -415,56 +416,64 @@ class ClientsPage:
             confirmation_window.destroy()
             return
 
-        try:
-            print(f"🗑️ Deleting client ID: {client_id}")
+        print(f"🗑️ Attempting to delete client ID: {client_id}")
 
+        try:
             with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
                 cursor = conn.cursor()
 
-                # Get profile picture
+                # Fetch profile picture path
                 cursor.execute("SELECT profile_picture FROM clients WHERE id = ?", (client_id,))
                 result = cursor.fetchone()
                 profile_picture_path = result[0] if result and result[0] else None
 
                 if profile_picture_path and os.path.exists(profile_picture_path):
                     os.remove(profile_picture_path)
-                    print("✅ Profile image successfully deleted.")
+                    print("✅ Profile picture deleted.")
                 else:
-                    print("⚠ Profile image not found or empty.")
+                    print("⚠ Profile picture not found or already removed.")
 
-                # Get full name for asset deletion
+                # Fetch full name to delete image folder
                 cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
                 name_result = cursor.fetchone()
 
                 if name_result:
                     safe_name = name_result[0].replace(" ", "_")
                     self.delete_client_assets(safe_name, client_id)
+                else:
+                    print("⚠ Full name not found. Skipping asset folder deletion.")
 
                 # Delete client from DB
                 cursor.execute("DELETE FROM clients WHERE id = ?", (client_id,))
                 conn.commit()
-
-            if hasattr(self.main_app.tabs["Photos"], "preview_label"):
-                self.main_app.tabs["Photos"].preview_label.configure(image=None)
-                self.main_app.tabs["Photos"].preview_label.image = None
-
-            self.load_clients()
-            self.main_app.tabs["Info"].clear_info()
-            self.main_app.tabs["Appointments"].clear_appointments()
-            self.main_app.tabs["Photos"].clear_photos_list()
-            self.main_app.tabs["Prescriptions"].clear_prescriptions_list()
-            self.main_app.tabs["Alerts"].load_alerts()
-
-            if hasattr(self.main_app, "profile_card"):
-                self.main_app.profile_card.load_client(None)
-
-            print(f"✅ Successfully deleted Client ID: {client_id} and their profile image.")
+                print(f"✅ Client ID {client_id} deleted from database.")
 
         except Exception as e:
-            print(f"❌ Database error during deletion: {e}")
-
+            print(f"❌ Error during client deletion: {e}")
         finally:
+            # Always clean up the UI and close the confirmation window
             confirmation_window.destroy()
+
+            # Reset app state
+            try:
+                self.load_clients()
+                self.main_app.tabs["Info"].clear_info()
+                self.main_app.tabs["Appointments"].clear_appointments()
+                self.main_app.tabs["Photos"].clear_photos_list()
+                self.main_app.tabs["Prescriptions"].clear_prescriptions_list()
+                self.main_app.tabs["Alerts"].load_alerts()
+
+                if hasattr(self.main_app, "profile_card"):
+                    self.main_app.profile_card.load_client(None)
+
+                if hasattr(self.main_app.tabs["Photos"], "preview_label"):
+                    self.main_app.tabs["Photos"].preview_label.configure(image=None)
+                    self.main_app.tabs["Photos"].preview_label.image = None
+
+                print("🔄 UI reset completed after deletion.")
+
+            except Exception as ui_err:
+                print(f"⚠ UI cleanup issue: {ui_err}")
 
 
     def delete_client_assets(self, client_name, client_id):
