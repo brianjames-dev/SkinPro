@@ -311,14 +311,25 @@ class AppointmentsPage:
             if len(selected_items) > 1:  # Multiple selection: Compile only the selected appointments' notes
                 print("\n🆔 Multiple Appointments Selected:")
 
-                # Append notes for compilation
-                treatment_notes = self.appointments_table.item(item).get("tags", [""])[0]  # Safe retrieval
+                appointment_id = int(self.get_selected_appointment_id(item))  # 🔧 Ensure correct ID type
+                print(f"🔍 Fetching notes for appointment_id: {appointment_id}")
+
+                # Fetch from DB
+                try:
+                    with sqlite3.connect(self.data_manager.db_path) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT treatment_notes FROM appointments WHERE id = ?", (appointment_id,))
+                        result = cursor.fetchone()
+                        treatment_notes = result[0] if result and result[0] else "(No notes found)"
+                except Exception as e:
+                    print(f"❌ Failed to fetch notes for ID {appointment_id}: {e}")
+                    treatment_notes = "(Error retrieving notes)"
 
                 # Dynamic Divider Logic (Match longest text)
                 max_length = max(len(date), len(treatment) - 2)
                 if max_length > 35:
                     max_length = 35
-                divider_line = "━" * max_length
+                divider_line = "━" * max(max_length - 3, 1)
 
                 # Insert formatted text with correct tags
                 start_index = self.all_notes_textbox.index("end")  # Store where this note starts
@@ -392,10 +403,10 @@ class AppointmentsPage:
 
         # Compile formatted notes with dynamic dividers
         for date, treatment, notes in all_notes:
-            max_length = max(len(date), len(treatment) - 2)  # Choose longest text for dividers
+            max_length = max(len(date), len(treatment) - 2)
             if max_length > 35:
                 max_length = 35
-            divider_line = "━" * max_length  # Create dynamic length divider
+            divider_line = "━" * max(max_length - 3, 1)
 
             self.all_notes_textbox.insert("end", f"{divider_line}\n", "divider")  # Top Divider
             self.all_notes_textbox.insert("end", f"{treatment}\n", "header")  # Treatment (Header)
