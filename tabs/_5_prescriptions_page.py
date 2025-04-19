@@ -470,11 +470,17 @@ class PrescriptionsPage:
             return
 
         try:
-            # For Windows
+            # Windows: send to default printer
             os.startfile(pdf_path, "print")
             print("🖨️ Sent to printer.")
         except Exception as e:
-            print(f"❌ Failed to print: {e}")
+            print(f"❌ Failed to print via os.startfile(): {e}")
+            try:
+                # Fallback: open the file instead
+                os.startfile(pdf_path)
+                print("📂 Opened PDF for manual printing.")
+            except Exception as e2:
+                print(f"❌ Failed to open PDF as fallback: {e2}")
 
 
     def set_alert(self):
