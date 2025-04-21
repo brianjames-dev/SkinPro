@@ -106,7 +106,7 @@ class PrescriptionsPage:
                 button_row_frame,
                 text=text,
                 image=image,
-                compound="left",  # ← Image on the left, text on the right
+                compound="left",
                 width=100,
                 command=command
             )
