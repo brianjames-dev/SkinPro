@@ -381,7 +381,7 @@ class ClientsPage:
         confirmation.resizable(False, False)
         
         # Make pop-up always on top and disable main window until closed
-        confirmation.transient(self.main_app)  # Link to main app window
+        confirmation.transient(self.main_app)
         confirmation.grab_set()  # Prevent interactions with main app until pop-up is closed
         confirmation.focus_force()  # Immediately focus the pop-up window
 
