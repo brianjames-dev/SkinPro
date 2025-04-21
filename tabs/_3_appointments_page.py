@@ -16,7 +16,7 @@ import sqlite3
 
 class AppointmentsPage:
     def __init__(self, parent, main_app, data_manager):
-        self.main_app = main_app  # Reference to main app (to update ProfileCard & InfoPage)
+        self.main_app = main_app
         self.client_id = None  # Store selected client ID
         self.sort_orders = {}  # Store sort order (ascending/descending) for each column
         self.data_manager = data_manager
