@@ -10,7 +10,7 @@ import sqlite3
 
 class PhotosPage:
     def __init__(self, parent, main_app, image_cache, image_loader, data_manager):
-        self.main_app = main_app        # Reference to main app
+        self.main_app = main_app
         self.image_cache = image_cache  # Store reference to the shared image cache
         self.image_loader = image_loader
         self.data_manager = data_manager
