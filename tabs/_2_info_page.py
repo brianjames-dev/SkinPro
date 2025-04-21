@@ -73,7 +73,7 @@ class InfoPage:
         self.gender_entry = ctk.CTkComboBox(name_frame, values=["Female", "Male"], width=120)
         self.gender_entry.grid(row=0, column=2, sticky="ew")
         self.gender_entry.configure(variable=self.gender_var, text_color="#797e82")
-        self.gender_entry.set("Select Gender")  # Assuming it should have a default value
+        self.gender_entry.set("Select Gender")
 
         ctk.CTkLabel(name_frame, text="Birthdate").grid(row=0, column=3, sticky="w", padx=(20, 25))
         self.birthdate_entry = ctk.CTkEntry(name_frame, placeholder_text=birthdate_placeholder)
