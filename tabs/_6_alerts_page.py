@@ -286,7 +286,7 @@ class AlertsPage:
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM alerts WHERE id = ?", (alert_id,))
 
-            self.load_alerts()  # Refresh the list
+            self.load_alerts()
         except Exception as e:
             print(f"❌ Error deleting alert: {e}")
         finally:
