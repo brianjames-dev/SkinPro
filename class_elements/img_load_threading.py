@@ -36,7 +36,7 @@ class ImageLoaderThread(threading.Thread):
                 continue  # No tasks, loop again
 
 
-    def generate_thumbnail(self, file_path, size=(50, 50)):
+    def generate_thumbnail(self, file_path, size=(100, 100)):
         """Generate and return a Tkinter-compatible PhotoImage thumbnail."""
         try:
             if not os.path.exists(file_path):
