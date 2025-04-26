@@ -213,7 +213,7 @@ class Pdf3ColGenerator:
         watermark_y = 125
 
         c.saveState()
-        c.setFillAlpha(0.15)
+        c.setFillAlpha(0.10)
         c.drawImage(watermark_path, watermark_x, watermark_y, width=watermark_width, height=watermark_height, mask='auto')
         c.restoreState()
 
@@ -231,8 +231,8 @@ class Pdf3ColGenerator:
 
             # 🟪 Shading per-column
             c.saveState()
-            c.setFillAlpha(0.6)
-            c.setFillColorRGB(133 / 255, 85 / 255, 186 / 255)
+            c.setFillAlpha(0.3)
+            c.setFillColorRGB(163 / 255, 115 / 255, 216 / 255)
 
             if shade(0, i):  # Col1
                 c.rect(col1_x - 10, current_y - cell_height + 10, col_width - 20, cell_height, fill=True, stroke=0)
