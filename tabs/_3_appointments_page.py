@@ -156,7 +156,7 @@ class AppointmentsPage:
         self.notes_label = ctk.CTkLabel(self.details_frame, text="Treatment Notes", font=("Helvetica", 16, "bold"), fg_color="transparent", text_color="#ebebeb")
         self.notes_label.grid(row=0, column=0, sticky="w", padx=10, pady=5)
         self.all_notes_textbox = tk.Text(self.details_frame,  
-                                         font=("Helvetica", 10), 
+                                         font=("Helvetica", 18), 
                                          wrap="word", 
                                          bd=0, 
                                          border=0, 
@@ -192,11 +192,11 @@ class AppointmentsPage:
         total_width = self.appointments_table.winfo_width()
 
         # Set column widths as percentages of the total width
-        self.appointments_table.column("date", width=int(total_width * 0.10), minwidth=80)
-        self.appointments_table.column("type", width=int(total_width * 0.10), minwidth=75)
+        self.appointments_table.column("date", width=int(total_width * 0.10), minwidth=150)
+        self.appointments_table.column("type", width=int(total_width * 0.10), minwidth=200)
         self.appointments_table.column("treatment", width=int(total_width * 0.55), minwidth=200)
-        self.appointments_table.column("price", width=int(total_width * 0.10), minwidth=70)
-        self.appointments_table.column("photos", width=int(total_width * 0.12), minwidth=40)
+        self.appointments_table.column("price", width=int(total_width * 0.10), minwidth=150)
+        self.appointments_table.column("photos", width=int(total_width * 0.12), minwidth=120)
 
 
     def filter_clients(self, event):
@@ -273,9 +273,9 @@ class AppointmentsPage:
             return
 
         # Configure Text Styles (Headers: 11px, Notes: 10px)
-        self.all_notes_textbox.tag_configure("header", font=("Helvetica", 11, "bold"))
-        self.all_notes_textbox.tag_configure("body", font=("Helvetica", 10))
-        self.all_notes_textbox.tag_configure("divider", font=("Helvetica", 6))
+        self.all_notes_textbox.tag_configure("header", font=("Helvetica", 22, "bold"))
+        self.all_notes_textbox.tag_configure("body", font=("Helvetica", 18))
+        self.all_notes_textbox.tag_configure("divider", font=("Helvetica", 10))
         self.all_notes_textbox.tag_configure("highlight", background="#563A9C", foreground="#ebebeb")  # Highlighted selection
 
         # Enable Editing & Clear Existing Notes
@@ -329,7 +329,7 @@ class AppointmentsPage:
                 max_length = max(len(date), len(treatment) - 2)
                 if max_length > 35:
                     max_length = 35
-                divider_line = "━" * max(max_length - 3, 1)
+                divider_line = "━" * max(max_length + 3, 1)
 
                 # Insert formatted text with correct tags
                 start_index = self.all_notes_textbox.index("end")  # Store where this note starts
@@ -397,16 +397,16 @@ class AppointmentsPage:
         self.all_notes_textbox.delete("1.0", "end")
 
         # Configure Text Styles (Headers: 14px, Notes: 12px)
-        self.all_notes_textbox.tag_configure("header", font=("Helvetica", 11, "bold"))
-        self.all_notes_textbox.tag_configure("body", font=("Helvetica", 10))
-        self.all_notes_textbox.tag_configure("divider", font=("Helvetica", 6))
+        self.all_notes_textbox.tag_configure("header", font=("Helvetica", 22, "bold"))
+        self.all_notes_textbox.tag_configure("body", font=("Helvetica", 18))
+        self.all_notes_textbox.tag_configure("divider", font=("Helvetica", 10))
 
         # Compile formatted notes with dynamic dividers
         for date, treatment, notes in all_notes:
             max_length = max(len(date), len(treatment) - 2)
             if max_length > 35:
                 max_length = 35
-            divider_line = "━" * max(max_length - 3, 1)
+            divider_line = "━" * max(max_length + 3, 1)
 
             self.all_notes_textbox.insert("end", f"{divider_line}\n", "divider")  # Top Divider
             self.all_notes_textbox.insert("end", f"{treatment}\n", "header")  # Treatment (Header)
@@ -472,7 +472,7 @@ class AppointmentsPage:
         # CREATE POP-UP WINDOW --> Create Appointment
         self.appointment_window = ctk.CTkToplevel()
         self.appointment_window.title("Create Appointment")
-        self.appointment_window.geometry("500x380")
+        self.appointment_window.geometry("500x400")
         self.appointment_window.resizable(True, True)
 
         # FORCE POP-UP AS TOP WINDOW & DISABLE MAIN WINDOW
@@ -620,7 +620,7 @@ class AppointmentsPage:
         # CREATE POP-UP WINDOW --> Update Appointment
         self.appointment_window = ctk.CTkToplevel()
         self.appointment_window.title("Update Appointment")
-        self.appointment_window.geometry("500x380")
+        self.appointment_window.geometry("500x400")
         self.appointment_window.resizable(True, True)
 
         # FORCE POP-UP AS TOP WINDOW & DISABLE MAIN WINDOW

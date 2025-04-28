@@ -33,7 +33,7 @@ class PhotosPage:
         main_frame.pack(fill="both", expand=True, padx=10)
 
         # Configure grid layout
-        main_frame.columnconfigure(0, weight=6)  # Listbox column
+        main_frame.columnconfigure(0, weight=2, minsize=420)  # Listbox column
         main_frame.columnconfigure(1, weight=1)  # Before Image
         main_frame.columnconfigure(2, weight=1)  # Before Image
         main_frame.columnconfigure(3, weight=1)  # Before Image
@@ -50,7 +50,7 @@ class PhotosPage:
         treeview_frame.grid(row=0, column=0, rowspan=3, sticky="nsew", padx=(0, 5))
 
         # Apply treeview styling
-        style_treeview_light("Photos.Treeview", rowheight=55, font=("Helvetica", 8))
+        style_treeview_light("Photos.Treeview", rowheight=105, font=("Helvetica", 18))
 
         # Grid layout in treeview_frame
         treeview_frame.rowconfigure(0, weight=1)
@@ -61,7 +61,7 @@ class PhotosPage:
         self.photo_list.heading("#0", text="Thumbnail")  # Thumbnail as the first column
         self.photo_list.heading("appt_date", text="Date")
         self.photo_list.heading("type", text="Type")
-        self.photo_list.column("#0", width=85, stretch=False)  # Use the implicit first column for thumbnails
+        self.photo_list.column("#0", width=150, stretch=False)  # Use the implicit first column for thumbnails
         self.photo_list.column("appt_date", width=55, anchor="center")
         self.photo_list.column("type", width=60, anchor="center")
         self.photo_list.grid(row=0, column=0, sticky="nsew")

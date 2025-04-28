@@ -37,8 +37,8 @@ class PrescriptionsPage:
         main_frame.pack(fill="both", expand=True, padx=10)
 
         # Configure Grid Layout
-        main_frame.columnconfigure(0, weight=1)  # Treeview
-        main_frame.columnconfigure(1, weight=0)  # Prescription display + Create button
+        main_frame.columnconfigure(0, weight=0, minsize=400)  # Treeview
+        main_frame.columnconfigure(1, weight=1)  # Prescription display + Create button
         main_frame.columnconfigure(2, weight=0)  # Edit button
         main_frame.columnconfigure(3, weight=0)  # Delete button
         main_frame.columnconfigure(4, weight=0)  # Preview PDF button
@@ -431,7 +431,9 @@ class PrescriptionsPage:
         popup = ctk.CTkToplevel()
         popup.title("Full Size PDF Preview")
 
-        popup.geometry("850x1100")  # Or adjust to your desired full-size dimensions
+        popup_width = int(850 * 0.7)
+        popup_height = int(1100 * 0.7)
+        popup.geometry(f"{popup_width}x{popup_height}")
         popup.configure(fg_color="#ebebeb")
 
         # Lock interaction to this window only
@@ -442,13 +444,19 @@ class PrescriptionsPage:
 
             if pages:
                 image = pages[0]
-                image = image.resize((850, int(850 * 11 / 8.5)))  # Maintain letter ratio
-                tk_image = ImageTk.PhotoImage(image)
 
-                label = ctk.CTkLabel(popup, image=tk_image, text="")
-                label.image = tk_image
-                label.pack(padx=10, pady=10)
-                print("✅ PDF displayed in popup window.")
+                # Resize the image to exactly match popup size
+                resized_image = image.resize((popup_width, popup_height), Image.LANCZOS)
+
+                # Properly use CTkImage here
+                ctk_image = CTkImage(light_image=resized_image, dark_image=resized_image, size=(popup_width, popup_height))
+
+                # Use CTkLabel with CTkImage
+                label = ctk.CTkLabel(popup, image=ctk_image, text="")
+                label.image = ctk_image  # Keep a reference to prevent garbage collection
+                label.pack(fill="both", expand=True, padx=0, pady=0)
+
+                print(f"✅ PDF displayed at {popup_width}x{popup_height}px.")
             else:
                 print("⚠️ No pages found in PDF.")
 

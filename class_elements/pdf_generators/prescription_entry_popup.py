@@ -275,10 +275,10 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
                 product = ctk.CTkEntry(self.table_frame, placeholder_text="Product(s)", width=200)
                 directions = Text(
                     self.table_frame,
-                    height=3,
-                    width=28,
+                    height=4,
+                    width=30,
                     wrap="word",
-                    font=("Helvetica", 10),
+                    font=("Helvetica", 18),
                     selectbackground="#3399FF",
                     selectforeground="#FFFFFF"
                 )

@@ -115,10 +115,10 @@ class ClientsPage:
 
         # Set column widths as percentages of the total width
         self.client_list.column("Name", width=int(total_width * 0.18), minwidth=120)
-        self.client_list.column("Gender", width=int(total_width * 0.05), minwidth=55)
+        self.client_list.column("Gender", width=int(total_width * 0.05), minwidth=120)
         self.client_list.column("Birthdate", width=int(total_width * 0.10), minwidth=60)
         self.client_list.column("Primary #", width=int(total_width * 0.13), minwidth=100)
-        self.client_list.column("Email", width=int(total_width * 0.14), minwidth=200)
+        self.client_list.column("Email", width=int(total_width * 0.14), minwidth=350)
         self.client_list.column("Address", width=int(total_width * 0.40), minwidth=200)
 
 
