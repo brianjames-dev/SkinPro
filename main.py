@@ -31,7 +31,7 @@ if __name__ == "__main__":
     data_manager = DataDirectoryManager()
     start_server_in_thread()
     
-    # 🔹 Initialize database & image cache (NO IMAGE)
+    # 🔹 Initialize database & image cache
     conn = init_database(data_manager.db_path, data_manager.backups_dir)
     image_cache = ImageCache(data_manager)
 
