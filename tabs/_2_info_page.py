@@ -8,7 +8,7 @@ from utils.path_utils import resource_path
 import sqlite3
 
 
-# Placeholder text phrases
+# Placeholder phrases
 full_name_placeholder           = "Enter full name (e.g., John Doe)"
 birthdate_placeholder           = "MM/DD/YYYY"
 address1_placeholder            = "Enter street address (e.g., 123 Main St.)"
