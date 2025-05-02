@@ -319,7 +319,7 @@ class AlertsPage:
 
         try:
             # Validate the deadline format
-            datetime.strptime(deadline, "%m/%d/%Y")  # US format
+            datetime.strptime(deadline, "%m/%d/%Y")
             status = self.calculate_status(deadline)
             alert_id = self.save_alert_to_database(client_id, deadline, notes)
             if alert_id:
