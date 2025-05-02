@@ -25,7 +25,7 @@ class AppointmentsPage:
         main_frame = ctk.CTkFrame(parent)
         main_frame.pack(fill="both", expand=True, padx=10)
 
-        # Configure grid columns for proportional sizing
+        # Configure grid columns for sizing
         main_frame.columnconfigure(0, weight=1) # Search frame
         main_frame.columnconfigure(1, weight=1) # Create appt frame
         main_frame.columnconfigure(2, weight=1) # Update/Photo buttons
