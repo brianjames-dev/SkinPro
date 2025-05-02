@@ -17,7 +17,7 @@ class ClientsPage:
         self.client_id = None
         self.data_manager = data_manager
 
-        # Frame for Search and Treeview
+        # Frame for Search/Treeview
         main_frame = ctk.CTkFrame(parent)
         main_frame.pack(fill="both", expand=True, padx=10)
 
