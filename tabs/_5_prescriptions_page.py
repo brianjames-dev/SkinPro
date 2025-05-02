@@ -38,7 +38,7 @@ class PrescriptionsPage:
 
         # Configure Grid Layout
         main_frame.columnconfigure(0, weight=0, minsize=400)  # Treeview
-        main_frame.columnconfigure(1, weight=1)  # Prescription display + Create button
+        main_frame.columnconfigure(1, weight=1)  # Prescription + Create button
         main_frame.columnconfigure(2, weight=0)  # Edit button
         main_frame.columnconfigure(3, weight=0)  # Delete button
         main_frame.columnconfigure(4, weight=0)  # Preview PDF button
