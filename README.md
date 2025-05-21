@@ -70,9 +70,9 @@ A full-featured desktop application built for estheticians and skincare professi
 
 ```
 SkinPro/
-├── .vscode/                         # VS Code config
-├── class_elements/                 # Shared UI components (cards, themes, popups)
-|   ├── pdf_generators/                # PDF layout generators
+├── .vscode/                       # VS Code config
+├── class_elements/                # Shared UI components and core app logic (popups, styling, cache, splash screen, etc.)
+|   ├── pdf_generators/            # PDF layout generators (2–4 column formats)
 │   │   ├── pdf_2col.py
 │   │   ├── pdf_3col.py
 │   |   ├── pdf_4col.py
@@ -90,8 +90,8 @@ SkinPro/
 │   ├── splash_screen.py
 │   ├── treeview_styling_dark.py
 │   └── treeview_styling_light.py
-├── icons/                         # App icons
-├── tabs/                          # Tab page scripts
+├── icons/                         # App icon assets
+├── tabs/                          # Individual tab views (Clients, Info, Photos, etc.)
 │   ├── _1_clients_page.py
 │   ├── _2_info_page.py
 │   ├── _3_appointments_page.py
@@ -99,17 +99,17 @@ SkinPro/
 │   ├── _5_prescriptions_page.py
 │   ├── _6_alerts_page.py
 │   └── client_app.py
-├── upload_server/                # Flask QR upload server
+├── upload_server/                 # Flask server for QR-based photo uploads
 │   ├── templates/
 │   │   ├── upload.html
 │   │   └── upload_success.html
 │   ├── qr_helper.py
 │   └── server.py
-├── utils/                          # Tab page scripts
+├── utils/                         # Utility scripts for path and data management
 │   ├── data_manager.py
 │   └── path_utils.py
 ├── .gitignore
-├── SkinProToExe.txt               # PyInstaller notes
+├── SkinProToExe.txt               # PyInstaller packaging notes
 └── main.py                        # App entry point
 ```
 
