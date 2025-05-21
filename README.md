@@ -19,12 +19,12 @@ A full-featured desktop application built for estheticians and skincare professi
 
 ## 🚀 Tech Stack
 
-- **Python 3.10+**
+- **Python**
 - **CustomTkinter** for the UI
 - **SQLite** for local database management
+- **Flask** for QR code photo upload server
 - **ReportLab** for PDF generation
 - **Poppler** for PDF preview (via `pdf2image`)
-- **Flask** for QR code photo upload server
 - **Pillow**, `os`, `threading`, `tkinter.ttk` for backend/UI logic
 
 ---
@@ -32,36 +32,36 @@ A full-featured desktop application built for estheticians and skincare professi
 ## 📸 Screenshots
 
 ### 🚪 Splash Screen
-![Splash Screen](images/splash_screen.png)
+![Splash Screen](images/splash_screen.jpg)
 
 ### 👩 Clients Tab
-![Clients Tab](images/clients_tab.png)
+![Clients Tab](images/client_tab.jpg)
 
 ### 📝 Info Tab (Client Demographics & History)
-![Info Tab](images/info_tab.png)
+![Info Tab](images/info_tab.jpg)
 
 ### 📅 Appointments Tab
-![Appointments Tab](images/appointments_tab.png)
+![Appointments Tab](images/appt_tab.jpg)
 
 ### 📷 Photos Tab (Before & After Comparison)
-![Photos Tab](images/photos_tab.png)
+![Photos Tab](images/photos_tab.jpg)
 
 ### 📲 QR Upload Window → Upload In Progress → Upload Complete
-![QR Upload Start](images/qr_upload_start.png)
-![QR Uploading](images/qr_upload_progress.png)
-![QR Upload Complete](images/qr_upload_complete.png)
+![QR Upload Start](images/QR_upload.jpg)
+![QR Uploading](images/Upload_Photos.jpeg)
+![QR Upload Complete](images/Upload_Complete.jpeg)
 
 ### 💊 Prescriptions Tab
-![Prescriptions Tab](images/prescriptions_tab.png)
+![Prescriptions Tab](images/rx_tab.jpg)
 
 ### 🧾 Prescription Generator (Dynamic Form)
-![Prescription Generator](images/prescription_generator.png)
+![Prescription Generator](images/rx_generator.jpg)
 
 ### 🖨️ Finished Prescription Preview (Professional Printable)
-![Finished Prescription](images/prescription_preview.png)
+![Finished Prescription](images/rx_preview.png)
 
 ### 🔔 Alerts Tab (Follow-up Reminders)
-![Alerts Tab](images/alerts_tab.png)
+![Alerts Tab](images/alerts_tab.jpg)
 
 ---
 
