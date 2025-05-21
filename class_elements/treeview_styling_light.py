@@ -18,7 +18,7 @@ def style_treeview_light(style_name="Corium.Treeview", rowheight=40, font=("Helv
 
     HOVER_PURPLE = "#251254"
 
-    # === 🎨 Header (Column Titles) ===
+    # === Header (Column Titles) ===
     style.configure(f"{style_name}.Heading",
                     background=DARK_PURPLE,
                     foreground=SOFT_WHITE,
@@ -30,7 +30,7 @@ def style_treeview_light(style_name="Corium.Treeview", rowheight=40, font=("Helv
     style.map(f"{style_name}.Heading",
               background=[("active", HOVER_PURPLE)])
 
-    # === 🎨 General Treeview Style ===
+    # === General Treeview Style ===
     style.configure(style_name,
                     background=SOFT_WHITE,
                     fieldbackground=SOFT_WHITE,
@@ -41,7 +41,7 @@ def style_treeview_light(style_name="Corium.Treeview", rowheight=40, font=("Helv
                     borderwidth=1,
                     relief="flat")
 
-    # === 🎨 Alternate row tag styles ===
+    # === Alternate row tag styles ===
     style.map(style_name,
               fieldbackground=[
                   ("alternate", MID_GRAY),  # Tag-based alternate row coloring
@@ -59,7 +59,7 @@ def style_treeview_light(style_name="Corium.Treeview", rowheight=40, font=("Helv
         ("Treeview.treearea", {"sticky": "nswe"})
     ])
 
-    # === 🎨 Scrollbar Styling ===
+    # === Scrollbar Styling ===
     style.configure("Vertical.TScrollbar",
                     background=DARK_PURPLE,
                     troughcolor=MID_GRAY,
