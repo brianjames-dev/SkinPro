@@ -14,13 +14,13 @@ class ImageLoaderThread(threading.Thread):
 
 
     def run(self):
-        print("🔵 Image Loader Thread Started...")
+        print("Image Loader Thread Started...")
         while self.running:
             try:
                 # Get an image task from the queue (waits up to 1 second if empty)
                 task = self.task_queue.get(timeout=1)
                 file_path, photo_id = task
-                print(f"🟣 Processing thumbnail for: {file_path}")
+                print(f"Processing thumbnail for: {file_path}")
 
                 if not self.running:  # Exit check
                     break
@@ -40,7 +40,7 @@ class ImageLoaderThread(threading.Thread):
         """Generate and return a Tkinter-compatible PhotoImage thumbnail."""
         try:
             if not os.path.exists(file_path):
-                print(f"❌ File does not exist: {file_path}")
+                print(f"File does not exist: {file_path}")
                 return None
 
             img = Image.open(file_path)
@@ -61,7 +61,7 @@ class ImageLoaderThread(threading.Thread):
             thumbnail = ImageTk.PhotoImage(img)  # Use PhotoImage instead of CTkImage
 
             if not isinstance(thumbnail, ImageTk.PhotoImage):
-                print(f"⚠ Error: Thumbnail generation failed for {file_path}")
+                print(f"Error: Thumbnail generation failed for {file_path}")
                 return None
 
             # Store in the cache (image_cache.py)
@@ -70,13 +70,13 @@ class ImageLoaderThread(threading.Thread):
             return thumbnail  # Now works correctly in ttk.Treeview
 
         except Exception as e:
-            print(f"⚠ Error generating thumbnail for {file_path}: {e}")
+            print(f"Error generating thumbnail for {file_path}: {e}")
             return None
 
 
     def add_task(self, file_path, photo_id):
         """Add an image processing task to the queue."""
-        print(f"🟡 Queuing thumbnail generation for: {file_path}")
+        print(f"Queuing thumbnail generation for: {file_path}")
         self.task_queue.put((file_path, photo_id))
 
 
