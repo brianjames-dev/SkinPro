@@ -4,7 +4,7 @@ import os
 # Save theme.json right next to this script
 output_path = os.path.join(os.path.dirname(__file__), "corium_theme.json")
 
-# === 🎨 Color Palette ===
+# === Color Palette ===
 TEXT_COLOR = "#000000"
 SOFT_WHITE = "#ebebeb"        
 
@@ -21,7 +21,7 @@ TEXTBOX_HOVER = "#E6DAF7"
 
 TRANSPARENT = "transparent"
 
-# === 🛠 Theme Dictionary ===
+# === Theme Dictionary ===
 theme = {
     "CTk": {
         "fg_color": HOVER_PURPLE,
@@ -164,8 +164,8 @@ theme = {
     }
 }
 
-# === 💾 Write to JSON ===
+# === Write to JSON ===
 with open(output_path, "w") as f:
     json.dump(theme, f, indent=2)
 
-print(f"✅ Theme written to {output_path}")
+print(f"Theme written to {output_path}")
