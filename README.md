@@ -1,6 +1,6 @@
 # SkinPro
 
-A full-featured desktop application built for estheticians and skincare professionals to manage client data, appointments, treatment photos, prescriptions, and follow-up alerts. Built with Python and CustomTkinter.
+A full-featured desktop application built for estheticians and skincare professionals to manage client data, appointments, treatment photos, prescriptions, and follow-up alerts.
 
 ---
 
@@ -47,9 +47,11 @@ A full-featured desktop application built for estheticians and skincare professi
 ![Photos Tab](images/photos_tab.jpg)
 
 ### 📲 QR Upload Window → Upload In Progress → Upload Complete
-![QR Upload Start](images/QR_upload.jpg)
-![QR Uploading](images/Upload_Photos.jpeg)
-![QR Upload Complete](images/Upload_Complete.jpeg)
+<div align="left">
+  <img src="images/QR_upload.jpg" alt="QR Upload Start" width="30%" style="vertical-align: top; margin-right:10px;" />
+  <img src="images/Upload_Photos.jpeg" alt="QR Uploading" width="30%" style="vertical-align: top; margin-right:10px;" />
+  <img src="images/Upload_Complete.jpeg" alt="QR Upload Complete" width="30%" style="vertical-align: top;" />
+</div>
 
 ### 💊 Prescriptions Tab
 ![Prescriptions Tab](images/rx_tab.jpg)
@@ -57,7 +59,7 @@ A full-featured desktop application built for estheticians and skincare professi
 ### 🧾 Prescription Generator (Dynamic Form)
 ![Prescription Generator](images/rx_generator.jpg)
 
-### 🖨️ Finished Prescription Preview (Professional Printable)
+### 🖨️ Finished Prescription Preview (Printable)
 ![Finished Prescription](images/rx_preview.jpg)
 
 ### 🔔 Alerts Tab (Follow-up Reminders)
