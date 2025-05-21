@@ -16,7 +16,7 @@ class PdfRenderWorker:
                 pages = convert_from_path(pdf_path, dpi=150, first_page=1, last_page=1)
 
                 if not pages:
-                    print("⚠️ No pages found in PDF.")
+                    print("No pages found in PDF.")
                     return
 
                 image = pages[0]
@@ -28,7 +28,7 @@ class PdfRenderWorker:
                 self.callback(resized)
 
             except Exception as e:
-                print(f"❌ Error rendering PDF: {e}")
+                print(f"Error rendering PDF: {e}")
 
         self.thread = threading.Thread(target=task)
         self.thread.start()
