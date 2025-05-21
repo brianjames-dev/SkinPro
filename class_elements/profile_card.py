@@ -50,7 +50,7 @@ class ProfileCard:
         self.client_id = client_id
 
         if client_id is None:
-            print("🔄 Resetting Profile Card to default state...")
+            print("Resetting Profile Card to default state...")
             self.client_id = None
             self.profile_path = resource_path("icons/account_circle.png")
             self.full_name = "No Client Selected"
@@ -72,7 +72,7 @@ class ProfileCard:
                 """, (client_id,))
                 client_data = cursor.fetchone()
         except Exception as e:
-            print(f"❌ Error loading client from database: {e}")
+            print(f"Error loading client from database: {e}")
             client_data = None
 
         if not client_data:
@@ -83,7 +83,7 @@ class ProfileCard:
             self.shift = 0
         else:
             self.full_name, self.profile_path, self.zoom, self.shift = client_data
-            print(f"🟢 Loaded Client: {self.full_name} | Image: {self.profile_path} | Zoom: {self.zoom}, Shift: {self.shift}")
+            print(f"Loaded Client: {self.full_name} | Image: {self.profile_path} | Zoom: {self.zoom}, Shift: {self.shift}")
 
         self.name_label.configure(text=self.full_name)
 
@@ -100,7 +100,7 @@ class ProfileCard:
                 processed_image = self.create_circular_image(Image.open(self.profile_path))
                 self.profile_image = ctk.CTkImage(processed_image, size=(w, h))
         except Exception as e:
-            print(f"❌ Error processing image: {e}")
+            print(f"Error processing image: {e}")
             self.profile_image = ctk.CTkImage(Image.open(resource_path("icons/account_circle.png")), size=(w, h))
 
         # --- Apply image to UI ---
@@ -112,7 +112,7 @@ class ProfileCard:
             print("⚠ No client selected. Cannot save profile picture.")
             return
 
-        print("✅ Applying picture changes and updating database...")
+        print("Applying picture changes and updating database...")
 
         # **Step 1: Determine Save Path (Temp or Final)**
         if self.client_id == -1:
@@ -137,7 +137,7 @@ class ProfileCard:
                         f"client_{self.client_id}.png"
                     )
             except Exception as e:
-                print(f"❌ Failed to fetch client name: {e}")
+                print(f"Failed to fetch client name: {e}")
                 return
 
         # **Step 2: Process and Save Image**
@@ -183,10 +183,10 @@ class ProfileCard:
                     """, (self.client_id, self.zoom, self.shift))
 
                 conn.commit()
-                print(f"💾 Profile picture saved at {save_path} for Client ID {self.client_id}")
+                print(f"Profile picture saved at {save_path} for Client ID {self.client_id}")
 
         except Exception as e:
-            print(f"❌ Failed to update client picture info: {e}")
+            print(f"Failed to update client picture info: {e}")
             return
 
         # **Final UI Updates**
@@ -196,7 +196,7 @@ class ProfileCard:
     def change_profile_picture(self):
         """Trigger QR-based upload flow for profile picture."""
         if self.client_id is None:
-            print("⚠ No client selected. Cannot upload profile picture.")
+            print("No client selected. Cannot upload profile picture.")
             return
 
         PhotoUploadPopup(
@@ -210,10 +210,10 @@ class ProfileCard:
     def open_settings_popup(self):
         """Step 2: Open a settings popup with live preview & adjustment controls."""
         if hasattr(self, "popup") and self.popup.winfo_exists():
-            print("⚠️ Settings popup already exists. Skipping duplicate.")
+            print("Settings popup already exists. Skipping duplicate.")
             return
 
-        print("⚙️ open_settings_popup() called.")
+        print("open_settings_popup() called.")
         self.popup = ctk.CTkToplevel()
         self.popup.title("Adjust Profile Picture")
         self.popup.geometry("250x250")
@@ -224,7 +224,7 @@ class ProfileCard:
             self.popup.grab_set()
             self.popup.focus_force()
         except Exception as e:
-            print(f"❌ Failed to focus settings popup: {e}")
+            print(f"Failed to focus settings popup: {e}")
         
         # Load icons
         zoom_in_icon = ctk.CTkImage(Image.open(resource_path("icons/zoom_in.png")), size=(24, 24))
@@ -241,7 +241,7 @@ class ProfileCard:
         self.preview_label.pack(pady=5)
         self.update_preview()  # Load initial preview
 
-        # 🔁 Delay preview update to allow image to fully render
+        # Delay preview update to allow image to fully render
         self.popup.after(100, self.update_preview)
 
         # Zoom controls
