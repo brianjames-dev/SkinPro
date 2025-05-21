@@ -125,7 +125,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
                     image = Image.open(file_path)
                     image.save(save_path)
                 except Exception as e:
-                    print(f"❌ Error saving image: {e}")
+                    print(f"Error saving image: {e}")
                     messagebox.showerror("Error", "The selected image could not be processed.")
                     return
 
@@ -198,7 +198,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
             self.after(100, lambda: self._show_success_and_close(len(file_paths)))
 
         except Exception as e:
-            print(f"❌ Failed to upload photos: {e}")
+            print(f"Failed to upload photos: {e}")
             messagebox.showerror("Error", "Failed to upload photos. Please try again.")
 
 
@@ -219,7 +219,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
     def _delayed_close(self):
         self.destroy()
         if self._launch_settings_after_close and self.profile_card:
-            print("✅ Post-destroy: Launching profile image settings popup...")
+            print("Post-destroy: Launching profile image settings popup...")
             self.profile_card.open_settings_popup()
 
 
@@ -228,15 +228,15 @@ class PhotoUploadPopup(ctk.CTkToplevel):
             self.after_cancel(self._polling_task)
             self._polling_task = None
 
-        print("🟣 Closing popup — final success handler.")
+        print("Closing popup — final success handler.")
 
         should_launch_editor = False
         if self.profile_card:
-            print("🟢 Loaded profile_card — refreshing client data")
+            print("Loaded profile_card — refreshing client data")
             self.profile_card.load_client(self.client_id)
             should_launch_editor = True
         else:
-            print("⚠️ No profile_card available. Skipping editor popup.")
+            print("No profile_card available. Skipping editor popup.")
 
         self.destroy()
 
@@ -275,7 +275,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
         except Exception as e:
             self.qr_label.configure(text="Failed to load QR code image.")
-            print(f"❌ Error loading QR code image: {e}")
+            print(f"Error loading QR code image: {e}")
 
 
     def ensure_server_running(self):
@@ -285,7 +285,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
         # If thread doesn't exist or is dead, restart it
         if sys._flask_thread is None or not sys._flask_thread.is_alive():
-            print("🟢 Flask thread not running. Launching or restarting...")
+            print("Flask thread not running. Launching or restarting...")
 
             from upload_server import server
 
@@ -293,10 +293,10 @@ class PhotoUploadPopup(ctk.CTkToplevel):
                 try:
                     server.start_flask_server()
                 except Exception as e:
-                    print(f"🔥 Flask server crashed: {e}")
+                    print(f"Flask server crashed: {e}")
                     # Optional: wait and try again
                     time.sleep(2)
-                    print("🔁 Retrying Flask server...")
+                    print("Retrying Flask server...")
                     run_flask()
 
             t = threading.Thread(target=run_flask, daemon=True)
@@ -330,17 +330,17 @@ class PhotoUploadPopup(ctk.CTkToplevel):
 
                 modified_time = os.path.getmtime(result[0])
                 if modified_time < self.start_time:
-                    print("⏳ File exists but not newly modified. Waiting...")
+                    print("File exists but not newly modified. Waiting...")
                     self._polling_task = self.after(3000, self.check_for_uploaded_photos)
                     return
 
-                self.status_label.configure(text="Profile Picture Uploaded ✅")
+                self.status_label.configure(text="Profile Picture Uploaded")
 
                 if self._polling_task:
                     self.after_cancel(self._polling_task)
                     self._polling_task = None
 
-                print("✅ Upload complete. Waiting briefly before closing and opening popup...")
+                print("Upload complete. Waiting briefly before closing and opening popup...")
                 self.after(400, self._delayed_profile_success)
                 return
 
@@ -362,7 +362,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
             if count > self.initial_photo_count:
                 if not getattr(self, "_uploading_started", False):
                     self._uploading_started = True
-                    self.status_label.configure(text="Uploading... Please wait ⏳")
+                    self.status_label.configure(text="Uploading... Please wait")
 
                 if count == self.last_seen_count:
                     self.stable_count_checks += 1
@@ -372,7 +372,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
                 self.last_seen_count = count
 
                 if self.stable_count_checks >= 2:
-                    print(f"📸 Final photo count stabilized at {count}")
+                    print(f"Final photo count stabilized at {count}")
                     self.status_label.configure(image="")
                     self.finish_success_popup(count - self.initial_photo_count)
                     return
@@ -383,7 +383,7 @@ class PhotoUploadPopup(ctk.CTkToplevel):
             self._polling_task = self.after(2000, self.check_for_uploaded_photos)
 
         except Exception as e:
-            print(f"❌ Error checking for uploaded photos: {e}")
+            print(f"Error checking for uploaded photos: {e}")
             self._polling_task = self.after(3000, self.check_for_uploaded_photos)
 
 
