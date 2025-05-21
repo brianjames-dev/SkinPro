@@ -45,7 +45,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             if result:
                 self.client_name = result[0]
         except Exception as e:
-            print(f"❌ Error fetching client name: {e}")
+            print(f"Error fetching client name: {e}")
 
         # (Optional) Show the client name in the UI
         print(f"📋 Creating prescription for: {self.client_name}")
@@ -439,7 +439,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         if "highlight" in (current_tags or []):
             output += "[[/highlight]]"
 
-        print(f"🟡 Extracted with highlight: {repr(output.strip())}")
+        print(f"Extracted with highlight: {repr(output.strip())}")
         return output.strip()
 
 
@@ -456,7 +456,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             steps_dict[f"Col{i+1}_Header"] = header
             steps_dict[f"Col{i+1}"] = steps
 
-        print("✅ Collected Prescription:")
+        print("Collected Prescription:")
         pprint.pprint(steps_dict)
 
         start_date = self.date_entry.get().strip()
@@ -477,7 +477,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             return
 
         pdf_path = generator.generate(self.client_id, self.client_name, start_date, steps_dict)
-        print(f"✅ PDF generated at: {pdf_path}")
+        print(f"PDF generated at: {pdf_path}")
         
         if not pdf_path:
             messagebox.showerror("PDF Error", "Failed to generate PDF.")
@@ -531,7 +531,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
 
             # Insert normal text before the highlight
             if normal_text:
-                print(f"🟢 Inserting normal text: {repr(normal_text)}")
+                print(f"Inserting normal text: {repr(normal_text)}")
                 text_widget.insert("end", normal_text)
 
             # Insert highlighted text and apply tag
@@ -540,7 +540,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             end_idx = text_widget.index("insert")
             text_widget.tag_add("highlight", start_idx, end_idx)
             text_widget.tag_config("highlight", background="yellow", foreground="black")
-            print(f"🟡 Highlighted: {repr(highlighted_text)} from {start_idx} to {end_idx}")
+            print(f"Highlighted: {repr(highlighted_text)} from {start_idx} to {end_idx}")
 
             has_any_highlight = True
             last_end = end
@@ -548,11 +548,11 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         # Insert any remaining plain text after the last highlight
         if last_end < len(content):
             tail = content[last_end:]
-            print(f"🔵 Inserting trailing text: {repr(tail)}")
+            print(f"Inserting trailing text: {repr(tail)}")
             text_widget.insert("end", tail)
 
         if not has_any_highlight:
-            print("⚠️ No highlight tags found in this content.")
+            print("No highlight tags found in this content.")
 
 
     def validate_date_format(self, date_str):
@@ -604,7 +604,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
 
         self.date_entry.delete(0, "end")
         self.date_entry.insert(0, formatted_date)
-        print(f"✅ Formatted Date: {formatted_date}")
+        print(f"Formatted Date: {formatted_date}")
 
 
     def highlight_current_selection(self):
@@ -612,7 +612,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         widget = getattr(self, 'last_focused_widget', None)
 
         if not widget:
-            print("⚠️ No focused text widget found.")
+            print("No focused text widget found.")
             return
 
         try:
@@ -620,7 +620,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             end = widget.index("sel.last")
 
             if start == end:
-                print("⚠️ Empty selection. Nothing to highlight or dehighlight.")
+                print("Empty selection. Nothing to highlight or dehighlight.")
                 return
 
             # Check if every character in the selection has the highlight tag
@@ -635,15 +635,15 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
 
             if fully_highlighted:
                 widget.tag_remove("highlight", start, end)
-                print(f"❎ De-highlighted: {widget.get(start, end)} from {start} to {end}")
+                print(f"De-highlighted: {widget.get(start, end)} from {start} to {end}")
             else:
                 widget.tag_add("highlight", start, end)
                 widget.tag_config("highlight", background="yellow", foreground="black")
-                print(f"✅ Highlighted: {widget.get(start, end)} from {start} to {end}")
+                print(f"Highlighted: {widget.get(start, end)} from {start} to {end}")
 
             # Remove selection coloring immediately after toggling
             widget.tag_remove("sel", "1.0", "end")
             widget.tag_remove("highlight_selected", "1.0", "end")
 
         except Exception as e:
-            print(f"❌ Failed to toggle highlight: {e}")
+            print(f"Failed to toggle highlight: {e}")
