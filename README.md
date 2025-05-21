@@ -8,11 +8,10 @@ A full-featured desktop application built for estheticians and skincare professi
 
 - 📇 Manage client profiles with detailed demographic and health info
 - 📆 Schedule and track appointments
-- 🖼️ Upload and compare before/after treatment photos
+- 📸 Upload photos via QR code or locally and compare before/after
 - 📝 Generate customizable skincare prescriptions (2–4 columns, text highlighting)
 - 🔔 Set and track follow-up alerts (e.g., photo requests)
 - 📂 All data saved locally in user-specified folders
-- 📸 Upload photos via QR code or local file picker
 - 🧠 Smart caching and threaded image loading for responsive UI
 - 🛠️ Packaged with PyInstaller for easy distribution
 
