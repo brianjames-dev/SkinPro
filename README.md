@@ -17,6 +17,18 @@ A full-featured desktop application built for estheticians and skincare professi
 
 ---
 
+## 🚀 Tech Stack
+
+- **Python 3.10+**
+- **CustomTkinter** for the UI
+- **SQLite** for local database management
+- **ReportLab** for PDF generation
+- **Poppler** for PDF preview (via `pdf2image`)
+- **Flask** for QR code photo upload server
+- **Pillow**, `os`, `threading`, `tkinter.ttk` for backend/UI logic
+
+---
+
 ## 📸 Screenshots
 
 ### 🚪 Splash Screen
@@ -50,18 +62,6 @@ A full-featured desktop application built for estheticians and skincare professi
 
 ### 🔔 Alerts Tab (Follow-up Reminders)
 ![Alerts Tab](images/alerts_tab.png)
-
----
-
-## 🚀 Tech Stack
-
-- **Python 3.10+**
-- **CustomTkinter** for the UI
-- **SQLite** for local database management
-- **ReportLab** for PDF generation
-- **Poppler** for PDF preview (via `pdf2image`)
-- **Flask** for QR code photo upload server
-- **Pillow**, `os`, `threading`, `tkinter.ttk` for backend/UI logic
 
 ---
 
