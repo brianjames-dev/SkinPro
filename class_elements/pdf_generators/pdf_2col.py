@@ -264,18 +264,18 @@ class Pdf2ColGenerator:
                 c.rect(col1_x - 10, current_y - cell_height + 10, col_width - 20, cell_height, fill=True, stroke=0)
                 c.restoreState()
 
-            # 🟨 STEP label
+            # STEP label
             c.setFont("Helvetica", 10)
             c.drawString(left_margin, current_y, f"STEP {i + 1}")
 
-            # 📝 Draw wrapped text on top of background
+            # Draw wrapped text on top of background
             draw_product_block(c, col1_x, current_y, col1["product"], col1["directions"], max_width=wrap_width)
             draw_product_block(c, col2_x, current_y, col2["product"], col2["directions"], max_width=wrap_width)
 
 
             current_y -= cell_height
 
-        # 🟥 Grid lines (draw once across full table)
+        # Grid lines (draw once across full table)
         c.setLineWidth(0.2)
         c.setStrokeColorRGB(0, 0, 0)  # subtle purple
 
@@ -305,6 +305,6 @@ class Pdf2ColGenerator:
         c.drawString(center_x, 15, footer_text)
 
         c.save()
-        print(f"✅ 2-column prescription saved to: {file_path}")
+        print(f"2-column prescription saved to: {file_path}")
 
         return file_path
