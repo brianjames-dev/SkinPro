@@ -58,7 +58,7 @@ A full-featured desktop application built for estheticians and skincare professi
 ![Prescription Generator](images/rx_generator.jpg)
 
 ### 🖨️ Finished Prescription Preview (Professional Printable)
-![Finished Prescription](images/rx_preview.png)
+![Finished Prescription](images/rx_preview.jpg)
 
 ### 🔔 Alerts Tab (Follow-up Reminders)
 ![Alerts Tab](images/alerts_tab.jpg)
