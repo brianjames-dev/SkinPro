@@ -17,18 +17,18 @@ def init_database(db_path, backup_dir):
     try:
         conn.execute("PRAGMA journal_mode=WAL;")
     except sqlite3.OperationalError as e:
-        print(f"⚠️ Could not apply WAL mode: {e}")
+        print(f"Could not apply WAL mode: {e}")
     finally:
         conn.commit()
         
     cursor = conn.cursor()
 
     if is_new:
-        print("🆕 Creating new main database...")
+        print("Creating new main database...")
         create_tables(cursor)
         conn.commit()
     else:
-        print("🟢 Reusing existing database: {db_path}")
+        print("Reusing existing database: {db_path}")
 
     # Weekly backup logic
     os.makedirs(backup_dir, exist_ok=True)
@@ -42,12 +42,12 @@ def init_database(db_path, backup_dir):
     backup_path = os.path.join(backup_dir, backup_name)
 
     if not os.path.exists(backup_path):
-        print(f"📦 Creating weekly backup: {backup_name}")
+        print(f"Creating weekly backup: {backup_name}")
         shutil.copyfile(db_path, backup_path)
     else:
-        print(f"✅ Weekly backup already exists: {backup_name}")
+        print(f"Weekly backup already exists: {backup_name}")
 
-    print(f"✅ Database ready: {db_path}")
+    print(f"Database ready: {db_path}")
     return conn
 
 def create_tables(cursor):
