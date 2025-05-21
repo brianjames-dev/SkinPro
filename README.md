@@ -2,7 +2,6 @@
 
 A full-featured desktop application built for estheticians and skincare professionals to manage client data, appointments, treatment photos, prescriptions, and follow-up alerts.
 
----
 
 ## 🌟 Features
 
@@ -15,7 +14,6 @@ A full-featured desktop application built for estheticians and skincare professi
 - 🧠 Smart caching and threaded image loading for responsive UI
 - 🛠️ Packaged with PyInstaller for easy distribution
 
----
 
 ## 🚀 Tech Stack
 
@@ -27,7 +25,6 @@ A full-featured desktop application built for estheticians and skincare professi
 - **Poppler** for PDF preview (via `pdf2image`)
 - **Pillow**, `os`, `threading`, `tkinter.ttk` for backend/UI logic
 
----
 
 ## 📸 Screenshots
 
@@ -65,7 +62,6 @@ A full-featured desktop application built for estheticians and skincare professi
 ### 🔔 Alerts Tab (Follow-up Reminders)
 ![Alerts Tab](images/alerts_tab.jpg)
 
----
 
 ## 📁 Project Structure
 
@@ -114,6 +110,7 @@ SkinPro/
 └── main.py                        # App entry point
 ```
 
+
 ## ⚙️ Setup Instructions
 
 1. **Clone the repository**
@@ -145,7 +142,6 @@ SkinPro/
    python main.py
    ```
 
----
 
 ## 📦 Packaging to .exe (Windows)
 
@@ -160,13 +156,11 @@ Use [auto-py-to-exe](https://github.com/brentvollebregt/auto-py-to-exe) for crea
 - Manually include Poppler binaries in the `dist/` folder if needed
 - Add necessary image/icon assets to the `static/` folder and include them in build settings
 
----
 
 ## 📣 Acknowledgments
 
 This application was developed in collaboration with a licensed skincare professional at **Apotheca Day Spa**. Special thanks for contributing real-world workflows, testing feedback, and helping shape a practical tool for estheticians.
 
----
 
 ## 📬 Contact
 
