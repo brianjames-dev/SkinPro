@@ -124,7 +124,7 @@ class ClientsPage:
 
     def load_clients(self):
         """Load all clients from the database and insert them into the Treeview."""
-        print("🔄 Reloading all clients...")  # Debugging
+        print("Reloading all clients...")  # Debugging
 
         self.client_list.delete(*self.client_list.get_children())  # Clear existing rows
 
@@ -136,7 +136,7 @@ class ClientsPage:
                 """)
                 results = cursor.fetchall()
         except Exception as e:
-            print(f"❌ Error loading clients: {e}")
+            print(f"Error loading clients: {e}")
             return
 
         if not results:
@@ -153,7 +153,7 @@ class ClientsPage:
 
         self.client_list.tag_configure('alternate', background="#b3b3b3")  # Assuming DARK_GRAY = '#979da2'
 
-        print(f"✅ Loaded {len(results)} clients.")  # Debugging
+        print(f"Loaded {len(results)} clients.")  # Debugging
         self.no_results_label.lower()  # Hide "No Results" label
 
 
@@ -173,7 +173,7 @@ class ClientsPage:
                     """, (f"%{query}%",))
                     results = cursor.fetchall()
             except Exception as e:
-                print(f"❌ Error searching clients: {e}")
+                print(f"Error searching clients: {e}")
                 return
             
             if results:
@@ -202,27 +202,27 @@ class ClientsPage:
         # Check where the click happened
         region = self.client_list.identify_region(event.x, event.y)
         if region == "heading":  
-            print("⚠ Double-clicked on a header. Ignoring.")
+            print("Double-clicked on a header. Ignoring.")
             return  # Do nothing if it's a column header
 
         # Ensure a valid row is selected
         selected_item = self.client_list.selection()
         if not selected_item:  
-            print("⚠ No client selected. Ignoring.")
+            print("No client selected. Ignoring.")
             return  # Ignore if no valid row is selected
 
-        print(f"🔄 Switching to Info Tab for Client ID: {selected_item[0]}")
+        print(f"Switching to Info Tab for Client ID: {selected_item[0]}")
         self.main_app.switch_to_tab("Appointments")
 
 
     def on_client_select(self, event):
         selected = self.client_list.selection()
         if not selected:
-            print("⚠ No item selected in the Treeview.")
+            print("No item selected in the Treeview.")
             return
         
         client_id = int(selected[0])
-        self.select_client_by_id(client_id)  # 🔁 Reusable logic
+        self.select_client_by_id(client_id)  # Reusable logic
 
 
     def select_client_by_id(self, client_id):
@@ -233,7 +233,7 @@ class ClientsPage:
         # Update ProfileCard's client_id
         if hasattr(self.main_app, "profile_card"):
             self.main_app.profile_card.client_id = self.client_id  # Store client_id in ProfileCard
-            print(f"✅ ProfileCard client_id updated to: {self.client_id}")
+            print(f"ProfileCard client_id updated to: {self.client_id}")
 
         # Fetch full client data from Treeview
         item_data = self.client_list.item(client_id)
@@ -250,15 +250,15 @@ class ClientsPage:
         email = client_data[4]          # Email = column 4
         address = client_data[5]        # Address = column 5
 
-        print(f"🔹 Retrieved Client Name:   {full_name}")
-        print(f"🔹 Retrieved Gender:        {gender}") 
-        print(f"🔹 Retrieved Birthdate:     {birthdate}") 
-        print(f"🔹 Retrieved Primary #:     {primary}")
-        print(f"🔹 Retrieved Email:         {email}") 
-        print(f"🔹 Retrieved Address:       {address}")  # Debugging
+        print(f"Retrieved Client Name:   {full_name}")
+        print(f"Retrieved Gender:        {gender}") 
+        print(f"Retrieved Birthdate:     {birthdate}") 
+        print(f"Retrieved Primary #:     {primary}")
+        print(f"Retrieved Email:         {email}") 
+        print(f"Retrieved Address:       {address}")  # Debugging
 
         # Update Other Tabs
-        print(f"\n🔄 Populating Info & Appointments tabs for Client ID: {self.client_id}")
+        print(f"\nPopulating Info & Appointments tabs for Client ID: {self.client_id}")
         self.main_app.tabs["Info"].populate_client_info(self.client_id)
         self.main_app.tabs["Appointments"].load_client_appointments(self.client_id)
         self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
@@ -267,10 +267,10 @@ class ClientsPage:
 
         # Update Profile Card if it exists
         if hasattr(self.main_app, "profile_card"):
-            print("🟢 Updating Profile Card for Client ID:", self.client_id)
+            print("Updating Profile Card for Client ID:", self.client_id)
             self.main_app.profile_card.load_client(self.client_id)
         else:
-            print("⚠ ProfileCard instance not found.\n")
+            print("ProfileCard instance not found.\n")
 
 
     def add_client_button(self):
@@ -278,7 +278,7 @@ class ClientsPage:
         full_name = self.name_entry.get().strip()  # Get and trim the entered name
 
         if not full_name:
-            print("⚠ No name entered. Cannot add new client.")
+            print("No name entered. Cannot add new client.")
             return  # Prevent empty input
 
         # Check for duplicate name in the database
@@ -288,7 +288,7 @@ class ClientsPage:
                 cursor.execute("SELECT COUNT(*) FROM clients WHERE LOWER(full_name) = LOWER(?)", (full_name,))
                 existing_count = cursor.fetchone()[0]
         except Exception as e:
-            print(f"❌ Error checking for duplicate client: {e}")
+            print(f"Error checking for duplicate client: {e}")
             return
 
         if existing_count > 0:
@@ -315,7 +315,7 @@ class ClientsPage:
     def handle_duplicate_response(self, response, full_name):
         """Handles user decision when adding a duplicate client."""
         if not response:
-            print("🔴 User canceled adding duplicate client.")
+            print("User canceled adding duplicate client.")
             return  # Stop if user selects "No"
 
         # Proceed with adding the client
@@ -338,14 +338,14 @@ class ClientsPage:
         self.main_app.profile_card.client_id = -1  # Placeholder ID
         self.main_app.profile_card.full_name = full_name
         self.main_app.profile_card.name_label.configure(text=full_name)  # Update UI
-        print(f"🆕 New Client Placeholder Set: {full_name} (ID: -1)")
+        print(f"New Client Placeholder Set: {full_name} (ID: -1)")
 
         self.main_app.profile_card.set_default_profile_picture()
 
         # Switch to the Info tab
         self.main_app.switch_to_tab("Info")
 
-        print(f"🆕 Proceeding to add a new client: {full_name}")
+        print(f"Proceeding to add a new client: {full_name}")
 
 
     def confirm_delete_client(self, event=None):
@@ -367,11 +367,11 @@ class ClientsPage:
                 if result:
                     client_name = result[0]
         except Exception as e:
-            print(f"❌ Error fetching client name: {e}")
+            print(f"Error fetching client name: {e}")
             return
 
         if not client_name:
-            print("❌ ERROR: Client ID not found in database.")
+            print("ERROR: Client ID not found in database.")
             return
 
         # Create Confirmation Pop-up
@@ -412,7 +412,7 @@ class ClientsPage:
 
     def delete_client(self, response, client_id, confirmation_window):
         if not response:
-            print("🔴 User canceled deletion.")
+            print("User canceled deletion.")
             confirmation_window.destroy()
             return
 
@@ -429,9 +429,9 @@ class ClientsPage:
 
                 if profile_picture_path and os.path.exists(profile_picture_path):
                     os.remove(profile_picture_path)
-                    print("✅ Profile picture deleted.")
+                    print("Profile picture deleted.")
                 else:
-                    print("⚠ Profile picture not found or already removed.")
+                    print("Profile picture not found or already removed.")
 
                 # Fetch full name to delete image folder
                 cursor.execute("SELECT full_name FROM clients WHERE id = ?", (client_id,))
@@ -441,15 +441,15 @@ class ClientsPage:
                     safe_name = name_result[0].replace(" ", "_")
                     self.delete_client_assets(safe_name, client_id)
                 else:
-                    print("⚠ Full name not found. Skipping asset folder deletion.")
+                    print("Full name not found. Skipping asset folder deletion.")
 
                 # Delete client from DB
                 cursor.execute("DELETE FROM clients WHERE id = ?", (client_id,))
                 conn.commit()
-                print(f"✅ Client ID {client_id} deleted from database.")
+                print(f"Client ID {client_id} deleted from database.")
 
         except Exception as e:
-            print(f"❌ Error during client deletion: {e}")
+            print(f"Error during client deletion: {e}")
         finally:
             # Always clean up the UI and close the confirmation window
             confirmation_window.destroy()
@@ -470,10 +470,10 @@ class ClientsPage:
                     self.main_app.tabs["Photos"].preview_label.configure(image=None)
                     self.main_app.tabs["Photos"].preview_label.image = None
 
-                print("🔄 UI reset completed after deletion.")
+                print("UI reset completed after deletion.")
 
             except Exception as ui_err:
-                print(f"⚠ UI cleanup issue: {ui_err}")
+                print(f"UI cleanup issue: {ui_err}")
 
 
     def delete_client_assets(self, client_name, client_id):
@@ -481,20 +481,20 @@ class ClientsPage:
         # Delete before/after images folder
         img_folder = self.main_app.data_manager.get_path("images", f"{client_name}_id_{client_id}")
         if os.path.exists(img_folder):
-            print(f"🧹 Deleted image folder: {img_folder}")
+            print(f"Deleted image folder: {img_folder}")
             shutil.rmtree(img_folder)
         else:
-            print(f"⚠ No image folder found at: {img_folder}")
+            print(f"No image folder found at: {img_folder}")
 
         # Delete prescriptions PDFs folder
         prescriptions_dir = self.main_app.data_manager.get_path("prescriptions", f"{client_name}_{client_id}")
         if os.path.exists(prescriptions_dir):
-            print(f"🧻 Deleted prescription folder: {prescriptions_dir}")
+            print(f"Deleted prescription folder: {prescriptions_dir}")
             shutil.rmtree(prescriptions_dir)
         else:
-            print(f"⚠ No matching prescriptions found for {client_name}_{client_id} in {prescriptions_dir}")
+            print(f"No matching prescriptions found for {client_name}_{client_id} in {prescriptions_dir}")
         
-        print(f"✅ Deleted all assets associated with Client ID: {client_id}")
+        print(f"Deleted all assets associated with Client ID: {client_id}")
         
 
     def sort_treeview(self, column, reverse):
