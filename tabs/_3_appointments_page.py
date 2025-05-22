@@ -182,7 +182,7 @@ class AppointmentsPage:
 
         if result:
             self.client_id = result[0]  # Store the client ID
-            print(f"🟢 Selected Client: {selected_client} (ID: {self.client_id})")
+            print(f"Selected Client: {selected_client} (ID: {self.client_id})")
 
             self.main_app.tabs["Clients"].select_client_by_id(self.client_id)
 
@@ -263,7 +263,7 @@ class AppointmentsPage:
             self.appointments_table.tag_configure('alternate', background="#b3b3b3")
             self.load_all_treatment_notes()
         except Exception as e:
-            print(f"❌ Error loading appointments: {e}")
+            print(f"Error loading appointments: {e}")
 
 
     def on_appointment_select(self, event):
@@ -300,19 +300,19 @@ class AppointmentsPage:
             photos_taken = appointment_data[4]
 
             # Debugging statements
-            print(f"🆔 Appointment ID:     {appointment_id}")
-            print(f"📅 Date:               {date}")
-            print(f"⏰ Type:               {type}") 
-            print(f"💆 Treatment:          {treatment}") 
-            print(f"💰 Price:              {price}")
-            print(f"📸 photos Taken?:       {photos_taken}")
+            print(f"Appointment ID:     {appointment_id}")
+            print(f"Date:               {date}")
+            print(f"Type:               {type}") 
+            print(f"Treatment:          {treatment}") 
+            print(f"Price:              {price}")
+            print(f"photos Taken?:       {photos_taken}")
             print(f"----------------------------")
 
             if len(selected_items) > 1:  # Multiple selection: Compile only the selected appointments' notes
-                print("\n🆔 Multiple Appointments Selected:")
+                print("\nMultiple Appointments Selected:")
 
-                appointment_id = int(self.get_selected_appointment_id(item))  # 🔧 Ensure correct ID type
-                print(f"🔍 Fetching notes for appointment_id: {appointment_id}")
+                appointment_id = int(self.get_selected_appointment_id(item))  # Ensure correct ID type
+                print(f"Fetching notes for appointment_id: {appointment_id}")
 
                 # Fetch from DB
                 try:
@@ -322,7 +322,7 @@ class AppointmentsPage:
                         result = cursor.fetchone()
                         treatment_notes = result[0] if result and result[0] else "(No notes found)"
                 except Exception as e:
-                    print(f"❌ Failed to fetch notes for ID {appointment_id}: {e}")
+                    print(f"Failed to fetch notes for ID {appointment_id}: {e}")
                     treatment_notes = "(Error retrieving notes)"
 
                 # Dynamic Divider Logic (Match longest text)
@@ -377,7 +377,7 @@ class AppointmentsPage:
         """Load all treatment notes for the selected client, sorted by most recent appointment."""
         
         if not self.client_id:
-            print("⚠ No client selected. Cannot load notes.")
+            print("No client selected. Cannot load notes.")
             return
 
         with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
@@ -462,12 +462,12 @@ class AppointmentsPage:
 
     def create_appointment(self):
         """Open a dialog to create a new appointment."""
-        print(f"🧪 Inside create_appointment - current client_id: {self.client_id}")
+        print(f"Inside create_appointment - current client_id: {self.client_id}")
 
         if not self.client_id:
-            print("⚠ No client selected. Cannot create appointment.")
+            print("No client selected. Cannot create appointment.")
             return
-        print("✅ Creating new appointment for Client ID:", self.client_id)
+        print("Creating new appointment for Client ID:", self.client_id)
         
         # CREATE POP-UP WINDOW --> Create Appointment
         self.appointment_window = ctk.CTkToplevel()
@@ -573,7 +573,7 @@ class AppointmentsPage:
         self.format_date()
         self.format_price()
 
-        print(f"🆕 Creating Appointment for Client ID {self.client_id}: {date}, {type}, {treatment}, {price}, {treatment_notes}")
+        print(f"Creating Appointment for Client ID {self.client_id}: {date}, {type}, {treatment}, {price}, {treatment_notes}")
 
         try:
             with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
@@ -584,21 +584,21 @@ class AppointmentsPage:
                 """, (self.client_id, date, type, treatment, price, "No", treatment_notes if treatment_notes else "<No notes added>"))
                 conn.commit()
 
-            print(f"✅ New appointment created for Client ID {self.client_id} on {date} at {type}.")
+            print(f"New appointment created for Client ID {self.client_id} on {date} at {type}.")
 
             # Refresh the appointments list & close the window
             self.load_client_appointments(self.client_id)
             self.appointment_window.destroy()
 
         except Exception as e:
-            print(f"❌ Error saving new appointment: {e}")
+            print(f"Error saving new appointment: {e}")
 
 
     def update_appointment(self):
         """Open a dialog to update an existing appointment."""
         selected_item = self.appointments_table.selection()
         if not selected_item:
-            print("⚠ No appointment selected for update.")
+            print("No appointment selected for update.")
             return
 
         # Fetch appointment data from TreeView
@@ -606,7 +606,7 @@ class AppointmentsPage:
         appointment_id = self.get_selected_appointment_id(selected_item[0])
 
         if not appointment_id:
-            print("⚠ Unable to determine appointment ID.")
+            print("Unable to determine appointment ID.")
             return
 
         with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
@@ -725,7 +725,7 @@ class AppointmentsPage:
         self.format_date()
         self.format_price()
 
-        print(f"✏️ Updating Appointment ID {appointment_id}: {date}, {type}, {treatment}, {price}, {treatment_notes}")
+        print(f"Updating Appointment ID {appointment_id}: {date}, {type}, {treatment}, {price}, {treatment_notes}")
 
         try:
             with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
@@ -736,14 +736,14 @@ class AppointmentsPage:
                     WHERE id = ?
                 """, (date, type, treatment, price, treatment_notes if treatment_notes else "<No notes added>", appointment_id))
                 conn.commit()
-                print(f"✅ Appointment {appointment_id} updated successfully.")
+                print(f"Appointment {appointment_id} updated successfully.")
 
             # Refresh the appointment list and close the window
             self.load_client_appointments(self.client_id)
             self.appointment_window.destroy()
 
         except Exception as e:
-            print(f"❌ Database update failed: {e}")
+            print(f"Database update failed: {e}")
 
         # Update photos table to sync with the edited appointment
         try:
@@ -755,12 +755,12 @@ class AppointmentsPage:
                     WHERE appointment_id = ?
                 """, (date, type, appointment_id))
                 conn.commit()
-                print(f"✅ Synced photos with updated appointment {appointment_id}")
+                print(f"Synced photos with updated appointment {appointment_id}")
 
             self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
 
         except Exception as e:
-            print(f"❌ Failed to update photos for appointment {appointment_id}: {e}")
+            print(f"Failed to update photos for appointment {appointment_id}: {e}")
 
 
     def get_selected_appointment_id(self, treeview_item):
@@ -768,7 +768,7 @@ class AppointmentsPage:
         try:
             return int(treeview_item)
         except Exception as e:
-            print(f"⚠ Error retrieving appointment ID: {e}")
+            print(f"Error retrieving appointment ID: {e}")
             return None
 
 
@@ -785,7 +785,7 @@ class AppointmentsPage:
                 result = cursor.fetchone()
                 return result[0] if result else ""
         except Exception as e:
-            print(f"❌ Failed to fetch treatment notes for appointment {appointment_id}: {e}")
+            print(f"Failed to fetch treatment notes for appointment {appointment_id}: {e}")
             return ""
 
 
@@ -833,7 +833,7 @@ class AppointmentsPage:
         # Insert the correctly formatted date
         self.date_entry.delete(0, "end")
         self.date_entry.insert(0, formatted_date)
-        print(f"✅ Formatted Date: {formatted_date}")
+        print(f"Formatted Date: {formatted_date}")
 
 
     def format_price(self, event=None):
@@ -867,7 +867,7 @@ class AppointmentsPage:
         # Insert the correctly formatted price
         self.price_entry.delete(0, "end")
         self.price_entry.insert(0, formatted_price)
-        print(f"✅ Formatted Price: {formatted_price}")
+        print(f"Formatted Price: {formatted_price}")
 
 
     def focus_next_widget(self, event):
@@ -885,7 +885,7 @@ class AppointmentsPage:
             print("⚠ No appointment selected for editing.")
             return
 
-        print("✏️ Double-click detected. Opening Edit Window...")
+        print("Double-click detected. Opening Edit Window...")
 
         # Call `update_appointment()` to open the edit window
         self.update_appointment()
@@ -896,14 +896,14 @@ class AppointmentsPage:
         selected_item = self.appointments_table.selection()
 
         if not selected_item:
-            print("⚠ No appointment selected for deletion.")
+            print("No appointment selected for deletion.")
             return
 
         # Fetch appointment ID
         appointment_id = self.get_selected_appointment_id(selected_item[0])
 
         if not appointment_id:
-            print("⚠ Unable to determine appointment ID. Deletion aborted.")
+            print("Unable to determine appointment ID. Deletion aborted.")
             return
 
         # Step 3: Create Confirmation Pop-up
@@ -964,28 +964,28 @@ class AppointmentsPage:
                         folders_to_check.add(folder_path)
 
                     except Exception as e:
-                        print(f"⚠️ Failed to delete file {file_path}: {e}")
+                        print(f"Failed to delete file {file_path}: {e}")
                 else:
-                    print(f"⚠️ File not found, skipping: {file_path}")
+                    print(f"File not found, skipping: {file_path}")
 
             # --- Attempt to delete now-empty folders ---
             for folder in folders_to_check:
                 try:
                     if os.path.exists(folder) and not os.listdir(folder):  # folder exists and is empty
                         os.rmdir(folder)
-                        print(f"📂 Deleted empty folder: {folder}")
+                        print(f"Deleted empty folder: {folder}")
                 except Exception as e:
-                    print(f"⚠️ Failed to delete folder {folder}: {e}")
+                    print(f"Failed to delete folder {folder}: {e}")
 
             # --- Delete from database ---
             with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM photos WHERE appointment_id = ?", (appointment_id,))
-                print(f"📷 Deleted {len(photo_rows)} photo record(s) from database.")
+                print(f"Deleted {len(photo_rows)} photo record(s) from database.")
 
                 cursor.execute("DELETE FROM appointments WHERE id = ?", (appointment_id,))
                 conn.commit()
-                print(f"🗑️ Appointment {appointment_id} deleted successfully.")
+                print(f"Appointment {appointment_id} deleted successfully.")
 
             # --- Refresh UI ---
             self.load_client_appointments(self.client_id)
@@ -993,7 +993,7 @@ class AppointmentsPage:
                 self.main_app.tabs["Photos"].refresh_photos_list(self.client_id)
 
         except Exception as e:
-            print(f"❌ Error deleting appointment: {e}")
+            print(f"Error deleting appointment: {e}")
 
         finally:
             confirmation_window.destroy()
@@ -1008,7 +1008,7 @@ class AppointmentsPage:
         # Get appointment details from Treeview
         appointment_data = self.appointments_table.item(selected_item[0], "values")
         appointment_id = self.get_selected_appointment_id(selected_item[0])  
-        print(f"🟢 Selected Appointment ID: {appointment_id}")  # Debugging print
+        print(f"Selected Appointment ID: {appointment_id}")  # Debugging print
         if not appointment_data:
             messagebox.showerror("Error", "Could not retrieve appointment data.")
             return
@@ -1027,9 +1027,9 @@ class AppointmentsPage:
                     messagebox.showerror("Error", "Failed to retrieve client's full name from database.")
                     return
                 client_name = result[0]
-                print(f"🟢 Retrieved Client: {client_name} (ID: {self.client_id}) | Appointment Date: {appt_date} (ID: {appointment_id})")
+                print(f"Retrieved Client: {client_name} (ID: {self.client_id}) | Appointment Date: {appt_date} (ID: {appointment_id})")
         except Exception as e:
-            print(f"❌ Database error while fetching client name: {e}")
+            print(f"Database error while fetching client name: {e}")
             messagebox.showerror("Error", "An error occurred while accessing the database.")
             return
 
