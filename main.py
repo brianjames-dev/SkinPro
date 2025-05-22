@@ -21,17 +21,17 @@ def start_server_in_thread():
         flask_thread = threading.Thread(target=server.start_flask_server, daemon=False)
         flask_thread.start()
         sys._flask_server_started = True
-        print("🟢 Flask server launched from main.py")
+        print("Flask server launched from main.py")
 
 if __name__ == "__main__":
     ctk.set_appearance_mode("Light")
     ctk.set_default_color_theme(resource_path("class_elements/corium_theme.json"))
 
-    # 🔹 Initialize Data Folder Manager
+    # Initialize Data Folder Manager
     data_manager = DataDirectoryManager()
     start_server_in_thread()
     
-    # 🔹 Initialize database & image cache
+    # Initialize database & image cache
     conn = init_database(data_manager.db_path, data_manager.backups_dir)
     image_cache = ImageCache(data_manager)
 
@@ -43,12 +43,12 @@ if __name__ == "__main__":
     image_loader = ImageLoaderThread(image_cache, update_ui_stub)
     image_loader.start()
 
-    # 🔹 Create the main application but keep it hidden
+    # Create the main application but keep it hidden
     app = ClientApp(image_cache, image_loader, data_manager)
     app.update_idletasks()
     app.withdraw()  # Hide main UI until everything is loaded
 
-    # 🔹 Show splash screen FIRST before loading anything
+    # Show splash screen FIRST before loading anything
     splash_screen = SplashScreen(app)  # Attach to main UI
     splash_screen.update_idletasks()
 
