@@ -23,26 +23,26 @@ def load_data_paths():
     pointer_path = os.path.join(os.path.expanduser("~"), ".skinpro_config_location.json")
 
     if not os.path.exists(pointer_path):
-        raise FileNotFoundError("❌ Global SkinPro pointer not found. Run main SkinPro app first.")
+        raise FileNotFoundError("Global SkinPro pointer not found. Run main SkinPro app first.")
 
     with open(pointer_path, "r") as f:
         pointer_config = json.load(f)
         skinpro_data_dir = pointer_config.get("data_dir")
 
     if not skinpro_data_dir or not os.path.exists(skinpro_data_dir):
-        raise FileNotFoundError(f"❌ data_dir missing or invalid in pointer config: {skinpro_data_dir}")
+        raise FileNotFoundError(f"data_dir missing or invalid in pointer config: {skinpro_data_dir}")
 
     # Step 2: Load actual config.json from SkinProData folder
     config_path = os.path.join(skinpro_data_dir, "config.json")
     if not os.path.exists(config_path):
-        raise FileNotFoundError(f"❌ config.json not found at: {config_path}")
+        raise FileNotFoundError(f"config.json not found at: {config_path}")
 
     with open(config_path, "r") as f:
         config = json.load(f)
 
     data_dir = config.get("data_dir")
     if not data_dir or not os.path.exists(data_dir):
-        raise FileNotFoundError(f"❌ data_dir invalid or missing in config.json: {data_dir}")
+        raise FileNotFoundError(f"data_dir invalid or missing in config.json: {data_dir}")
 
     # Step 3: Load or create paths.json
     paths_path = os.path.join(data_dir, "paths.json")
@@ -150,11 +150,11 @@ def upload_photos():
                         elif orientation_value == 8:
                             image = image.rotate(90, expand=True)
                         image.save(save_path)
-                        print(f"✅ Orientation fixed for: {save_path}")
+                        print(f"Orientation fixed for: {save_path}")
                     else:
                         print(f"ℹ No EXIF orientation found for: {save_path}")
                 except Exception as e:
-                    print(f"⚠️ Could not fix orientation for {filename}: {e}")
+                    print(f"Could not fix orientation for {filename}: {e}")
 
                 # Insert into DB
                 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -169,10 +169,10 @@ def upload_photos():
                 # Mark as successful only if everything worked
                 saved_files.append(save_path)
                 successful_upload = True
-                print(f"✅ Photo saved and logged: {save_path}")
+                print(f"Photo saved and logged: {save_path}")
 
             except Exception as e:
-                print(f"❌ Failed to process photo {filename}: {e}")
+                print(f"Failed to process photo {filename}: {e}")
 
         # Update appointment flag
         if successful_upload:
@@ -184,7 +184,7 @@ def upload_photos():
                 conn.close()
                 print(f"📸 Updated photos_taken = 'Yes' for appointment {appointment_id}")
             except Exception as e:
-                print(f"❌ Failed to update photos_taken: {e}")
+                print(f"Failed to update photos_taken: {e}")
 
         return render_template(
             'upload_success.html',
@@ -277,9 +277,9 @@ def upload_profile_pic():
                     elif orientation_value == 8:
                         image = image.rotate(90, expand=True)
                     image.save(save_path)
-                    print(f"✅ Orientation fixed for: {save_path}")
+                    print(f"Orientation fixed for: {save_path}")
             except Exception as e:
-                print(f"⚠️ Could not fix EXIF orientation: {e}")
+                print(f"Could not fix EXIF orientation: {e}")
 
             # Update database
             conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -340,7 +340,7 @@ def start_flask_server():
         if threading.current_thread() is threading.main_thread():
             run_popup()
         else:
-            print(f"⚠️ Missing folder: {expected_path}. Cannot show popup from background thread.")
+            print(f"Missing folder: {expected_path}. Cannot show popup from background thread.")
 
     # Retry loop until config loads successfully
     while True:
@@ -348,7 +348,7 @@ def start_flask_server():
             DB_PATH, UPLOAD_BASE_DIR, PROFILE_PIC_DIR = load_data_paths()
             break
         except Exception as e:
-            print(f"❌ Failed to load data paths: {e}")
+            print(f"Failed to load data paths: {e}")
 
             expected_path = None
             if os.path.exists(pointer_path):
@@ -371,7 +371,7 @@ def start_flask_server():
     )
 
     try:
-        logging.info("🚀 Starting Flask server on port 8000...")
+        logging.info("Starting Flask server on port 8000...")
         app.run(host="0.0.0.0", port=8000, debug=False, use_reloader=False)
     except Exception as e:
-        logging.error(f"🔥 Flask server crashed unexpectedly: {e}")
+        logging.error(f"Flask server crashed unexpectedly: {e}")
