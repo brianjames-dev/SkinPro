@@ -69,20 +69,20 @@ A full-featured desktop application built for estheticians and skincare professi
 SkinPro/
 ├── .vscode/                       # VS Code config
 ├── class_elements/                # Shared UI components and core app logic (popups, styling, etc.)
-|   ├── pdf_generators/            # PDF layout generators (2–4 column formats)
+│   ├── pdf_generators/            # PDF layout generators (2–4 column formats)
 │   │   ├── pdf_2col.py
 │   │   ├── pdf_3col.py
-│   |   ├── pdf_4col.py
+│   │   ├── pdf_4col.py
 │   │   └── prescription_entry_popup.py
 │   ├── PdfRenderThread.py
 │   ├── build_corium_theme.py
 │   ├── corium_theme.json
 │   ├── ctk_popup.py
-|   ├── database.py
-|   ├── image_cache.py
-|   ├── img_load_threading.py
+│   ├── database.py
+│   ├── image_cache.py
+│   ├── img_load_threading.py
 │   ├── photo_upload_popup.py
-|   ├── products.py
+│   ├── products.py
 │   ├── profile_card.py
 │   ├── splash_screen.py
 │   ├── treeview_styling_dark.py
