@@ -150,7 +150,7 @@ class AlertsPage:
     def edit_alert(self, event=None):
         selected_item = self.alerts_list.selection()
         if not selected_item:
-            print("⚠ No alert selected for editing.")
+            print("No alert selected for editing.")
             return
 
         alert_id = selected_item[0]
@@ -161,11 +161,11 @@ class AlertsPage:
                 cursor.execute("SELECT deadline, notes FROM alerts WHERE id = ?", (alert_id,))
                 alert_data = cursor.fetchone()
         except Exception as e:
-            print(f"❌ Error fetching alert: {e}")
+            print(f"Error fetching alert: {e}")
             return
 
         if not alert_data:
-            print("⚠ Alert not found in database.")
+            print("Alert not found in database.")
             return
 
         deadline, notes = alert_data
@@ -229,20 +229,20 @@ class AlertsPage:
                 cursor.execute("""
                     UPDATE alerts SET deadline = ?, notes = ? WHERE id = ?
                 """, (new_deadline, new_notes, alert_id))
-                print(f"✅ Alert {alert_id} updated.")
+                print(f"Alert {alert_id} updated.")
 
             self.load_alerts()
             self.alert_window.destroy()
 
         except Exception as e:
-            print(f"❌ Failed to update alert: {e}")
+            print(f"Failed to update alert: {e}")
 
 
     def delete_selected_alert(self, event=None):
         """Prompt the user to confirm deletion of the selected alert."""
         selected_item = self.alerts_list.selection()
         if not selected_item:
-            print("⚠ No alert selected for deletion.")
+            print("No alert selected for deletion.")
             return
 
         alert_id = selected_item[0]
@@ -288,7 +288,7 @@ class AlertsPage:
 
             self.load_alerts()
         except Exception as e:
-            print(f"❌ Error deleting alert: {e}")
+            print(f"Error deleting alert: {e}")
         finally:
             popup.destroy()
 
@@ -536,14 +536,14 @@ class AlertsPage:
                 raise ValueError("Invalid date format")
 
         except ValueError:
-            print("⚠ Invalid date entered. Resetting to placeholder.")
+            print("Invalid date entered. Resetting to placeholder.")
             self.deadline_entry.delete(0, "end")
             self.deadline_entry.insert(0, raw_date)
             return
 
         self.deadline_entry.delete(0, "end")
         self.deadline_entry.insert(0, formatted_date)
-        print(f"✅ Formatted Date: {formatted_date}")
+        print(f"Formatted Date: {formatted_date}")
 
 
     def format_date_popup(self):
@@ -577,11 +577,11 @@ class AlertsPage:
                 raise ValueError("Invalid date format")
 
         except ValueError:
-            print("⚠ Invalid date entered. Resetting to placeholder.")
+            print("Invalid date entered. Resetting to placeholder.")
             self.popup_deadline_entry.delete(0, "end")
             self.popup_deadline_entry.insert(0, raw_date)
             return
 
         self.popup_deadline_entry.delete(0, "end")
         self.popup_deadline_entry.insert(0, formatted_date)
-        print(f"✅ Formatted Date: {formatted_date}")
+        print(f"Formatted Date: {formatted_date}")
