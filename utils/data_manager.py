@@ -29,7 +29,7 @@ class DataDirectoryManager:
 
                 # Check if it's missing or empty
                 if not self.data_dir:
-                    print("⚠️ Empty data_dir in pointer — running first-time setup...")
+                    print("Empty data_dir in pointer — running first-time setup...")
                     self._show_initial_warning()
                     self.select_data_directory()
                     return
@@ -49,7 +49,7 @@ class DataDirectoryManager:
                     time.sleep(5)
 
             except (json.JSONDecodeError, ValueError) as e:
-                print(f"⚠️ Invalid pointer file: {e}. Regenerating pointer...")
+                print(f"Invalid pointer file: {e}. Regenerating pointer...")
                 self._show_initial_warning()
                 self.select_data_directory()
         else:
@@ -63,7 +63,7 @@ class DataDirectoryManager:
             "Set SkinProData Location",
             "You are about to choose a permanent location for the SkinProData folder.\n\n"
             "Please select a reliable place on your computer.\n\n"
-            "⚠️ Avoid temporary or cloud-sync folders unless you're confident."
+            "Avoid temporary or cloud-sync folders unless you're confident."
         )
 
 
