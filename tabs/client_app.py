@@ -87,21 +87,21 @@ class ClientApp(ctk.CTk):
     def load_thumbnails(self, thumbnails, splash_screen, start_progress, step_thumb):
         """Load thumbnails while updating splash screen progress."""
         total_thumbnails = len(thumbnails)
-        # print(f"⚠️ Skipping thumbnail generation during splash screen. Total: {len(thumbnails)}")
+        # print(f"Skipping thumbnail generation during splash screen. Total: {len(thumbnails)}")
         # return self.finish_loading(splash_screen)
 
         if total_thumbnails == 0:
-            print("⚠ Warning: No thumbnails found to load!")
+            print("Warning: No thumbnails found to load!")
             return self.finish_loading(splash_screen)  # Handle case where no thumbnails exist
 
-        print(f"📂 Loading {total_thumbnails} thumbnails...")
+        print(f"Loading {total_thumbnails} thumbnails...")
 
         def process_thumbnail(i):
             if i >= total_thumbnails:
                 return self.finish_loading(splash_screen)  # All thumbnails done → Finish loading
 
             file_path = thumbnails[i]
-            print(f"🖼️ Loading thumbnail {i+1}/{total_thumbnails}: {file_path}")
+            print(f"Loading thumbnail {i+1}/{total_thumbnails}: {file_path}")
 
             thumbnail = self.image_cache.get_thumbnail(file_path)  # Load thumbnail
 
