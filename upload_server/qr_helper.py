@@ -16,7 +16,7 @@ def get_local_ip():
         ip = "127.0.0.1"
     finally:
         s.close()
-    print(f"🌐 Using local IP for QR: {ip}")
+    print(f"Using local IP for QR: {ip}")
     return ip
 
 
@@ -29,7 +29,7 @@ def generate_upload_qr(client_id: int, appointment_id: int = None, data_manager=
     else:
         url = f"http://{ip}:8000/upload?cid={client_id}&aid={appointment_id}"
 
-    print(f"✅ QR URL: {url}")
+    print(f"QR URL: {url}")
 
     # Determine QR code output path
     output_dir = data_manager.get_path("qrcodes")
@@ -43,5 +43,5 @@ def generate_upload_qr(client_id: int, appointment_id: int = None, data_manager=
     img = qrcode.make(url)
     img.save(filepath)
 
-    print(f"✅ QR Code generated: {filepath}")
+    print(f"QR Code generated: {filepath}")
     return filepath
