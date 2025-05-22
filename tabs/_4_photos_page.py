@@ -150,7 +150,7 @@ class PhotosPage:
     def set_before_image(self, event):
         selected_item = self.photo_list.selection()
         if not selected_item:
-            print("⚠ Ignoring empty click in Treeview")
+            print("Ignoring empty click in Treeview")
             return
 
         clicked_item = self.photo_list.identify_row(event.y)
@@ -173,15 +173,15 @@ class PhotosPage:
             if self.after_image_index != -1:
                 self.highlight_images_in_treeview()
 
-            print(f"🟢 Selected Before Image: {file_path} (Index: {self.before_image_index})")
+            print(f"Selected Before Image: {file_path} (Index: {self.before_image_index})")
         else:
-            print(f"⚠ Error: {file_path} not found in photo_paths list or does not exist.")
+            print(f"Error: {file_path} not found in photo_paths list or does not exist.")
 
 
     def set_after_image(self, event):
         selected_item = self.photo_list.selection()
         if not selected_item:
-            print("⚠ Ignoring empty click in Treeview")
+            print("Ignoring empty click in Treeview")
             return
 
         photo_id = int(selected_item[0])
@@ -192,7 +192,7 @@ class PhotosPage:
             self.load_image(file_path, self.after_label, "after")
             self.after_save_button.configure(state="disabled", text="Save", fg_color="#696969")
             self.highlight_images_in_treeview()
-            print(f"🟢 Selected After Image: {file_path} (Index: {self.after_image_index})")
+            print(f"Selected After Image: {file_path} (Index: {self.after_image_index})")
 
             # Always reselect the before image after setting after image
             if self.before_image_index != -1 and self.before_image_index < len(self.photo_paths):
@@ -203,13 +203,13 @@ class PhotosPage:
                     self.photo_list.focus(str(before_photo_id))
 
         else:
-            print(f"⚠ Error: {file_path} not found in photo_paths list or does not exist.")
+            print(f"Error: {file_path} not found in photo_paths list or does not exist.")
 
 
     def save_before_description(self):
         """Save the before image description to the database and update UI."""
         if not hasattr(self, "before_label") or not self.before_label.image:
-            print("⚠ No before image selected.")
+            print("No before image selected.")
             return
 
         file_path = self.photo_paths[self.before_image_index]
@@ -226,7 +226,7 @@ class PhotosPage:
                     photo_id = result[0]
                     cursor.execute("UPDATE photos SET description = ? WHERE id = ?", (new_description, photo_id))
                     conn.commit()
-                    print(f"✅ Saved description for Before Image (Photo ID: {photo_id})")
+                    print(f"Saved description for Before Image (Photo ID: {photo_id})")
 
                     # Store new description as the original
                     self.before_original_text = new_description
@@ -234,10 +234,10 @@ class PhotosPage:
                     # Disable Save button after saving
                     self.before_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
                 else:
-                    print("❌ No photo record found for the selected file path.")
+                    print("No photo record found for the selected file path.")
 
         except Exception as e:
-            print(f"❌ Failed to save before image description: {e}")
+            print(f"Failed to save before image description: {e}")
 
 
     def save_after_description(self):
@@ -260,7 +260,7 @@ class PhotosPage:
                     photo_id = result[0]
                     cursor.execute("UPDATE photos SET description = ? WHERE id = ?", (new_description, photo_id))
                     conn.commit()
-                    print(f"✅ Saved description for After Image (Photo ID: {photo_id})")
+                    print(f"Saved description for After Image (Photo ID: {photo_id})")
 
                     # Store new description as the original
                     self.after_original_text = new_description
@@ -268,10 +268,10 @@ class PhotosPage:
                     # Disable Save button after saving
                     self.after_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
                 else:
-                    print("❌ No photo record found for the selected file path.")
+                    print("No photo record found for the selected file path.")
 
         except Exception as e:
-            print(f"❌ Failed to save after image description: {e}")
+            print(f"Failed to save after image description: {e}")
 
 
     def on_before_text_change(self, event):
@@ -282,10 +282,10 @@ class PhotosPage:
         current_text = self.before_desc_textbox.get("1.0", "end")
 
         if current_text and current_text != self.before_original_text:
-            # print("🟢 Text changed! Enabling Save button.")
+            # print("Text changed! Enabling Save button.")
             self.before_save_button.configure(state="normal", text="Save", fg_color="#563A9C")
         else:
-            # print("🔴 No change detected. Disabling Save button.")
+            # print("No change detected. Disabling Save button.")
             self.before_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
 
 
@@ -297,19 +297,19 @@ class PhotosPage:
         current_text = self.after_desc_textbox.get("1.0", "end")
 
         if current_text and current_text != self.after_original_text:
-            # print("🟢 Text changed! Enabling Save button.")
+            # print("Text changed! Enabling Save button.")
             self.after_save_button.configure(state="normal", text="Save", fg_color="#563A9C")
         else:
-            # print("🔴 No change detected. Disabling Save button.")
+            # print("No change detected. Disabling Save button.")
             self.after_save_button.configure(state="disabled", text="Saved!", fg_color="#696969")
 
 
     def load_image(self, file_path, label, frame_type):
         """Load and display an image in the specified label, using cached images for faster loading."""
-        print(f"🟢 Debug: Attempting to load image → {file_path}")
+        print(f"Debug: Attempting to load image → {file_path}")
 
         if not os.path.exists(file_path):
-            print(f"❌ File does NOT exist: {file_path}")
+            print(f"File does NOT exist: {file_path}")
             label.configure(text="Image not found", image="")
             return
         
@@ -317,24 +317,24 @@ class PhotosPage:
             image = self.image_cache.get_image(file_path)
 
             if image:
-                print(f"⚡ Instant Load: Using cached image for {file_path}")
+                print(f"Instant Load: Using cached image for {file_path}")
                 label.configure(image=image, text="", width=300, height=400)
                 label.image = image  # Keep reference to prevent garbage collection
 
                 # Update metadata for the image
                 self.update_photo_metadata(file_path, frame_type)
             else:
-                print(f"⚠ Failed to load image for {file_path}")
+                print(f"Failed to load image for {file_path}")
 
         except Exception as e:
-            print(f"⚠ Error loading image: {e}")
+            print(f"Error loading image: {e}")
             label.configure(text="Error loading image", image="")
 
 
     def update_photo_metadata(self, file_path, frame_type):
         """Update the date label and description based on the selected photo."""
         if not file_path:
-            print(f"⚠ Warning: No file path provided for metadata lookup.")
+            print(f"Warning: No file path provided for metadata lookup.")
             return
 
         try:
@@ -346,7 +346,7 @@ class PhotosPage:
             if result:
                 appointment_date, description = result
 
-                print(f"🟢 Retrieved metadata → Date: {appointment_date}, Description: {description}")
+                print(f"Retrieved metadata → Date: {appointment_date}, Description: {description}")
 
                 if frame_type == "before":
                     self.before_date_label.configure(text=appointment_date)
@@ -368,10 +368,10 @@ class PhotosPage:
 
                     self.after_original_text = description if description else ""
             else:
-                print(f"⚠ Warning: No metadata found for {file_path}")
+                print(f"Warning: No metadata found for {file_path}")
 
         except Exception as e:
-            print(f"❌ Failed to retrieve photo metadata: {e}")
+            print(f"Failed to retrieve photo metadata: {e}")
 
 
     def navigate_image(self, direction, frame_type):
@@ -396,7 +396,7 @@ class PhotosPage:
 
             # Prevent wrap-around (stay within range)
             if new_index < 0 or new_index >= len(self.photo_paths):
-                print("⚠ Cannot navigate further in this direction.")
+                print("Cannot navigate further in this direction.")
                 return  # Stay at the current image
 
             self.after_image_index = new_index
@@ -445,9 +445,9 @@ class PhotosPage:
                 """, (client_id,))
                 photos = cursor.fetchall()
 
-            print(f"🟢 Debug: Fetched {len(photos)} photos for Client ID {client_id}")
+            print(f"Debug: Fetched {len(photos)} photos for Client ID {client_id}")
             if not photos:
-                print(f"⚠ No photos found for Client ID {client_id}")
+                print(f"No photos found for Client ID {client_id}")
                 return
 
             for index, photo in enumerate(photos):
@@ -472,10 +472,10 @@ class PhotosPage:
                     self.thumbnails[str(photo_id)] = thumbnail
                     self.photo_list.item(str(photo_id), image=thumbnail)
 
-            print(f"🔍 Debug: Thumbnail cache contains {len(self.image_cache.thumbnail_cache)} entries")
+            print(f"Debug: Thumbnail cache contains {len(self.image_cache.thumbnail_cache)} entries")
 
         except Exception as e:
-            print(f"❌ Failed to refresh photo list: {e}")
+            print(f"Failed to refresh photo list: {e}")
 
 
     def clear_photos_list(self):
@@ -484,7 +484,7 @@ class PhotosPage:
         self.photo_file_paths.clear()
         self.photo_paths.clear()
 
-        print("🔄 Cleared previous photo data.")
+        print("Cleared previous photo data.")
 
 
     def delete_photo(self, event=None):
@@ -509,11 +509,11 @@ class PhotosPage:
                         try:
                             os.remove(file_path)
                         except Exception as e:
-                            print(f"⚠️ Failed to delete file {file_path}: {e}")
+                            print(f"Failed to delete file {file_path}: {e}")
 
                     # Delete from DB
                     cursor.execute("DELETE FROM photos WHERE id = ?", (photo_id,))
-                    print(f"🗑️ Deleted: {file_path}")
+                    print(f"Deleted: {file_path}")
 
                     # Remove from Treeview
                     self.photo_list.delete(iid)
@@ -527,7 +527,7 @@ class PhotosPage:
                 conn.commit()
 
         except Exception as e:
-            print(f"❌ Failed to delete photo(s): {e}")
+            print(f"Failed to delete photo(s): {e}")
 
         # Optional: reset image previews if deleted image was being shown
         self.before_label.configure(text="<No Image Selected>", image="")
@@ -596,4 +596,4 @@ class PhotosPage:
             self.main_app.after(0, set_item_image)
 
         else:
-            print(f"⚠️ Skipping UI update: Treeview item {photo_id} not found.")
+            print(f"Skipping UI update: Treeview item {photo_id} not found.")
