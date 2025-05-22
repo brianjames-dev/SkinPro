@@ -68,7 +68,7 @@ A full-featured desktop application built for estheticians and skincare professi
 ```
 SkinPro/
 ├── .vscode/                       # VS Code config
-├── class_elements/                # Shared UI components and core app logic (popups, styling, cache, splash screen, etc.)
+├── class_elements/                # Shared UI components and core app logic (popups, styling, etc.)
 |   ├── pdf_generators/            # PDF layout generators (2–4 column formats)
 │   │   ├── pdf_2col.py
 │   │   ├── pdf_3col.py
@@ -179,5 +179,3 @@ This application was developed in collaboration with a licensed skincare profess
 📧 [brianjames.dev@gmail.com](mailto:brianjames.dev@gmail.com)  
 🔗 [LinkedIn](https://www.linkedin.com/in/brianjames-dev/)  
 🎸 [Instagram](https://www.instagram.com/brianallenjames)
-
----
