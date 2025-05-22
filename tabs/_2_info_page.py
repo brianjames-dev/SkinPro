@@ -308,7 +308,7 @@ class InfoPage:
                 """, (client_id,))
                 health_result = cursor.fetchone()
         except Exception as e:
-            print(f"❌ Error loading client info: {e}")
+            print(f"Error loading client info: {e}")
             return
 
         if client_result:
@@ -527,7 +527,7 @@ class InfoPage:
                 cursor.execute("SELECT full_name FROM clients WHERE full_name LIKE ? LIMIT 10", (f"%{query}%",))
                 matches = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            print(f"❌ Error fetching referral suggestions: {e}")
+            print(f"Error fetching referral suggestions: {e}")
             matches = []
 
         self.referred_by_combobox.configure(values=matches if matches else ["No matches found"])
@@ -545,7 +545,7 @@ class InfoPage:
             if self.save_button.cget("state") == "normal":
                 return  # Prevent duplicate triggers
     
-            print(f"🔄 Save button enabled")  # Debugging output
+            print(f"Save button enabled")  # Debugging output
             self.save_button.configure(state="normal", text="Save", fg_color="#563A9C")  # Re-enable
 
     def save_client_data(self):
@@ -623,9 +623,9 @@ class InfoPage:
                 conn.commit()
 
         except sqlite3.OperationalError as e:
-            print(f"❌ SQLite operational error: {e}")
+            print(f"SQLite operational error: {e}")
         except Exception as e:
-            print(f"❌ Unexpected database error: {e}")
+            print(f"Unexpected database error: {e}")
 
         if hasattr(self.main_app, "tabs") and "Clients" in self.main_app.tabs:
             self.main_app.tabs["Clients"].load_clients()
@@ -651,14 +651,14 @@ class InfoPage:
         """Format the birthdate entry to MM/DD/YYYY when the user presses Enter or clicks away."""
         raw_date = self.birthdate_entry.get().strip()
 
-        if not raw_date:  # ✅ Keep placeholder if empty
+        if not raw_date:  # Keep placeholder if empty
             self.birthdate_entry.delete(0, "end")
             self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
             return
 
         # Prevent formatting an already formatted date
         if re.fullmatch(r"\d{2}/\d{2}/\d{4}", raw_date):  
-            return  # ✅ Exit early if it's already in MM/DD/YYYY format
+            return  # Exit early if it's already in MM/DD/YYYY format
 
         # Remove any non-numeric characters (e.g., dashes, dots, spaces)
         cleaned_date = re.sub(r"\D", "", raw_date)  
@@ -678,7 +678,7 @@ class InfoPage:
                     formatted_date = None  # Keep None if no format matches
 
             if not formatted_date:
-                print("⚠ Invalid date entered. Resetting to placeholder.")
+                print("Invalid date entered. Resetting to placeholder.")
                 self.birthdate_entry.delete(0, "end")
                 self.birthdate_entry.configure(placeholder_text=birthdate_placeholder)
                 return
@@ -686,7 +686,7 @@ class InfoPage:
         # Insert formatted date
         self.birthdate_entry.delete(0, "end")
         self.birthdate_entry.insert(0, formatted_date)
-        print(f"✅ Formatted Birthdate: {formatted_date}")
+        print(f"Formatted Birthdate: {formatted_date}")
     
 
     def format_phone_number(self, event=None):
@@ -735,7 +735,7 @@ class InfoPage:
             widget.delete(0, "end")
             widget.insert(0, formatted_number)
 
-        print(f"📞 Formatted Phone Number: {formatted_number}")
+        print(f"Formatted Phone Number: {formatted_number}")
 
 
     def clear_referred_placeholder(self, event=None):
