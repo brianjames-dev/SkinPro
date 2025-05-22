@@ -161,7 +161,7 @@ class PrescriptionsPage:
         client_id = getattr(self.main_app.profile_card, "client_id", None)
 
         if not client_id:
-            print("❌ No client selected.")
+            print("No client selected.")
             return
 
         try:
@@ -192,7 +192,7 @@ class PrescriptionsPage:
             self.render_pdf_to_preview(pdf_path)
 
         except Exception as e:
-            print(f"❌ Failed to save prescription: {e}")
+            print(f"Failed to save prescription: {e}")
 
 
     def load_prescriptions_for_client(self, client_id):
@@ -233,7 +233,7 @@ class PrescriptionsPage:
             self.prescription_list.tag_configure('alternate', background='#b3b3b3')
 
         except Exception as e:
-            print(f"❌ Failed to load prescriptions for client {client_id}: {e}")
+            print(f"Failed to load prescriptions for client {client_id}: {e}")
 
 
     def clear_prescriptions_list(self):
@@ -254,7 +254,7 @@ class PrescriptionsPage:
     def edit_prescription(self, event=None):
         selected = self.prescription_list.selection()
         if not selected:
-            print("❌ No prescription selected for editing.")
+            print("No prescription selected for editing.")
             return
 
         iid = selected[0]  # This is the prescription ID (as string)
@@ -271,7 +271,7 @@ class PrescriptionsPage:
                 result = cursor.fetchone()
 
             if not result:
-                print("❌ Prescription not found in database.")
+                print("Prescription not found in database.")
                 return
 
             data_json, original_path, form_type = result
@@ -288,7 +288,7 @@ class PrescriptionsPage:
             )
 
         except Exception as e:
-            print(f"❌ Failed to load prescription for editing: {e}")
+            print(f"Failed to load prescription for editing: {e}")
 
 
     def handle_edit_submission(self, prescription_id, updated_path, updated_data):
@@ -320,10 +320,10 @@ class PrescriptionsPage:
                 self.prescription_paths[str(prescription_id)] = updated_path
                 self.render_pdf_to_preview(updated_path)
 
-            print("✅ Prescription updated successfully.")
+            print("Prescription updated successfully.")
 
         except Exception as e:
-            print(f"❌ Failed to update prescription: {e}")
+            print(f"Failed to update prescription: {e}")
 
 
     def delete_prescription(self, event=None):
@@ -401,10 +401,10 @@ class PrescriptionsPage:
             for widget in self.preview_inner_frame.winfo_children():
                 widget.destroy()
 
-            print("✅ Prescription successfully deleted.")
+            print("Prescription successfully deleted.")
 
         except Exception as e:
-            print(f"❌ Failed to delete prescription: {e}")
+            print(f"Failed to delete prescription: {e}")
 
         finally:
             confirmation_window.destroy()
@@ -413,14 +413,14 @@ class PrescriptionsPage:
     def preview_prescription(self):
         selected = self.prescription_list.selection()
         if not selected:
-            print("❌ No prescription selected.")
+            print("No prescription selected.")
             return
 
         iid = selected[0]
         pdf_path = self.prescription_paths.get(iid)
 
         if not pdf_path or not os.path.exists(pdf_path):
-            print("❌ PDF file not found for preview.")
+            print("PDF file not found for preview.")
             return
 
         # Open popout window
@@ -456,39 +456,39 @@ class PrescriptionsPage:
                 label.image = ctk_image  # Keep a reference to prevent garbage collection
                 label.pack(fill="both", expand=True, padx=0, pady=0)
 
-                print(f"✅ PDF displayed at {popup_width}x{popup_height}px.")
+                print(f"PDF displayed at {popup_width}x{popup_height}px.")
             else:
-                print("⚠️ No pages found in PDF.")
+                print("No pages found in PDF.")
 
         except Exception as e:
-            print(f"❌ Failed to load PDF for popup: {e}")
+            print(f"Failed to load PDF for popup: {e}")
 
 
     def print_prescription(self):
         selected = self.prescription_list.selection()
         if not selected:
-            print("❌ No prescription selected.")
+            print("No prescription selected.")
             return
 
         iid = selected[0]
         pdf_path = self.prescription_paths.get(iid)
 
         if not pdf_path or not os.path.exists(pdf_path):
-            print("❌ PDF file not found.")
+            print("PDF file not found.")
             return
 
         try:
             # Windows: send to default printer
             os.startfile(pdf_path, "print")
-            print("🖨️ Sent to printer.")
+            print("Sent to printer.")
         except Exception as e:
-            print(f"❌ Failed to print via os.startfile(): {e}")
+            print(f"Failed to print via os.startfile(): {e}")
             try:
                 # Fallback: open the file instead
                 os.startfile(pdf_path)
-                print("📂 Opened PDF for manual printing.")
+                print("Opened PDF for manual printing.")
             except Exception as e2:
-                print(f"❌ Failed to open PDF as fallback: {e2}")
+                print(f"Failed to open PDF as fallback: {e2}")
 
 
     def set_alert(self):
@@ -514,7 +514,7 @@ class PrescriptionsPage:
             label.image = ctk_image
             label.pack()
 
-            print("✅ PDF rendered in background and updated UI.")
+            print("PDF rendered in background and updated UI.")
 
         self.main_app.after(0, update)
 
