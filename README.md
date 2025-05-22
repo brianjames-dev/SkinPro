@@ -41,7 +41,7 @@ A full-featured desktop application built for estheticians and skincare professi
 ![Appointments Tab](images/appt_tab.jpg)
 
 ### 📷 Photos Tab (Before & After Comparison)
-![Photos Tab](images/photos_tab.jpg)
+![Photos Tab](images/photos_tab_blur.jpg)
 
 ### 📲 QR Upload Window → Upload In Progress → Upload Complete
 <div align="left">
@@ -119,25 +119,36 @@ SkinPro/
    cd SkinPro
    ```
 
-2. **Create a virtual environment and install dependencies**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate      # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+2. **Install Python and create a virtual environment**
+
+    If you don’t already have Python 3.10+ installed:
+    
+    - Download it from the official site: [https://www.python.org/downloads/](https://www.python.org/downloads/)
+    - During installation, make sure to check **“Add Python to PATH”**
+    
+    Then open your terminal or command prompt and run:
+    
+    ```bash
+    python -m venv venv
+    source venv/bin/activate         # On Windows: venv\Scripts\activate
+    pip install -r requirements.txt
+    ```
 
 3. **Install Poppler**
-   - **Windows:** [Download Poppler](http://blog.alivate.com.au/poppler-windows/) and add the `/bin` folder to your system PATH.
-   - **macOS:** Use Homebrew:
-     ```bash
-     brew install poppler
-     ```
-   - **Linux (Debian/Ubuntu):**
-     ```bash
-     sudo apt install poppler-utils
-     ```
+   
+   **Windows:** [Download Poppler](https://github.com/oschwartz10612/poppler-windows) and add the `/bin` folder to your system PATH.
+   
+   **macOS:** Use Homebrew:
+   ```bash
+   brew install poppler
+   ```
+   
+   **Linux (Debian/Ubuntu):**
+   ```bash
+   sudo apt install poppler-utils
+   ```
 
-4. **Run the application**
+5. **Run the application**
    ```bash
    python main.py
    ```
@@ -155,6 +166,7 @@ Use [auto-py-to-exe](https://github.com/brentvollebregt/auto-py-to-exe) for crea
    ```
 - Manually include Poppler binaries in the `dist/` folder if needed
 - Add necessary image/icon assets to the `static/` folder and include them in build settings
+- View explicit directions in SkinProToExe.txt to guide you through this process if needed
 
 
 ## 📣 Acknowledgments
