@@ -58,6 +58,8 @@ class ClientsPage:
         # Treeview Widget
         columns = ("Name", "Gender", "Birthdate", "Primary #", "Email", "Address")
         self.client_list = ttk.Treeview(table_frame, selectmode="browse", columns=columns, show="headings", style="Clients.Treeview")
+        self.client_list.tag_configure("odd", background="#b3b3b3")  # MID_GRAY
+        self.client_list.tag_configure("even", background="#ebebeb")   # SOFT_WHITE
 
         # Define column headers
         self.client_list.heading("Name", text="Name")
@@ -122,6 +124,13 @@ class ClientsPage:
         self.client_list.column("Address", width=int(total_width * 0.40), minwidth=200)
 
 
+    def update_alternating_colors(self):
+        """Reassign even/odd row tags based on visual order."""
+        for index, item in enumerate(self.client_list.get_children()):
+            tag = "even" if index % 2 == 0 else "odd"
+            self.client_list.item(item, tags=(tag,))
+
+
     def load_clients(self):
         """Load all clients from the database and insert them into the Treeview."""
         print("Reloading all clients...")  # Debugging
@@ -146,12 +155,11 @@ class ClientsPage:
             return
         
         for index, row in enumerate(results):
-            client_id = row[0]  # Extract client_id
-            client_values = row[1:]  # Everything except client_id
-            tag = 'alternate' if index % 2 == 1 else None  # Apply the 'alternate' tag to every other row
-            self.client_list.insert("", "end", iid=str(client_id), values=client_values, tags=(tag,))
+            client_id = row[0]
+            client_values = row[1:]
+            self.client_list.insert("", "end", iid=str(client_id), values=client_values)
 
-        self.client_list.tag_configure('alternate', background="#b3b3b3")  # Assuming DARK_GRAY = '#979da2'
+        self.update_alternating_colors()
 
         print(f"Loaded {len(results)} clients.")  # Debugging
         self.no_results_label.lower()  # Hide "No Results" label
@@ -184,6 +192,7 @@ class ClientsPage:
                     # Insert using client_id as the TreeView iid
                     self.client_list.insert("", "end", iid=str(client_id), values=client_values)
                 
+                self.update_alternating_colors()
                 self.no_results_label.lower()  # Hide the "No Results" label
             
             else:
@@ -511,6 +520,8 @@ class ClientsPage:
         # Rearrange items in sorted order
         for index, (val, item) in enumerate(data):
             self.client_list.move(item, "", index)
+
+        self.update_alternating_colors()
 
         # Toggle sorting order on next click
         self.client_list.heading(column, command=lambda: self.sort_treeview(column, not reverse))

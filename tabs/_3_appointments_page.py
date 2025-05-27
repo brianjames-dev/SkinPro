@@ -119,6 +119,8 @@ class AppointmentsPage:
         columns = ("date", "type", "treatment", "price", "photos")
         self.appointments_table = ttk.Treeview(treeview_frame, selectmode="extended", columns=columns, show="headings", height=10, style="Appointments.Treeview")
         self.appointments_table.pack(side="left", fill="both", expand=True)
+        self.appointments_table.tag_configure("odd", background="#b3b3b3")   # MID_GRAY
+        self.appointments_table.tag_configure("even", background="#ebebeb")    # SOFT_WHITE
         self.appointments_table.bind("<ButtonRelease-1>", self.on_appointment_select)
         self.appointments_table.bind("<Double-1>", self.on_double_click_edit_appointment)
         self.appointments_table.bind("<Delete>", self.delete_appointment)
@@ -257,10 +259,9 @@ class AppointmentsPage:
 
             for index, row in enumerate(appointments):
                 appointment_id, date, type, treatment, price, photos_taken, treatment_notes = row
-                tag = 'alternate' if index % 2 == 1 else None
-                self.appointments_table.insert("", "end", iid=str(appointment_id), values=(date, type, treatment, price, photos_taken), tags=(tag,))
+                self.appointments_table.insert("", "end", iid=str(appointment_id), values=(date, type, treatment, price, photos_taken))
 
-            self.appointments_table.tag_configure('alternate', background="#b3b3b3")
+            self.update_alternating_colors()
             self.load_all_treatment_notes()
         except Exception as e:
             print(f"Error loading appointments: {e}")
@@ -455,6 +456,8 @@ class AppointmentsPage:
         # Rearrange items in sorted order
         for index, (val, item) in enumerate(data):
             self.appointments_table.move(item, "", index)
+
+        self.update_alternating_colors()
 
         # Update the column heading to trigger sorting when clicked again
         self.appointments_table.heading(column, command=lambda c=column: self.sort_appointments_treeview(c))
@@ -1044,3 +1047,10 @@ class AppointmentsPage:
             main_app=self.main_app,
         )
         popup.grab_set()
+
+
+    def update_alternating_colors(self):
+        """Reassign even/odd row tags based on visual order."""
+        for index, item in enumerate(self.appointments_table.get_children()):
+            tag = "even" if index % 2 == 0 else "odd"
+            self.appointments_table.item(item, tags=(tag,))

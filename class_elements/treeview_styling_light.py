@@ -42,9 +42,11 @@ def style_treeview_light(style_name="Corium.Treeview", rowheight=40, font=("Helv
                     relief="flat")
 
     # === Alternate row tag styles ===
+    style.configure("odd", background=MID_GRAY)
+    style.configure("even", background=SOFT_WHITE)
+
     style.map(style_name,
               fieldbackground=[
-                  ("alternate", MID_GRAY),  # Tag-based alternate row coloring
                   ("selected", DARK_PURPLE)
               ],
               background=[

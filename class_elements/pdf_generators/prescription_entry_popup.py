@@ -219,6 +219,43 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         if self.initial_data and not self.already_prefilled:
             self.prefill_from_data(self.initial_data)
             self.already_prefilled = True
+        
+        self.protocol("WM_DELETE_WINDOW", self.confirm_close)
+
+
+    def confirm_close(self):
+        confirm_win = ctk.CTkToplevel(self)
+        confirm_win.title("Confirm Exit")
+        confirm_win.geometry("300x150")
+        confirm_win.resizable(False, False)
+
+        # Make it modal and always-on-top
+        confirm_win.transient(self)  # Attach to parent
+        confirm_win.grab_set()       # Make modal
+        confirm_win.focus_force()    # Bring to front and focus
+
+        # Main frame
+        frame = ctk.CTkFrame(confirm_win)
+        frame.pack(expand=True, fill="both", padx=10, pady=10)
+
+        # Label
+        label = ctk.CTkLabel(frame, text="Are you sure you want to exit?\n\nAll changes will be lost.", font=("Helvetica", 14), justify="center")
+        label.pack(pady=(10, 20))
+
+        # Button frame
+        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_frame.pack()
+
+        # Cancel button
+        cancel_btn = ctk.CTkButton(btn_frame, text="Cancel", width=90, command=confirm_win.destroy)
+        cancel_btn.pack(side="left", padx=10)
+
+        # Confirm button
+        confirm_btn = ctk.CTkButton(
+            btn_frame, text="Confirm", width=90, fg_color="#FF4444", hover_color="#CC0000",
+            command=lambda: (confirm_win.destroy(), self.destroy())
+        )
+        confirm_btn.pack(side="right", padx=10)
 
 
     def _update_scroll_region(self, event=None):
