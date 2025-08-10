@@ -35,80 +35,54 @@ class Pdf2ColGenerator:
         top_margin = 730
         col_spacing = 20
 
-        # === Logo ===
+        # === Logo (60%) in original position ===
         logo_path = resource_path("icons/corium_logo.webp")
-        logo_width, logo_height = 142, 110
-        c.drawImage(logo_path, 20, top_margin - logo_height + 50, width=logo_width, height=logo_height, mask='auto')
+        logo_width, logo_height = 85, 66  # 60% of original
+        logo_x = 20
+        logo_y = top_margin - 20  # original offset
+        c.drawImage(logo_path, logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
 
-        # === Title Block (Top Right-Aligned) ===
-        c.setFont("Helvetica-Bold", 26)
-        title_1 = "CORIUM CORRECTIVE 360°"
-        title_2 = "SKIN CARE SCRIPT"
-        max_title_width = max(
-            c.stringWidth(title_1, "Helvetica-Bold", 26),
-            c.stringWidth(title_2, "Helvetica-Bold", 26)
-        )
-        title_x = width - right_margin - max_title_width
-        c.drawString(title_x - 50, top_margin, title_1)
-        c.drawString(title_x, top_margin - 35, title_2)
+        # Reference points based on logo
+        text_left_x = logo_x + logo_width + 15  # align all text to the right of logo
+        title_y     = logo_y + logo_height - 30
+        info_y      = title_y - 20               # spacing between title and name/date
+        disclaimer_y = info_y - 20               # disclaimer under name/date
+        divider_y   = logo_y - 10                # divider right below the logo
 
-        # === Header Box Lines ===
-        header_top_y = top_margin - 65
-        header_bottom_y = top_margin - 145
+        # === Title (single line, left-aligned next to logo) ===
+        c.setFont("Helvetica-Bold", 22)
+        title_1 = "CORIUM CORRECTIVE SKIN CARE SCRIPT"
+        c.drawString(text_left_x, title_y, title_1)
+
+        # === Client Name + Start Date (same line) ===
+        c.setFont("Helvetica", 10)
+        label_name = "NAME: "
+        c.drawString(text_left_x, info_y, label_name)
+        x_after_name_label = text_left_x + c.stringWidth(label_name, "Helvetica", 10)
+
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(x_after_name_label, info_y, client_name)
+
+        # fixed gap before date
+        gap = 100
+        x_for_date = x_after_name_label + c.stringWidth(client_name, "Helvetica-Bold", 10) + gap
+
+        c.setFont("Helvetica", 10)
+        start_label = "START DATE: "
+        c.drawString(x_for_date, info_y, start_label)
+        x_after_start_label = x_for_date + c.stringWidth(start_label, "Helvetica", 10)
+
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(x_after_start_label, info_y, start_date)
+
+        # === Disclaimer (aligned with title/name/date) ===
+        c.setFont("Helvetica-Oblique", 9)
+        c.drawString(text_left_x, disclaimer_y, "*CORIUM CORRECTIVE 360° CANNOT BE COMBINED WITH ANY OTHER SKIN CARE PRODUCTS")
+
+        # === Divider line right below the logo ===
         c.setStrokeColorRGB(0, 0, 0)
         c.setLineWidth(0.5)
-        c.line(0, header_top_y, width, header_top_y)
-        c.line(0, header_bottom_y, width, header_bottom_y)
-
-        # === Header Text Start Y ===
-        line_spacing = 23
-        header_text_y = header_top_y - 25  # First line padding from top line
-
-        # === Transforming Line (Mixed Weight) ===
-        x = left_margin
-        c.setFont("Helvetica", 10)
-        text1 = "TRANSFORMING "
-        c.drawString(x, header_text_y, text1)
-        x += c.stringWidth(text1, "Helvetica", 10)
-
-        c.setFont("Helvetica-Bold", 10)
-        client_text = client_name.upper()
-        c.drawString(x, header_text_y, client_text)
-        x += c.stringWidth(client_text, "Helvetica-Bold", 10)
-
-        c.setFont("Helvetica", 10)
-        text2 = " SKIN TO A BETTER DEGREE OF HEALTH."
-        c.drawString(x, header_text_y, text2)
-
-        # === Start Date Line ===
-        x = left_margin
-        y2 = header_text_y - line_spacing
-        label = "START TREATMENT DATE: "
-        c.setFont("Helvetica", 10)
-        c.drawString(x, y2, label)
-        x += c.stringWidth(label, "Helvetica", 10)
-
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(x, y2, start_date)
-
-        # === Disclaimer Line (same spacing)
-        y3 = y2 - line_spacing
-        c.setFont("Helvetica-Oblique", 10)
-        c.drawString(left_margin, y3, "*CORIUM CORRECTIVE 360° CANNOT BE COMBINED WITH ANY OTHER SKIN CARE PRODUCTS")
-
-        # === Section Title + Underline ===
-        section_text = "SKIN CARE ROUTINE & PRODUCTS"
-        y = top_margin - 170
-        c.setFont("Helvetica-Bold", 16)
-        text_width = c.stringWidth(section_text, "Helvetica-Bold", 16)
-
-        center_x = (width - text_width) / 2
-
-        c.drawString(center_x, y, section_text)
-
-        c.setStrokeColorRGB(0, 0, 0)
-        c.setLineWidth(1)
-        c.line(center_x, y - 2, center_x + text_width, y - 2)
+        c.line(0, divider_y, width, divider_y)
 
         # === Column Setup ===
         c.setFont("Helvetica", 10)
@@ -119,7 +93,7 @@ class Pdf2ColGenerator:
         col2_x = left_margin + 40 + col_width
 
         # === Column Headers ===
-        header_y = top_margin - 190
+        header_y = divider_y - 30  # smaller gap = higher (move table up), bigger gap = lower
         col1_header = steps_dict.get("Col1_Header", "Column 1")
         col2_header = steps_dict.get("Col2_Header", "Column 2")
         c.drawString(col1_x + 100, header_y, col1_header.upper())

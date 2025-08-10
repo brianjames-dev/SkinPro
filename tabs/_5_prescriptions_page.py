@@ -17,7 +17,8 @@ from class_elements.pdf_generators.prescription_entry_popup import PrescriptionE
 from class_elements.PdfRenderThread import PdfRenderWorker
 import json
 import sqlite3
-
+import shutil
+import re
 
 class PrescriptionsPage:
     def __init__(self, parent, main_app, data_manager):
@@ -43,7 +44,8 @@ class PrescriptionsPage:
         main_frame.columnconfigure(3, weight=0)  # Delete button
         main_frame.columnconfigure(4, weight=0)  # Preview PDF button
         main_frame.columnconfigure(5, weight=0)  # Print button
-        main_frame.columnconfigure(6, weight=0)  # Alert button
+        # main_frame.columnconfigure(6, weight=0)  # Alert button
+        main_frame.columnconfigure(6, weight=0)  # Copy button
         main_frame.rowconfigure(0, weight=0)
         main_frame.rowconfigure(1, weight=1)  # PDF preview row
 
@@ -88,7 +90,8 @@ class PrescriptionsPage:
         delete_img = CTkImage(Image.open(resource_path("icons/delete.png")), size=(24, 24))
         preview_img = CTkImage(Image.open(resource_path("icons/preview.png")), size=(24, 24))
         print_img = CTkImage(Image.open(resource_path("icons/print.png")), size=(24, 24))
-        alert_img = CTkImage(Image.open(resource_path("icons/alert.png")), size=(24, 24))
+        # alert_img = CTkImage(Image.open(resource_path("icons/alert.png")), size=(24, 24))
+        copy_img = CTkImage(Image.open(resource_path("icons/copy_file.png")), size=(24, 24))
 
 
         # Create buttons in a row
@@ -98,7 +101,8 @@ class PrescriptionsPage:
             ("Delete", self.delete_prescription, delete_img),
             ("Preview", self.preview_prescription, preview_img),
             ("Print", self.print_prescription, print_img),
-            ("Alert", self.set_alert, alert_img)
+            # ("Alert", self.set_alert, alert_img),
+            ("Copy", self.copy_file, copy_img)
         ]
 
         for i, (text, command, image) in enumerate(button_specs):
@@ -137,6 +141,230 @@ class PrescriptionsPage:
         # === Scroll Region & Mouse Events ===
         self.preview_inner_frame.bind("<Configure>", self._update_scroll_region)
         self._bind_mousewheel_events()
+
+
+    def _sanitize_for_path(self, s: str) -> str:
+        """Make a client name safe for use in folder names."""
+        s = s.strip()
+        s = re.sub(r"\s+", "_", s)          # spaces -> underscores
+        s = re.sub(r"[^\w\-\.]", "", s)     # remove illegal/special chars
+        return s
+
+
+    def copy_file(self):
+        """Open a popup window for copying a prescription to another client."""
+        print(f"Inside copy_file - current Prescription ID: {self.current_prescription_id}")
+
+        if not self.current_prescription_id:
+            print("No prescription selected. Cannot open popup.")
+            return
+
+        # CREATE POP-UP WINDOW
+        self.appointment_window = ctk.CTkToplevel()
+        self.appointment_window.title("Copy Prescription")
+        self.appointment_window.geometry("600x200")
+        self.appointment_window.resizable(True, True)
+
+        # Make modal
+        self.appointment_window.transient(self.main_app)
+        self.appointment_window.grab_set()
+        self.appointment_window.focus_force()
+
+        # Configure popup layout
+        self.appointment_window.grid_rowconfigure(0, weight=1)
+        self.appointment_window.grid_columnconfigure(0, weight=1)
+
+        # Main frame
+        self.pop_main_frame = ctk.CTkFrame(self.appointment_window)
+        self.pop_main_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.pop_main_frame.grid_rowconfigure(0, weight=0)  # top client selector
+        self.pop_main_frame.grid_rowconfigure(1, weight=1)  # rest of body
+        self.pop_main_frame.grid_columnconfigure(0, weight=1)
+
+        # === Top selection strip ===
+        search_frame = ctk.CTkFrame(self.pop_main_frame, fg_color="#563A9C")
+        search_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        search_frame.columnconfigure(1, weight=1)
+
+        search_label = ctk.CTkLabel(
+            search_frame,
+            text="Select Client to Copy To:",
+            font=("Helvetica", 14, "bold"),
+            fg_color="transparent",
+            text_color="#ebebeb"
+        )
+        search_label.grid(row=0, column=0, sticky="w", padx=10)
+
+        self.copy_client_var = ctk.StringVar(value="Select a client...")
+        self.copy_client_combobox = ctk.CTkComboBox(
+            search_frame,
+            variable=self.copy_client_var,
+            values=[],
+            command=self.on_client_selected,
+            width=220,
+            text_color="#797e82"
+        )
+        self.copy_client_combobox.grid(row=0, column=1, sticky="ew", padx=8, pady=6)
+
+        # Keybinds
+        self.copy_client_combobox.bind("<KeyRelease>", self.filter_clients)
+        self.copy_client_combobox.bind("<FocusOut>", self.restore_placeholder)
+        self.copy_client_combobox.bind("<Button-1>", self.clear_placeholder)
+        self.copy_client_combobox.bind("<FocusIn>", self.clear_placeholder)
+
+
+    # =====================
+    # Combobox Functions
+    # =====================
+
+    def on_client_selected(self, selected_client):
+        """Copy the currently selected prescription to the chosen client (DB + PDF) and update UI if needed."""
+        import os, shutil, sqlite3, re
+        from datetime import datetime
+        import customtkinter as ctk
+
+        # UI: placeholder behavior
+        if not selected_client or selected_client == "No matches found":
+            self.copy_client_combobox.configure(text_color="#797e82")
+            self.copy_client_combobox.set("Select a client...")
+            return
+
+        # Resolve target client_id
+        with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM clients WHERE full_name = ?", (selected_client,))
+            row = cursor.fetchone()
+
+        if not row:
+            print("Could not resolve client from selection.")
+            return
+
+        target_client_id = int(row[0])
+
+        # Validate current prescription
+        if not getattr(self, "current_prescription_id", None):
+            print("No prescription selected to copy.")
+            return
+
+        source_prescription_id = int(self.current_prescription_id)
+
+        # Read source prescription
+        with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT form_type, file_path, data_json, start_date
+                FROM prescriptions
+                WHERE id = ?
+            """, (source_prescription_id,))
+            src = cursor.fetchone()
+
+        if not src:
+            print("Source prescription not found.")
+            return
+
+        form_type, src_path, data_json, src_start_date = src
+        if not src_path or not os.path.exists(src_path):
+            print("Source PDF file missing; cannot copy.")
+            return
+
+        # Start date for new copy (keep today's date; or swap to src_start_date to preserve original)
+        new_start_date = datetime.today().strftime("%m/%d/%Y")
+
+        # Insert new row with empty file_path
+        with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO prescriptions (client_id, form_type, file_path, data_json, start_date)
+                VALUES (?, ?, ?, ?, ?)
+            """, (target_client_id, form_type, "", data_json, new_start_date))
+            new_prescription_id = cursor.lastrowid
+
+            # --- Build destination folder + filename ---
+            # Folder: SkinProData/prescriptions/<ClientName>_<ClientID>/
+            safe_client_name = re.sub(r"[^\w\s-]", "", selected_client).strip()   # remove special chars
+            safe_client_name = re.sub(r"\s+", "_", safe_client_name)              # spaces -> underscores
+            dest_dir = os.path.join(
+                self.main_app.data_manager.prescriptions_dir,
+                f"{safe_client_name}_{target_client_id}"
+            )
+            os.makedirs(dest_dir, exist_ok=True)
+
+            # Filename: <DATE>_<NewPrescriptionID>.pdf  (DATE mirrors DB start_date)
+            try:
+                date_for_filename = datetime.strptime(new_start_date, "%m/%d/%Y").strftime("%Y-%m-%d")
+            except Exception:
+                date_for_filename = datetime.today().strftime("%Y-%m-%d")
+            dest_filename = f"{date_for_filename}_{new_prescription_id}.pdf"
+            dest_path = os.path.join(dest_dir, dest_filename)
+
+            # Copy PDF
+            shutil.copy2(src_path, dest_path)
+
+            # Update DB with the real file path
+            cursor.execute("""
+                UPDATE prescriptions
+                SET file_path = ?
+                WHERE id = ?
+            """, (dest_path, new_prescription_id))
+            conn.commit()
+
+        print(f"Copied prescription {source_prescription_id} → new {new_prescription_id} for client {target_client_id}")
+        print(f"Saved PDF: {dest_path}")
+
+        # If we copied to the SAME client currently displayed, refresh and select the new one
+        try:
+            active_client_id = getattr(self.main_app.profile_card, "client_id", None)
+            if active_client_id == target_client_id:
+                self.load_prescriptions_for_client(target_client_id, select_id=new_prescription_id)
+        except Exception as e:
+            print(f"Post-copy UI refresh skipped due to error: {e}")
+
+        # --- Show success banner in popup ---
+        success_frame = ctk.CTkFrame(self.pop_main_frame)
+        success_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=10)
+        success_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            success_frame,
+            text=f"Copied to {selected_client}!",
+            text_color="#155724",
+            font=("Helvetica", 14, "bold")
+        ).grid(row=0, column=0, sticky="w", padx=10, pady=6)
+
+        ctk.CTkButton(
+            success_frame,
+            text="Close",
+            command=self.appointment_window.destroy
+        ).grid(row=0, column=1, padx=10, pady=6)
+
+
+    def filter_clients(self, event):
+        """Dynamically update the client dropdown based on user input."""
+        query = self.copy_client_combobox.get().strip()
+        if query:
+            self.copy_client_combobox.configure(text_color="#000000")
+            with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT full_name FROM clients WHERE full_name LIKE ? LIMIT 10", (f"%{query}%",))
+                matches = [row[0] for row in cursor.fetchall()]
+            self.copy_client_combobox.configure(values=matches if matches else ["No matches found"])
+        else:
+            self.copy_client_combobox.configure(values=[])
+        self.copy_client_combobox.focus()
+
+    def restore_placeholder(self, event=None):
+        """Restore the placeholder text if no valid client is selected when focus is lost."""
+        current_text = self.copy_client_var.get().strip()
+        if not current_text or current_text == "No matches found":
+            self.copy_client_combobox.set("Select a client...")
+            self.copy_client_combobox.configure(text_color="#797e82")
+
+    def clear_placeholder(self, event=None):
+        """Clear the placeholder text when the user clicks or focuses on the combobox."""
+        if self.copy_client_var.get() == "Select a client...":
+            self.copy_client_combobox.set("")
+            self.copy_client_combobox.configure(text_color="#797e82")
+
 
 
     def create_prescription(self):
@@ -195,7 +423,7 @@ class PrescriptionsPage:
             print(f"Failed to save prescription: {e}")
 
 
-    def load_prescriptions_for_client(self, client_id):
+    def load_prescriptions_for_client(self, client_id, select_id=None):
         self.clear_prescriptions_list()
 
         try:
@@ -222,11 +450,21 @@ class PrescriptionsPage:
                 )
                 self.prescription_paths[iid] = file_path
 
-            children = self.prescription_list.get_children()
-            if children:
-                self.prescription_list.selection_set(children[0])
-                self.on_prescription_select(None)
+            # Select requested item if provided, else default to first row
+            if select_id is not None and self.prescription_list.exists(str(select_id)):
+                iid = str(select_id)
+                self.prescription_list.selection_set(iid)
+                self.prescription_list.see(iid)
+                path = self.prescription_paths.get(iid)
+                if path and os.path.exists(path):
+                    self.pdf_render_worker.render_async(path)
+            else:
+                children = self.prescription_list.get_children()
+                if children:
+                    self.prescription_list.selection_set(children[0])
+                    self.on_prescription_select(None)
 
+            # Clear preview frame (in case no selection rendered anything)
             for widget in self.preview_inner_frame.winfo_children():
                 widget.destroy()
 
@@ -491,9 +729,9 @@ class PrescriptionsPage:
                 print(f"Failed to open PDF as fallback: {e2}")
 
 
-    def set_alert(self):
-        current_client_id = self.main_app.profile_card.client_id  # or however you store it
-        self.main_app.tabs["Alerts"].create_proxy_alert(current_client_id)
+    # def set_alert(self):
+    #     current_client_id = self.main_app.profile_card.client_id  # or however you store it
+    #     self.main_app.tabs["Alerts"].create_proxy_alert(current_client_id)
   
 
     def render_pdf_to_preview(self, pdf_path):
@@ -523,9 +761,16 @@ class PrescriptionsPage:
         selected = self.prescription_list.selection()
         if selected:
             iid = selected[0]
+            # Track current selection for features like Copy
+            try:
+                self.current_prescription_id = int(iid)
+            except ValueError:
+                self.current_prescription_id = None
+
             path = self.prescription_paths.get(iid)
             if path and os.path.exists(path):
                 self.pdf_render_worker.render_async(path)
+
 
 
     def _update_scroll_region(self, event):
