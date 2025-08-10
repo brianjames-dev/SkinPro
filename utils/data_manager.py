@@ -37,7 +37,7 @@ class DataDirectoryManager:
                 # Set config_path
                 self.config_path = os.path.join(self.data_dir, self.config_filename)
 
-                # ❗ Folder missing? Wait in loop until user restores it
+                # Folder missing? Wait in loop until user restores it
                 while not os.path.exists(self.data_dir):
                     msg = (
                         f"The 'SkinProData' folder is missing from its expected location:\n\n"

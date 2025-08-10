@@ -3,22 +3,18 @@ from customtkinter import CTkImage
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 from class_elements.treeview_styling_light import style_treeview_light
-import os
+import os, json, sqlite3, shutil, re, textwrap
 from pdf2image import convert_from_path
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from datetime import datetime
-import textwrap
 from utils.path_utils import resource_path
 from class_elements.pdf_generators.pdf_2col import Pdf2ColGenerator
 from class_elements.pdf_generators.pdf_3col import Pdf3ColGenerator
 from class_elements.pdf_generators.pdf_4col import Pdf4ColGenerator
 from class_elements.pdf_generators.prescription_entry_popup import PrescriptionEntryPopup
 from class_elements.PdfRenderThread import PdfRenderWorker
-import json
-import sqlite3
-import shutil
-import re
+
 
 class PrescriptionsPage:
     def __init__(self, parent, main_app, data_manager):
@@ -162,7 +158,7 @@ class PrescriptionsPage:
         # CREATE POP-UP WINDOW
         self.appointment_window = ctk.CTkToplevel()
         self.appointment_window.title("Copy Prescription")
-        self.appointment_window.geometry("600x200")
+        self.appointment_window.geometry("540x120")
         self.appointment_window.resizable(True, True)
 
         # Make modal
@@ -219,9 +215,6 @@ class PrescriptionsPage:
 
     def on_client_selected(self, selected_client):
         """Copy the currently selected prescription to the chosen client (DB + PDF) and update UI if needed."""
-        import os, shutil, sqlite3, re
-        from datetime import datetime
-        import customtkinter as ctk
 
         # UI: placeholder behavior
         if not selected_client or selected_client == "No matches found":
@@ -289,13 +282,38 @@ class PrescriptionsPage:
             )
             os.makedirs(dest_dir, exist_ok=True)
 
-            # Filename: <DATE>_<NewPrescriptionID>.pdf  (DATE mirrors DB start_date)
+            # Filename: <DATE>_<form_type>.pdf (DATE mirrors DB start_date) — normalize + pick next free suffix
             try:
-                date_for_filename = datetime.strptime(new_start_date, "%m/%d/%Y").strftime("%Y-%m-%d")
+                date_for_filename = datetime.strptime(new_start_date, "%m/%d/%Y").strftime("%m-%d-%Y")
             except Exception:
-                date_for_filename = datetime.today().strftime("%Y-%m-%d")
-            dest_filename = f"{date_for_filename}_{new_prescription_id}.pdf"
-            dest_path = os.path.join(dest_dir, dest_filename)
+                date_for_filename = datetime.today().strftime("%m-%d-%Y")
+
+            ft_norm_map = {"2-column": "2-col", "3-column": "3-col", "4-column": "4-col"}
+            form_type_filename = ft_norm_map.get(form_type.lower().strip(), form_type)
+
+            base_name = f"{date_for_filename}_{form_type_filename}"
+            ext = ".pdf"
+
+            # Gather used suffixes in dest_dir (0 means no suffix)
+            pattern = re.compile(rf"^{re.escape(base_name)}(?: \((\d+)\))?{re.escape(ext)}$", re.IGNORECASE)
+            used = set()
+            src_abs = os.path.normcase(os.path.abspath(src_path))
+
+            for fname in os.listdir(dest_dir):
+                m = pattern.match(fname)
+                if m:
+                    n = int(m.group(1)) if m.group(1) else 0
+                    used.add(n)
+
+            # Pick the smallest n >= 0 that is unused and not the source path
+            n = 0
+            while True:
+                candidate = base_name + ("" if n == 0 else f" ({n})") + ext
+                cand_path = os.path.join(dest_dir, candidate)
+                if n not in used and os.path.normcase(os.path.abspath(cand_path)) != src_abs:
+                    dest_path = cand_path
+                    break
+                n += 1
 
             # Copy PDF
             shutil.copy2(src_path, dest_path)
@@ -352,6 +370,7 @@ class PrescriptionsPage:
             self.copy_client_combobox.configure(values=[])
         self.copy_client_combobox.focus()
 
+
     def restore_placeholder(self, event=None):
         """Restore the placeholder text if no valid client is selected when focus is lost."""
         current_text = self.copy_client_var.get().strip()
@@ -359,12 +378,12 @@ class PrescriptionsPage:
             self.copy_client_combobox.set("Select a client...")
             self.copy_client_combobox.configure(text_color="#797e82")
 
+
     def clear_placeholder(self, event=None):
         """Clear the placeholder text when the user clicks or focuses on the combobox."""
         if self.copy_client_var.get() == "Select a client...":
             self.copy_client_combobox.set("")
             self.copy_client_combobox.configure(text_color="#797e82")
-
 
 
     def create_prescription(self):
