@@ -204,7 +204,7 @@ class Pdf3ColGenerator:
         watermark_y = 125
 
         c.saveState()
-        c.setFillAlpha(0.10)
+        c.setFillAlpha(0.05)
         c.drawImage(watermark_path, watermark_x, watermark_y, width=watermark_width, height=watermark_height, mask='auto')
         c.restoreState()
 

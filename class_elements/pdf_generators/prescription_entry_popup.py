@@ -68,11 +68,13 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         self.main_frame.rowconfigure(0, weight=0)       # Date row
         self.main_frame.rowconfigure(1, weight=0)       # Separator row
         self.main_frame.rowconfigure(2, weight=0)       # Button row
-        self.main_frame.rowconfigure(3, weight=1)       # Table row (can stretch vertically)
+        self.main_frame.rowconfigure(3, weight=0)       # Separator
+        self.main_frame.rowconfigure(4, weight=0)       # Insert/Delete Rows 
+        self.main_frame.rowconfigure(5, weight=1)       # Table row (can stretch vertically)
 
         # === Combined Container Frame for Client + Date ===
         self.client_date_wrapper = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.client_date_wrapper.grid(row=0, column=0, sticky="w", padx=10, pady=10)
+        self.client_date_wrapper.grid(row=0, column=0, sticky="w", padx=5, pady=5)
         self.client_date_wrapper.columnconfigure((0, 1, 2), weight=0)  # Prevent stretch
 
         # === Client Bubble ===
@@ -132,7 +134,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
         self.button_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         self.button_frame.grid(row=2, column=0, sticky="w", padx=5, pady=5)  # Align to left, spacing below
 
-        self.button_frame.columnconfigure((0, 1, 2, 3, 4), weight=0)
+        self.button_frame.columnconfigure((0, 1, 2, 3, 4, 5, 6, 7), weight=0)
 
         ctk.CTkButton(
             self.button_frame,
@@ -185,9 +187,64 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             hover_color="#b3ab20"
         ).grid(row=0, column=4, padx=4, ipady=1)
 
+
+        # Separator
+        separator2 = ttk.Separator(self.main_frame, orient="horizontal")
+        separator2.grid(row=3, column=0, columnspan=1, sticky="ew", padx=5)
+
+        # --- Insert blank row controls (second control row) ---
+        self.insert_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.insert_frame.grid(row=4, column=0, sticky="w", padx=5, pady=5)
+
+        # 6 slots: RowLbl, RowCombo, ColLbl, ColCombo, InsertBtn, DeleteBtn
+        self.insert_frame.columnconfigure((0, 1, 2, 3, 4, 5), weight=0)
+
+        row_lbl = ctk.CTkLabel(self.insert_frame, text="Row:")
+        row_lbl.grid(row=0, column=0, padx=(0, 6), pady=2)
+
+        # (re-use your existing row combo)
+        self.insert_before_combo = ctk.CTkComboBox(
+            self.insert_frame,
+            values=[str(i) for i in range(1, self.num_rows + 1)],
+            width=70,
+            state="readonly"
+        )
+        self.insert_before_combo.grid(row=0, column=1, padx=(0, 12), pady=2)
+        self.insert_before_combo.set("1")
+
+        col_lbl = ctk.CTkLabel(self.insert_frame, text="Column:")
+        col_lbl.grid(row=0, column=2, padx=(0, 6), pady=2)
+
+        # NEW: Column combo — "All columns" OR a specific column number
+        self.column_scope_combo = ctk.CTkComboBox(
+            self.insert_frame,
+            values=["All columns"] + [str(i) for i in range(1, self.num_cols + 1)],
+            width=110,
+            state="readonly"
+        )
+        self.column_scope_combo.grid(row=0, column=3, padx=(0, 12), pady=2)
+        self.column_scope_combo.set("All columns")
+
+        self.insert_blank_btn = ctk.CTkButton(
+            self.insert_frame,
+            text="Insert",
+            width=85,
+            command=self.on_insert_blank_row
+        )
+        self.insert_blank_btn.grid(row=0, column=4, padx=4, pady=2)
+
+        self.delete_selected_btn = ctk.CTkButton(
+            self.insert_frame,
+            text="Delete",
+            width=85,
+            hover_color="#FF4444",
+            command=self.on_delete_selected_row
+        )
+        self.delete_selected_btn.grid(row=0, column=5, padx=4, pady=2)
+
         # --- Scrollable container frame ---
         scroll_container = ctk.CTkFrame(self.main_frame)
-        scroll_container.grid(row=3, column=0, sticky="nsew", padx=5, pady=5)
+        scroll_container.grid(row=5, column=0, sticky="nsew", padx=5, pady=0)
 
         # Create canvas + vertical scrollbar
         canvas = ctk.CTkCanvas(scroll_container, bg="#b3b3b3", highlightthickness=0)
@@ -220,42 +277,49 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             self.prefill_from_data(self.initial_data)
             self.already_prefilled = True
         
+        self._initial_snapshot = self._snapshot_state()
+
         self.protocol("WM_DELETE_WINDOW", self.confirm_close)
 
 
     def confirm_close(self):
+        # If nothing changed, close immediately
+        if not self._is_dirty():
+            self.destroy()
+            return
+
+        # Otherwise, show your existing confirm dialog
         confirm_win = ctk.CTkToplevel(self)
         confirm_win.title("Confirm Exit")
         confirm_win.geometry("300x150")
         confirm_win.resizable(False, False)
+        confirm_win.transient(self)
+        confirm_win.grab_set()
+        confirm_win.focus_force()
 
-        # Make it modal and always-on-top
-        confirm_win.transient(self)  # Attach to parent
-        confirm_win.grab_set()       # Make modal
-        confirm_win.focus_force()    # Bring to front and focus
-
-        # Main frame
         frame = ctk.CTkFrame(confirm_win)
         frame.pack(expand=True, fill="both", padx=10, pady=10)
 
-        # Label
-        label = ctk.CTkLabel(frame, text="Are you sure you want to exit?\n\nAll changes will be lost.", font=("Helvetica", 14), justify="center")
+        label = ctk.CTkLabel(
+            frame,
+            text="Are you sure you want to exit?\n\nAll changes will be lost.",
+            font=("Helvetica", 14),
+            justify="center"
+        )
         label.pack(pady=(10, 20))
 
-        # Button frame
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
         btn_frame.pack()
 
-        # Cancel button
-        cancel_btn = ctk.CTkButton(btn_frame, text="Cancel", width=90, command=confirm_win.destroy)
-        cancel_btn.pack(side="left", padx=10)
-
-        # Confirm button
-        confirm_btn = ctk.CTkButton(
-            btn_frame, text="Confirm", width=90, fg_color="#FF4444", hover_color="#CC0000",
+        ctk.CTkButton(btn_frame, text="Cancel", width=90, command=confirm_win.destroy).pack(side="left", padx=10)
+        ctk.CTkButton(
+            btn_frame,
+            text="Confirm",
+            width=90,
+            fg_color="#FF4444",
+            hover_color="#CC0000",
             command=lambda: (confirm_win.destroy(), self.destroy())
-        )
-        confirm_btn.pack(side="right", padx=10)
+        ).pack(side="right", padx=10)
 
 
     def _update_scroll_region(self, event=None):
@@ -317,7 +381,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
                     wrap="word",
                     font=("Helvetica", 18),
                     selectbackground="#3399FF",
-                    selectforeground="#FFFFFF"
+                    selectforeground="#FFFFFF",
                 )
 
                 # Highlight tags
@@ -424,6 +488,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             self.resize_popup()
             self.build_table()
             self.after_idle(self._update_scroll_region)
+            self._refresh_insert_menu_choices()
 
 
     def add_column(self):
@@ -432,6 +497,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             self.resize_popup()
             self.build_table()
             self.after_idle(self._update_scroll_region)
+            self._refresh_insert_menu_choices()
 
 
     def delete_row(self):
@@ -440,6 +506,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             self.resize_popup()
             self.build_table()
             self.after_idle(self._update_scroll_region)
+            self._refresh_insert_menu_choices()
 
 
     def delete_column(self):
@@ -448,6 +515,7 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
             self.resize_popup()
             self.build_table()
             self.after_idle(self._update_scroll_region)
+            self._refresh_insert_menu_choices()
 
 
     def extract_text_with_highlight(self, text_widget):
@@ -481,6 +549,9 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
 
 
     def on_create(self):
+        # Auto-remove empty rows before collecting data / generating PDF
+        self._compact_empty_rows()
+
         steps_dict = {}
         for i in range(self.num_cols):
             header = self.column_data[i]["header"].get().strip() or f"Column {i+1}"
@@ -684,3 +755,394 @@ class PrescriptionEntryPopup(ctk.CTkToplevel):
 
         except Exception as e:
             print(f"Failed to toggle highlight: {e}")
+
+
+    def _refresh_insert_menu_choices(self):
+        """Keep the Row combo in sync with current row count (selection-preserving)."""
+        values = [str(i) for i in range(1, self.num_rows + 1)]
+        if not hasattr(self, "insert_before_combo"):
+            return
+        try:
+            current = self.insert_before_combo.get().strip()
+            self.insert_before_combo.configure(values=values)
+            if current in values:
+                self.insert_before_combo.set(current)
+            else:
+                self.insert_before_combo.set(values[-1] if values else "1")
+        except Exception:
+            pass
+
+
+    def _refresh_column_combo_choices(self):
+        """Keep the Column combo in sync with current column count (selection-preserving)."""
+        values = ["All columns"] + [str(i) for i in range(1, self.num_cols + 1)]
+        if not hasattr(self, "column_scope_combo"):
+            return
+        try:
+            current = self.column_scope_combo.get().strip()
+            self.column_scope_combo.configure(values=values)
+            if current in values:
+                self.column_scope_combo.set(current)
+            else:
+                self.column_scope_combo.set("All columns")
+        except Exception:
+            pass
+
+
+    def _clear_row_widgets(self, row_index: int):
+        """Clear product/directions + tags for a given row across all active columns."""
+        for col in range(self.num_cols):
+            product_entry, direction_box = self.column_data[col]["entries"][row_index]
+            product_entry.delete(0, "end")
+            direction_box.delete("1.0", "end")
+            direction_box.tag_remove("highlight", "1.0", "end")
+            direction_box.tag_remove("highlight_selected", "1.0", "end")
+
+    def _copy_row_values(self, src_row: int, dst_row: int):
+        """Copy product + directions (with highlight) from src_row to dst_row for all active columns."""
+        for col in range(self.num_cols):
+            src_product, src_text = self.column_data[col]["entries"][src_row]
+            dst_product, dst_text = self.column_data[col]["entries"][dst_row]
+
+            # Copy product text
+            dst_product.delete(0, "end")
+            dst_product.insert(0, src_product.get())
+
+            # Copy directions with highlight fidelity using your existing helpers
+            content = self.extract_text_with_highlight(src_text)
+            self.insert_highlighted_text(dst_text, content)
+
+    def _copy_cell_values(self, col: int, src_row: int, dst_row: int):
+        """Copy one cell (product + directions with highlight) within a single column."""
+        src_product, src_text = self.column_data[col]["entries"][src_row]
+        dst_product, dst_text = self.column_data[col]["entries"][dst_row]
+
+        dst_product.delete(0, "end")
+        dst_product.insert(0, src_product.get())
+
+        content = self.extract_text_with_highlight(src_text)
+        self.insert_highlighted_text(dst_text, content)
+
+
+    def _clear_cell_widgets(self, col: int, row: int):
+        """Clear one cell (product + directions tags) within a single column."""
+        product_entry, direction_box = self.column_data[col]["entries"][row]
+        product_entry.delete(0, "end")
+        direction_box.delete("1.0", "end")
+        direction_box.tag_remove("highlight", "1.0", "end")
+        direction_box.tag_remove("highlight_selected", "1.0", "end")
+
+
+    def _cell_is_empty(self, col: int, row: int) -> bool:
+        """A cell is empty if product and directions (sans [[highlight]] tags) are blank."""
+        product_entry, direction_box = self.column_data[col]["entries"][row]
+        product_empty = product_entry.get().strip() == ""
+        # strip [[highlight]] tags from extracted content
+        raw = self.extract_text_with_highlight(direction_box)
+        plain = re.sub(r"\[\[/?highlight\]\]", "", raw).strip()
+        return product_empty and (plain == "")
+
+    def _column_is_full(self, col: int) -> bool:
+        """True if every visible row in this column contains content (no empty cells)."""
+        return all(not self._cell_is_empty(col, r) for r in range(self.num_rows))
+
+    def _find_lowest_empty_cell(self, col: int, start_row: int) -> int | None:
+        """
+        Return the index of the lowest empty cell in column `col`
+        at or below `start_row` (inclusive). If none found, return None.
+        """
+        last_row = self.num_rows - 1
+        for r in range(last_row, start_row - 1, -1):
+            if self._cell_is_empty(col, r):
+                return r
+        return None
+
+    def _find_highest_empty_cell(self, col: int, end_row: int) -> int | None:
+        """
+        Return index of the highest empty cell in column `col` at or ABOVE `end_row` (inclusive).
+        If none found, return None.
+        """
+        for r in range(end_row, -1, -1):
+            if self._cell_is_empty(col, r):
+                return r
+        return None
+
+    def _row_is_empty(self, row: int) -> bool:
+        """True if all active columns are empty at this row."""
+        return all(self._cell_is_empty(col, row) for col in range(self.num_cols))
+
+
+    def _compact_empty_rows(self):
+        """
+        Remove rows that are empty across all columns by shifting non-empty rows upward
+        and reducing self.num_rows. Keeps at least one row visible.
+        """
+        # Gather all non-empty row indices in order
+        non_empty = [r for r in range(self.num_rows) if not self._row_is_empty(r)]
+
+        if not non_empty:
+            # Keep one blank row; clear everything
+            for col in range(self.num_cols):
+                self._clear_cell_widgets(col, 0)
+            for r in range(1, self.num_rows):
+                self._clear_row_widgets(r)
+            new_rows = 1
+        else:
+            # Move each non-empty row into the next write slot
+            write = 0
+            for r in non_empty:
+                if r != write:
+                    for col in range(self.num_cols):
+                        self._copy_cell_values(col, r, write)
+                write += 1
+
+            # Clear trailing rows that are now duplicates
+            for r in range(write, self.num_rows):
+                self._clear_row_widgets(r)
+
+            new_rows = write
+
+        # If the visible count changed, rebuild UI & combos
+        if new_rows != self.num_rows:
+            self.num_rows = new_rows
+            self.resize_popup()
+            self.build_table()
+            self.after_idle(self._update_scroll_region)
+            self._refresh_insert_menu_choices()
+            self._refresh_column_combo_choices()
+
+    def on_insert_blank_row(self):
+        # Parse row
+        try:
+            val = self.insert_before_combo.get().strip()
+            before_n = int(val) if val else 1
+        except Exception:
+            before_n = 1
+        before_n = max(1, min(before_n, self.num_rows))
+        insert_at = before_n - 1
+
+        # Column scope
+        col_scope = getattr(self, "column_scope_combo", None)
+        col_val = col_scope.get().strip() if col_scope else "All columns"
+
+        # Preserve viewport
+        try:
+            y0, _ = self.scroll_canvas.yview()
+        except Exception:
+            y0 = 0.0
+
+        if col_val == "All columns":
+            # ---- existing ROW INSERT (adds a new row) ----
+            if self.num_rows >= self.MAX_ROWS:
+                messagebox.showwarning("Max Rows Reached", f"You can’t exceed {self.MAX_ROWS} rows.")
+                return
+
+            self.num_rows += 1
+            for r in range(self.num_rows - 1, insert_at, -1):
+                self._copy_row_values(r - 1, r)
+            self._clear_row_widgets(insert_at)
+
+            self.resize_popup()
+            self.build_table()
+            self.after_idle(self._update_scroll_region)
+            self._refresh_insert_menu_choices()
+            self._refresh_column_combo_choices()
+
+        else:
+            # ---- COLUMN-SCOPED CELL INSERT with correct MAX_ROWS behavior ----
+            try:
+                col_idx = int(col_val) - 1
+            except Exception:
+                col_idx = 0
+            col_idx = max(0, min(col_idx, self.num_cols - 1))
+
+            if self.num_rows == self.MAX_ROWS:
+                # Look for space strictly BELOW the insertion point first
+                below_empty = self._find_lowest_empty_cell(col_idx, insert_at + 1)
+                if below_empty is not None:
+                    for r in range(below_empty, insert_at, -1):
+                        self._copy_cell_values(col_idx, r - 1, r)
+                    self._clear_cell_widgets(col_idx, insert_at)
+                    self.after_idle(self._update_scroll_region)
+                else:
+                    # No space below; look for an empty STRICTLY ABOVE the insertion point
+                    above_empty = self._find_highest_empty_cell(col_idx, insert_at - 1)
+                    if above_empty is not None:
+                        # Shift UP the block [above_empty+1 .. insert_at] so the empty moves to insert_at
+                        for r in range(above_empty, insert_at):
+                            self._copy_cell_values(col_idx, r + 1, r)
+                        self._clear_cell_widgets(col_idx, insert_at)
+                        self.after_idle(self._update_scroll_region)
+                    else:
+                        # No empties anywhere in this column → strict overflow → warn
+                        messagebox.showwarning(
+                            "Cannot Insert Cell",
+                            "This column already has the maximum number of filled steps.\n"
+                            "Clear a cell or delete a row before inserting."
+                        )
+                        return
+
+            else:
+                # num_rows < MAX_ROWS
+                target_is_empty = self._cell_is_empty(col_idx, insert_at)
+
+                if target_is_empty:
+                    # Always grow so repeated inserts can reach MAX_ROWS
+                    self.num_rows += 1
+                    for r in range(self.num_rows - 1, insert_at, -1):
+                        self._copy_cell_values(col_idx, r - 1, r)
+                    self._clear_cell_widgets(col_idx, insert_at)
+
+                    self.resize_popup()
+                    self.build_table()
+                    self.after_idle(self._update_scroll_region)
+                    self._refresh_insert_menu_choices()
+                    self._refresh_column_combo_choices()
+
+                else:
+                    # Prefer shifting into an empty slot strictly below; grow only if none
+                    empty_at = self._find_lowest_empty_cell(col_idx, insert_at + 1)
+                    if empty_at is not None:
+                        for r in range(empty_at, insert_at, -1):
+                            self._copy_cell_values(col_idx, r - 1, r)
+                        self._clear_cell_widgets(col_idx, insert_at)
+                        self.after_idle(self._update_scroll_region)
+                    else:
+                        self.num_rows += 1
+                        for r in range(self.num_rows - 1, insert_at, -1):
+                            self._copy_cell_values(col_idx, r - 1, r)
+                        self._clear_cell_widgets(col_idx, insert_at)
+
+                        self.resize_popup()
+                        self.build_table()
+                        self.after_idle(self._update_scroll_region)
+                        self._refresh_insert_menu_choices()
+                        self._refresh_column_combo_choices()
+
+        # Clean up selections; restore viewport
+        try:
+            for w in self.text_widgets:
+                w.tag_remove("sel", "1.0", "end")
+                w.tag_remove("highlight_selected", "1.0", "end")
+        except Exception:
+            pass
+        try:
+            self.scroll_canvas.yview_moveto(y0)
+        except Exception:
+            pass
+
+    def on_delete_selected_row(self):
+        # Parse row
+        if self.num_rows <= 1 and (getattr(self, "column_scope_combo", None) and self.column_scope_combo.get() == "All columns"):
+            messagebox.showwarning("Cannot Delete", "At least one row must remain.")
+            return
+
+        try:
+            val = self.insert_before_combo.get().strip()
+            before_n = int(val) if val else 1
+        except Exception:
+            before_n = 1
+        before_n = max(1, min(before_n, self.num_rows))
+        del_at = before_n - 1
+
+        col_scope = getattr(self, "column_scope_combo", None)
+        col_val = col_scope.get().strip() if col_scope else "All columns"
+
+        # Preserve viewport
+        try:
+            y0, _ = self.scroll_canvas.yview()
+        except Exception:
+            y0 = 0.0
+
+        if col_val == "All columns":
+            # ---- existing ROW DELETE (removes a row) ----
+            if self.num_rows <= 1:
+                messagebox.showwarning("Cannot Delete", "At least one row must remain.")
+                return
+
+            for r in range(del_at, self.num_rows - 1):
+                self._copy_row_values(r + 1, r)
+            self._clear_row_widgets(self.num_rows - 1)
+            self.num_rows -= 1
+
+            self.resize_popup()
+            self.build_table()
+            self.after_idle(self._update_scroll_region)
+            self._refresh_insert_menu_choices()
+            self._refresh_column_combo_choices()
+
+            # keep row selection reasonable
+            try:
+                self.insert_before_combo.set(str(max(1, min(before_n, self.num_rows))))
+            except Exception:
+                pass
+
+        else:
+            # ---- COLUMN-SCOPED CELL DELETE (does NOT change row count) ----
+            col_idx = max(0, min(int(col_val) - 1, self.num_cols - 1))
+            last_row = self.num_rows - 1
+
+            # Shift up within this column: r+1 -> r
+            for r in range(del_at, last_row):
+                self._copy_cell_values(col_idx, r + 1, r)
+
+            # Clear last cell in column
+            self._clear_cell_widgets(col_idx, last_row)
+
+            # Light refresh
+            self.after_idle(self._update_scroll_region)
+
+        # Clean up & restore viewport
+        try:
+            for w in self.text_widgets:
+                w.tag_remove("sel", "1.0", "end")
+                w.tag_remove("highlight_selected", "1.0", "end")
+        except Exception:
+            pass
+        try:
+            self.scroll_canvas.yview_moveto(y0)
+        except Exception:
+            pass
+
+        # Optional: focus the product entry at the affected row/column
+        try:
+            focus_row = min(del_at, self.num_rows - 1)
+            focus_col = 0 if col_val == "All columns" else max(0, min(int(col_val) - 1, self.num_cols - 1))
+            self.column_data[focus_col]["entries"][focus_row][0].focus_set()
+        except Exception:
+            pass
+
+    def _snapshot_state(self) -> dict:
+        """
+        Capture a canonical snapshot of the current UI state for change detection.
+        Includes num_rows/cols, date, headers, product text, and directions with [[highlight]] tags.
+        """
+        snap = {
+            "num_rows": self.num_rows,
+            "num_cols": self.num_cols,
+            "start_date": self.date_entry.get().strip(),
+        }
+
+        for c in range(self.num_cols):
+            header = self.column_data[c]["header"].get().strip()
+            snap[f"Col{c+1}_Header"] = header
+
+            steps = []
+            for r in range(self.num_rows):
+                product_entry, direction_box = self.column_data[c]["entries"][r]
+                product = product_entry.get().strip()
+                directions = self.extract_text_with_highlight(direction_box).strip()
+                steps.append({"product": product, "directions": directions})
+
+            snap[f"Col{c+1}"] = steps
+
+        return snap
+
+
+    def _is_dirty(self) -> bool:
+        """Compare current state to the initial snapshot."""
+        try:
+            return self._snapshot_state() != getattr(self, "_initial_snapshot", None)
+        except Exception:
+            # If anything goes wrong, play it safe and ask for confirmation.
+            return True
