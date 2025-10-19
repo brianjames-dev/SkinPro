@@ -257,15 +257,30 @@ class AppointmentsPage:
                 """, (client_id,))
                 appointments = cursor.fetchall()
 
+            # --- NEW: sort by real date (index 1) so initial render is correct across years
+            appointments.sort(key=lambda r: self._parse_mmddyyyy(r[1]), reverse=True)
+
+            # Insert rows
             for index, row in enumerate(appointments):
                 appointment_id, date, type, treatment, price, photos_taken, treatment_notes = row
-                self.appointments_table.insert("", "end", iid=str(appointment_id), values=(date, type, treatment, price, photos_taken))
+                self.appointments_table.insert(
+                    "", "end", iid=str(appointment_id),
+                    values=(date, type, treatment, price, photos_taken)  # keep your existing schema
+                )
 
             self.update_alternating_colors()
             self.load_all_treatment_notes()
         except Exception as e:
             print(f"Error loading appointments: {e}")
 
+
+    def _parse_mmddyyyy(self, s: str):
+        """Return a datetime for 'MM/DD/YYYY'; bad/missing dates sort last."""
+        try:
+            return datetime.strptime(s, "%m/%d/%Y")
+        except Exception:
+            return datetime.min
+    
 
     def on_appointment_select(self, event):
         """Handle selection of multiple appointments and update the All Notes textbox in real-time."""
@@ -376,7 +391,6 @@ class AppointmentsPage:
 
     def load_all_treatment_notes(self):
         """Load all treatment notes for the selected client, sorted by most recent appointment."""
-        
         if not self.client_id:
             print("No client selected. Cannot load notes.")
             return
@@ -388,38 +402,50 @@ class AppointmentsPage:
                 FROM appointments 
                 WHERE client_id = ? 
                 AND treatment_notes IS NOT NULL 
-                AND treatment_notes != ''
+                AND TRIM(treatment_notes) != ''
                 ORDER BY date DESC
             """, (self.client_id,))
             all_notes = cursor.fetchall()
 
+        # --- Ensure correct chronological order across years (MM/DD/YYYY -> datetime)
+        # requires self._parse_mmddyyyy from earlier
+        all_notes.sort(key=lambda r: self._parse_mmddyyyy(r[0]), reverse=True)
+
         # Clear existing notes
-        self.all_notes_textbox.configure(state="normal")  # Enable Editing
+        self.all_notes_textbox.configure(state="normal")
         self.all_notes_textbox.delete("1.0", "end")
 
-        # Configure Text Styles (Headers: 14px, Notes: 12px)
+        # Styles
         self.all_notes_textbox.tag_configure("header", font=("Helvetica", 22, "bold"))
         self.all_notes_textbox.tag_configure("body", font=("Helvetica", 18))
         self.all_notes_textbox.tag_configure("divider", font=("Helvetica", 10))
 
         # Compile formatted notes with dynamic dividers
-        for date, treatment, notes in all_notes:
-            max_length = max(len(date), len(treatment) - 2)
-            if max_length > 35:
-                max_length = 35
-            divider_line = "━" * max(max_length + 3, 1)
+        for date_str, treatment, notes in all_notes:
+            treatment_text = (treatment or "").strip()
+            date_text = (date_str or "").strip()
 
-            self.all_notes_textbox.insert("end", f"{divider_line}\n", "divider")  # Top Divider
-            self.all_notes_textbox.insert("end", f"{treatment}\n", "header")  # Treatment (Header)
-            self.all_notes_textbox.insert("end", f"{date}\n", "header")  # Date (Header)
-            self.all_notes_textbox.insert("end", f"{divider_line}\n\n", "divider")  # Bottom Divider
-            self.all_notes_textbox.insert("end", f"{notes}\n\n", "body")  # Notes (Body)
+            # Safe divider length
+            base_len = max(len(date_text), max(len(treatment_text) - 2, 0))
+            if base_len > 35:
+                base_len = 35
+            divider_line = "━" * max(base_len + 3, 1)
+
+            self.all_notes_textbox.insert("end", f"{divider_line}\n", "divider")
+            if treatment_text:
+                self.all_notes_textbox.insert("end", f"{treatment_text}\n", "header")
+            if date_text:
+                self.all_notes_textbox.insert("end", f"{date_text}\n", "header")
+            self.all_notes_textbox.insert("end", f"{divider_line}\n\n", "divider")
+
+            # Body
+            self.all_notes_textbox.insert("end", f"{(notes or '').rstrip()}\n\n", "body")
 
         if not all_notes:
             self.all_notes_textbox.insert("1.0", "No treatment notes available.", "body")
 
-        self.all_notes_textbox.configure(state="disabled")  # Disable Again
-        
+        self.all_notes_textbox.configure(state="disabled")
+
 
     def clear_appointments(self):
         """Clear all rows in the appointments Treeview and treatment notes."""
