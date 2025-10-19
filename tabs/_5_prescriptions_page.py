@@ -14,6 +14,8 @@ from class_elements.pdf_generators.pdf_3col import Pdf3ColGenerator
 from class_elements.pdf_generators.pdf_4col import Pdf4ColGenerator
 from class_elements.pdf_generators.prescription_entry_popup import PrescriptionEntryPopup
 from class_elements.PdfRenderThread import PdfRenderWorker
+import hashlib
+from pathlib import Path
 
 
 class PrescriptionsPage:
@@ -446,30 +448,87 @@ class PrescriptionsPage:
         self.clear_prescriptions_list()
 
         try:
+            # ----- A) Load rows from DB -----
             with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, form_type, file_path, start_date FROM prescriptions
+                    SELECT id, form_type, file_path, start_date
+                    FROM prescriptions
                     WHERE client_id = ?
                     ORDER BY start_date DESC
                 """, (client_id,))
-                prescriptions = cursor.fetchall()
+                db_rows = cursor.fetchall()
 
-            for index, pres in enumerate(prescriptions):
-                pres_id, form_type, file_path, start_date = pres
+            entries = []
+            db_paths_norm = set()
 
-                tag = 'alternate' if index % 2 == 1 else None
-                created_date = start_date if os.path.exists(file_path) else "Unknown"
+            for pres_id, form_type, file_path, start_date in db_rows:
+                p = Path(file_path) if file_path else None
+                exists = bool(p and p.exists())
+                db_paths_norm.add(os.path.normcase(os.path.abspath(file_path)) if file_path else file_path)
+
+                date_display = start_date or (self._infer_date_for_display(p) if p else "")
+                sort_key = self._parse_mmddyyyy(date_display)
+                entries.append({
+                    "iid": str(pres_id),            # numeric (DB) id
+                    "source": "db",
+                    "date_display": date_display,
+                    "form_type": form_type or "Unknown",
+                    "path": file_path or "",
+                    "exists": exists,
+                    "sort_key": sort_key,
+                    "tag": 'alternate'  # will be applied by index later
+                })
+
+            # ----- B) Scan filesystem for extra PDFs not in DB -----
+            folder = self._safe_client_folder(client_id)
+            for pdf_path in folder.glob("*.pdf"):
+                norm = os.path.normcase(os.path.abspath(str(pdf_path)))
+                if norm in db_paths_norm:
+                    continue  # already represented by DB row
+
+                date_display = self._infer_date_for_display(pdf_path)
+                form_type = self._infer_form_type_from_filename(pdf_path)
+                sort_key = self._parse_mmddyyyy(date_display)
+
+                # create a stable fs-only iid (Treeview iid must be unique)
+                fs_iid = "fs::" + hashlib.md5(norm.encode("utf-8")).hexdigest()
+
+                entries.append({
+                    "iid": fs_iid,                 # non-numeric; will be treated as "Unindexed"
+                    "source": "fs",
+                    "date_display": date_display,
+                    "form_type": form_type,
+                    "path": str(pdf_path),
+                    "exists": True,
+                    "sort_key": sort_key,
+                    "tag": 'unindexed'
+                })
+
+            # ----- C) Sort combined entries by real date (newest first) -----
+            entries.sort(key=lambda e: e["sort_key"], reverse=True)
+
+            # ----- D) Insert into Treeview -----
+            for index, e in enumerate(entries):
+                # Alternate-row background for readability; unindexed gets its own color
+                row_tag = e["tag"]
+                if row_tag != 'unindexed':
+                    row_tag = 'alternate' if index % 2 == 1 else None
 
                 iid = self.prescription_list.insert(
                     "", "end",
-                    iid=str(pres_id),
-                    values=(created_date, form_type),
-                    tags=(tag,)
+                    iid=e["iid"],
+                    values=(e["date_display"] or "Unknown", e["form_type"]),
+                    tags=(row_tag,) if row_tag else ()
                 )
-                self.prescription_paths[iid] = file_path
+                self.prescription_paths[iid] = e["path"]
 
-            # Select requested item if provided, else default to first row
+            # Style tags
+            self.prescription_list.tag_configure('alternate', background='#b3b3b3')
+            # Subtle yellow for files found on disk but not in DB
+            self.prescription_list.tag_configure('unindexed', background='#FFF7D1')
+
+            # ----- E) Select requested item or default to first -----
             if select_id is not None and self.prescription_list.exists(str(select_id)):
                 iid = str(select_id)
                 self.prescription_list.selection_set(iid)
@@ -486,8 +545,6 @@ class PrescriptionsPage:
             # Clear preview frame (in case no selection rendered anything)
             for widget in self.preview_inner_frame.winfo_children():
                 widget.destroy()
-
-            self.prescription_list.tag_configure('alternate', background='#b3b3b3')
 
         except Exception as e:
             print(f"Failed to load prescriptions for client {client_id}: {e}")
@@ -803,3 +860,61 @@ class PrescriptionsPage:
     def _bind_mousewheel_events(self):
         self.scroll_canvas.bind("<Enter>", lambda e: self.scroll_canvas.bind_all("<MouseWheel>", self._on_mousewheel))
         self.scroll_canvas.bind("<Leave>", lambda e: self.scroll_canvas.unbind_all("<MouseWheel>"))
+
+
+    def _parse_mmddyyyy(self, s: str):
+        """Return a datetime for 'MM/DD/YYYY'; bad/missing dates sort last."""
+        try:
+            return datetime.strptime(s, "%m/%d/%Y")
+        except Exception:
+            return datetime.min
+
+    def _safe_client_folder(self, client_id: int) -> Path:
+        """
+        Build the folder path used elsewhere in your code:
+        <SkinProData>/prescriptions/<ClientName>_<ClientID>/
+        """
+        # get client name from DB
+        with sqlite3.connect(self.main_app.data_manager.db_path) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT full_name FROM clients WHERE id=?", (client_id,))
+            row = cur.fetchone()
+        client_name = (row[0] if row else f"Client_{client_id}").strip()
+        safe_client_name = re.sub(r"[^\w\s-]", "", client_name)
+        safe_client_name = re.sub(r"\s+", "_", safe_client_name)
+        base = self.main_app.data_manager.prescriptions_dir  # you already use this elsewhere
+        folder = Path(base) / f"{safe_client_name}_{client_id}"
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    def _infer_date_for_display(self, pdf_path: Path) -> str:
+        """
+        Try to get a display date:
+        1) from filename prefix like 'MM-DD-YYYY_...pdf'
+        2) else from file modified time
+        -> returns 'MM/DD/YYYY'
+        """
+        name = pdf_path.name
+        m = re.match(r"^(\d{2})-(\d{2})-(\d{4})[_\s-]", name)  # your generators use this format
+        if m:
+            mm, dd, yyyy = m.groups()
+            return f"{mm}/{dd}/{yyyy}"
+        # fallback to file mtime
+        try:
+            dt = datetime.fromtimestamp(pdf_path.stat().st_mtime)
+            return dt.strftime("%m/%d/%Y")
+        except Exception:
+            return ""
+
+    def _infer_form_type_from_filename(self, pdf_path: Path) -> str:
+        """
+        Best-effort: detect '2-col'/'3-col'/'4-col' in filename; fallback to 'Unknown'.
+        """
+        name = pdf_path.name.lower()
+        if "2-col" in name or "2column" in name or "2-column" in name:
+            return "2-column"
+        if "3-col" in name or "3column" in name or "3-column" in name:
+            return "3-column"
+        if "4-col" in name or "4column" in name or "4-column" in name:
+            return "4-column"
+        return "Unknown"
