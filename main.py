@@ -18,7 +18,12 @@ flask_thread = None
 def start_server_in_thread():
     global flask_thread
     if flask_thread is None or not flask_thread.is_alive():
-        flask_thread = threading.Thread(target=server.start_flask_server, daemon=False)
+        # Daemon thread so it won't block process exit when closing the app
+        flask_thread = threading.Thread(
+            target=server.start_flask_server,
+            daemon=True,
+            name="FlaskUploadServer",
+        )
         flask_thread.start()
         sys._flask_server_started = True
         print("Flask server launched from main.py")
@@ -57,10 +62,11 @@ if __name__ == "__main__":
 
     def on_close():
         print("🔻 App is closing — attempting to clean up...")
-        # Gracefully stop the server if needed
-        # (e.g., set a flag or shut down Flask with shutdown route if implemented)
-        app.quit()
-        os._exit(0)  # Force shutdown if needed to stop Flask thread
+        try:
+            app.quit()
+        except:
+            pass
+        sys.exit(0)  # Clean exit
     app.protocol("WM_DELETE_WINDOW", on_close)
 
     # 🔹 Start Tkinter main loop for splash screen (ensures it's visible)
