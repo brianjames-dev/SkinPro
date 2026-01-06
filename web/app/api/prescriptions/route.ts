@@ -30,16 +30,17 @@ export async function GET(request: Request) {
     }
 
     const db = getDb();
-    const rows = db
-      .prepare(
-        "SELECT id, client_id, appointment_id, start_date, form_type, file_path " +
-          "FROM prescriptions WHERE client_id = ? ORDER BY start_date DESC"
-      )
-      .all(clientId)
-      .map((row: Record<string, unknown>) => ({
-        ...row,
-        file_url: `/api/prescriptions/${row.id as number}/file`
-      }));
+    const rows = (
+      db
+        .prepare(
+          "SELECT id, client_id, appointment_id, start_date, form_type, file_path " +
+            "FROM prescriptions WHERE client_id = ? ORDER BY start_date DESC"
+        )
+        .all(clientId) as Record<string, unknown>[]
+    ).map((row) => ({
+      ...row,
+      file_url: `/api/prescriptions/${row.id as number}/file`
+    }));
 
     return NextResponse.json({ prescriptions: rows });
   } catch (error) {

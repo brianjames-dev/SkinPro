@@ -599,6 +599,10 @@ export default function ClientsDashboard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const initialClientIdRef = useRef<number | null>(null);
+  const selectedClientIdRef = useRef<number | null>(null);
+  const clientDetailsRequestIdRef = useRef(0);
+  const clientDetailsAbortRef = useRef<AbortController | null>(null);
+  const clientFormMutationIdRef = useRef(0);
   const [allClients, setAllClients] = useState<Client[]>([]);
   const [clientOptions, setClientOptions] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
@@ -671,6 +675,7 @@ export default function ClientsDashboard() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingClients, setLoadingClients] = useState(false);
+  const [loadingClientDetails, setLoadingClientDetails] = useState(false);
   const [overviewTab, setOverviewTab] = useState<OverviewTab>("info");
   const [overviewMode, setOverviewMode] = useState<OverviewMode>("compact");
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("appointments");
@@ -714,9 +719,17 @@ export default function ClientsDashboard() {
       .slice(0, 3);
   }, [allClients, referredByQuery, selectedClientId]);
 
+  const referredBySelected = useMemo(() => {
+    const trimmedForm = clientForm.referred_by.trim();
+    if (trimmedForm) {
+      return trimmedForm;
+    }
+    return referredByValue.trim();
+  }, [clientForm.referred_by, referredByValue]);
+
   const referredByDisplay = useMemo(() => {
-    return resolveReferredByName(referredByValue, allClients);
-  }, [referredByValue, allClients]);
+    return resolveReferredByName(referredBySelected, allClients);
+  }, [referredBySelected, allClients]);
 
   const referralStats = useMemo(() => {
     if (!selectedClientId) {
@@ -787,6 +800,10 @@ export default function ClientsDashboard() {
   }, []);
 
   useEffect(() => {
+    selectedClientIdRef.current = selectedClientId;
+  }, [selectedClientId]);
+
+  useEffect(() => {
     if (typeof document === "undefined") {
       return;
     }
@@ -839,8 +856,8 @@ export default function ClientsDashboard() {
     if (!selectedClientId || overviewMode !== "compact") {
       return;
     }
-    setReferredByQuery(resolveReferredByName(referredByValue, allClients));
-  }, [selectedClientId, overviewMode, referredByValue, allClients]);
+    setReferredByQuery(resolveReferredByName(referredBySelected, allClients));
+  }, [selectedClientId, overviewMode, referredBySelected, allClients]);
 
   useEffect(() => {
     if (overviewMode === "edit") {
@@ -943,8 +960,20 @@ export default function ClientsDashboard() {
   };
 
   const loadClientDetails = async (clientId: number) => {
+    const requestId = clientDetailsRequestIdRef.current + 1;
+    clientDetailsRequestIdRef.current = requestId;
+    const mutationToken = clientFormMutationIdRef.current;
+
+    clientDetailsAbortRef.current?.abort();
+    const abortController = new AbortController();
+    clientDetailsAbortRef.current = abortController;
+
+    setLoadingClientDetails(true);
+
     try {
-      const response = await fetch(`/api/clients/${clientId}`);
+      const response = await fetch(`/api/clients/${clientId}`, {
+        signal: abortController.signal
+      });
       const data = (await response.json()) as {
         client?: Client;
         health?: HealthInfo | null;
@@ -954,6 +983,16 @@ export default function ClientsDashboard() {
       if (!response.ok || !data.client) {
         throw new Error(data.error ?? "Failed to load client details");
       }
+
+      if (
+        requestId !== clientDetailsRequestIdRef.current ||
+        selectedClientIdRef.current !== clientId ||
+        clientFormMutationIdRef.current !== mutationToken
+      ) {
+        return;
+      }
+
+      clientFormMutationIdRef.current = 0;
 
       const client = data.client;
       const referredByRaw = client.referred_by ?? "";
@@ -994,7 +1033,17 @@ export default function ClientsDashboard() {
         desired_improvement: health.desired_improvement ?? ""
       });
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Failed to load client", true);
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
+      setNotice(
+        err instanceof Error ? err.message : "Failed to load client details",
+        true
+      );
+    } finally {
+      if (clientDetailsRequestIdRef.current === requestId) {
+        setLoadingClientDetails(false);
+      }
     }
   };
 
@@ -1092,6 +1141,8 @@ export default function ClientsDashboard() {
   };
 
   const handleSelectClient = async (clientId: number) => {
+    selectedClientIdRef.current = clientId;
+    clientFormMutationIdRef.current = 0;
     setSelectedClientId(clientId);
     syncClientRoute(clientId);
     setNotice(null);
@@ -1107,6 +1158,11 @@ export default function ClientsDashboard() {
   };
 
   const handleNewClient = () => {
+    selectedClientIdRef.current = null;
+    clientFormMutationIdRef.current = 0;
+    clientDetailsAbortRef.current?.abort();
+    clientDetailsRequestIdRef.current += 1;
+    setLoadingClientDetails(false);
     setSelectedClientId(null);
     syncClientRoute(null);
     setOverviewMode("edit");
@@ -1155,6 +1211,7 @@ export default function ClientsDashboard() {
     if (field === "birthdate") {
       nextValue = formatDateInput(value);
     }
+    clientFormMutationIdRef.current += 1;
     setClientForm((prev) => ({ ...prev, [field]: nextValue }));
   };
 
@@ -1167,6 +1224,7 @@ export default function ClientsDashboard() {
 
   const handleReferredBySelect = (client: Client) => {
     const nextValue = `${REFERRED_BY_PREFIX}${client.id}`;
+    clientFormMutationIdRef.current += 1;
     setClientForm((prev) => ({
       ...prev,
       referred_by: nextValue
@@ -1180,6 +1238,7 @@ export default function ClientsDashboard() {
     if (!trimmed) {
       return;
     }
+    clientFormMutationIdRef.current += 1;
     setClientForm((prev) => ({
       ...prev,
       referred_by: trimmed
@@ -1189,6 +1248,7 @@ export default function ClientsDashboard() {
   };
 
   const handleReferredByClear = () => {
+    clientFormMutationIdRef.current += 1;
     setClientForm((prev) => ({
       ...prev,
       referred_by: ""
@@ -1225,7 +1285,7 @@ export default function ClientsDashboard() {
     try {
       const payload = {
         ...clientForm,
-        referred_by: referredByValue.trim()
+        referred_by: referredBySelected
       };
       delete payload.id;
 
@@ -2652,6 +2712,7 @@ export default function ClientsDashboard() {
                     overviewMode === "edit" ? styles.editToggleIcon : ""
                   }`}
                   type="button"
+                  disabled={loadingClientDetails}
                   onClick={() =>
                     setOverviewMode((prev) =>
                       prev === "edit" ? "compact" : "edit"
@@ -2731,6 +2792,7 @@ export default function ClientsDashboard() {
                             value={clientForm.full_name}
                             onChange={handleClientChange}
                             required
+                            disabled={loadingClientDetails}
                           />
                         </label>
                         <label className={styles.field}>
@@ -2740,6 +2802,7 @@ export default function ClientsDashboard() {
                             name="gender"
                             value={clientForm.gender}
                             onChange={handleClientChange}
+                            disabled={loadingClientDetails}
                           >
                             <option value="">Select</option>
                             <option value="Male">Male</option>
@@ -2755,6 +2818,7 @@ export default function ClientsDashboard() {
                             inputMode="numeric"
                             value={clientForm.primary_phone}
                             onChange={handleClientChange}
+                            disabled={loadingClientDetails}
                           />
                         </label>
                         <label className={styles.field}>
@@ -2766,6 +2830,7 @@ export default function ClientsDashboard() {
                             inputMode="numeric"
                             value={clientForm.birthdate}
                             onChange={handleClientChange}
+                            disabled={loadingClientDetails}
                           />
                         </label>
                         <label className={styles.field}>
@@ -2775,6 +2840,7 @@ export default function ClientsDashboard() {
                             name="email"
                             value={clientForm.email}
                             onChange={handleClientChange}
+                            disabled={loadingClientDetails}
                           />
                         </label>
                         <label className={styles.field}>
@@ -2786,6 +2852,7 @@ export default function ClientsDashboard() {
                             inputMode="numeric"
                             value={clientForm.secondary_phone}
                             onChange={handleClientChange}
+                            disabled={loadingClientDetails}
                           />
                         </label>
                         <label className={styles.field}>
@@ -2795,6 +2862,7 @@ export default function ClientsDashboard() {
                             name="address1"
                             value={clientForm.address1}
                             onChange={handleClientChange}
+                            disabled={loadingClientDetails}
                           />
                         </label>
                         <label className={styles.field}>
@@ -2804,6 +2872,7 @@ export default function ClientsDashboard() {
                             name="address2"
                             value={clientForm.address2}
                             onChange={handleClientChange}
+                            disabled={loadingClientDetails}
                           />
                         </label>
                         <label className={styles.field}>
@@ -2813,6 +2882,7 @@ export default function ClientsDashboard() {
                             name="city"
                             value={clientForm.city}
                             onChange={handleClientChange}
+                            disabled={loadingClientDetails}
                           />
                         </label>
                         <label className={styles.field}>
@@ -2822,6 +2892,7 @@ export default function ClientsDashboard() {
                             name="state"
                             value={clientForm.state}
                             onChange={handleClientChange}
+                            disabled={loadingClientDetails}
                           />
                         </label>
                         <label className={styles.field}>
@@ -2831,12 +2902,13 @@ export default function ClientsDashboard() {
                             name="zip"
                             value={clientForm.zip}
                             onChange={handleClientChange}
+                            disabled={loadingClientDetails}
                           />
                         </label>
                         <label className={styles.field}>
                           <span className={styles.label}>Referred By</span>
                           <div className={styles.referredByField}>
-                            {referredByValue.trim() && (
+                            {referredBySelected.trim() && (
                               <div className={styles.referredByTags}>
                                 <span className={styles.referredByTag}>
                                   <span className={styles.referredByTagLabel}>
@@ -2861,6 +2933,7 @@ export default function ClientsDashboard() {
                               onChange={handleReferredByChange}
                               placeholder="Search client name"
                               autoComplete="off"
+                              disabled={loadingClientDetails}
                               onKeyDown={(event) => {
                                 if (event.key === "Enter") {
                                   event.preventDefault();
@@ -2878,7 +2951,8 @@ export default function ClientsDashboard() {
                                   <ul className={styles.referredByList}>
                                     {referredByMatches.map((client) => {
                                       const isSelected =
-                                        parseReferredById(referredByValue) === client.id;
+                                        parseReferredById(referredBySelected) ===
+                                        client.id;
                                       return (
                                         <li key={client.id}>
                                           <button
@@ -2888,9 +2962,16 @@ export default function ClientsDashboard() {
                                                 : ""
                                             }`}
                                             type="button"
-                                            onClick={() =>
-                                              handleReferredBySelect(client)
-                                            }
+                                            onMouseDown={(event) => {
+                                              event.preventDefault();
+                                              handleReferredBySelect(client);
+                                            }}
+                                            onKeyDown={(event) => {
+                                              if (event.key === "Enter" || event.key === " ") {
+                                                event.preventDefault();
+                                                handleReferredBySelect(client);
+                                              }
+                                            }}
                                           >
                                             <span className={styles.referredByName}>
                                               {client.full_name}
@@ -2916,7 +2997,11 @@ export default function ClientsDashboard() {
                         </label>
                       </div>
                       <div className={styles.buttonRow}>
-                        <button className={styles.button} type="submit">
+                        <button
+                          className={styles.button}
+                          type="submit"
+                          disabled={loadingClientDetails}
+                        >
                           {selectedClientId ? "Save Changes" : "Create Client"}
                         </button>
                         {selectedClientId && (
@@ -2924,6 +3009,7 @@ export default function ClientsDashboard() {
                             className={`${styles.button} ${styles.buttonDanger}`}
                             type="button"
                             onClick={handleClientDelete}
+                            disabled={loadingClientDetails}
                           >
                             Delete Client
                           </button>

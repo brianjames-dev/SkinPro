@@ -53,17 +53,18 @@ export async function GET(request: Request) {
       ? `WHERE ${conditions.join(" AND ")}`
       : "";
 
-    const rows = db
-      .prepare(
-        `SELECT id, client_id, appointment_id, appt_date, file_path, type, description
-         FROM photos ${whereClause}
-         ORDER BY appt_date DESC, id DESC`
-      )
-      .all(...values)
-      .map((row: Record<string, unknown>) => ({
-        ...row,
-        file_url: `/api/photos/${row.id as number}/file`
-      }));
+    const rows = (
+      db
+        .prepare(
+          `SELECT id, client_id, appointment_id, appt_date, file_path, type, description
+           FROM photos ${whereClause}
+           ORDER BY appt_date DESC, id DESC`
+        )
+        .all(...values) as Record<string, unknown>[]
+    ).map((row) => ({
+      ...row,
+      file_url: `/api/photos/${row.id as number}/file`
+    }));
 
     return NextResponse.json({ photos: rows });
   } catch (error) {
