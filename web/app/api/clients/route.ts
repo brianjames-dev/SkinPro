@@ -18,7 +18,7 @@ export async function GET(request: Request) {
       ? db
           .prepare(
             "SELECT id, full_name, gender, birthdate, primary_phone, email, " +
-              "address1, address2, city, state, zip " +
+              "address1, address2, city, state, zip, referred_by " +
               "FROM clients WHERE full_name LIKE ? " +
               "ORDER BY full_name LIMIT ?"
           )
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       : db
           .prepare(
             "SELECT id, full_name, gender, birthdate, primary_phone, email, " +
-              "address1, address2, city, state, zip " +
+              "address1, address2, city, state, zip, referred_by " +
               "FROM clients ORDER BY full_name LIMIT ?"
           )
           .all(limit);

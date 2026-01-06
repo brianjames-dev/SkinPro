@@ -51,3 +51,12 @@ dist/
 
 # Logs
 *.log
+
+# Node/Next (web)
+node_modules/
+.next/
+out/
+.turbo/
+.vercel/
+web/.env.local
+web/.env.*.local

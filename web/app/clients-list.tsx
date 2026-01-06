@@ -106,6 +106,16 @@ export default function ClientsList() {
     setSearchQuery((prev) => prev.trim());
   };
 
+  const handleSearchSelectClient = (clientId: number) => {
+    setSelectedClientId(clientId);
+    setSearchQuery("");
+  };
+
+  const handleSearchOpenWorkspace = (clientId: number) => {
+    handleSearchSelectClient(clientId);
+    openWorkspace(clientId);
+  };
+
   const handleClear = () => {
     setSearchQuery("");
   };
@@ -213,8 +223,10 @@ export default function ClientsList() {
         className={
           selectedClientId === client.id ? styles.tableRowSelected : undefined
         }
-        onClick={() => setSelectedClientId(client.id)}
-        onDoubleClick={() => openWorkspace(client.id)}
+        onClick={() => handleSearchSelectClient(client.id)}
+        onDoubleClick={() => {
+          handleSearchOpenWorkspace(client.id);
+        }}
         role="option"
         aria-selected={selectedClientId === client.id}
       >
@@ -254,16 +266,47 @@ export default function ClientsList() {
 
       <div className={styles.searchBar}>
         <label className={styles.field}>
-          <span className={styles.label}>Search by Name</span>
           <input
             className={styles.input}
             name="search"
-            placeholder="Enter client name"
+            placeholder="Search client name"
             value={searchQuery}
+            aria-label="Search client name"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
+              if (event.key === "ArrowDown" && filteredClients.length > 0) {
+                event.preventDefault();
+                const currentIndex = filteredClients.findIndex(
+                  (client) => client.id === selectedClientId
+                );
+                const nextIndex =
+                  currentIndex < 0
+                    ? 0
+                    : Math.min(currentIndex + 1, filteredClients.length - 1);
+                setSelectedClientId(filteredClients[nextIndex].id);
+                return;
+              }
+
+              if (event.key === "ArrowUp" && filteredClients.length > 0) {
+                event.preventDefault();
+                const currentIndex = filteredClients.findIndex(
+                  (client) => client.id === selectedClientId
+                );
+                const nextIndex = currentIndex <= 0 ? 0 : currentIndex - 1;
+                setSelectedClientId(filteredClients[nextIndex].id);
+                return;
+              }
+
               if (event.key === "Enter") {
                 event.preventDefault();
+                if (selectedClientId) {
+                  handleSearchOpenWorkspace(selectedClientId);
+                  return;
+                }
                 handleSearch();
               }
             }}

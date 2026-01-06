@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import styles from "./clients.module.css";
 
 type Client = {
@@ -73,7 +74,9 @@ type Alert = {
   notes?: string | null;
 };
 
-type WorkspaceTab = "health" | "appointments" | "photos" | "prescriptions" | "alerts";
+type WorkspaceTab = "appointments" | "photos" | "prescriptions";
+type OverviewTab = "info" | "health";
+type OverviewMode = "compact" | "edit";
 
 type PrescriptionTemplate = {
   id: string;
@@ -138,11 +141,9 @@ type AppointmentForm = {
 };
 
 const WORKSPACE_TABS: { id: WorkspaceTab; label: string }[] = [
-  { id: "health", label: "Health" },
   { id: "appointments", label: "Appointments" },
   { id: "photos", label: "Photos" },
-  { id: "prescriptions", label: "Prescriptions" },
-  { id: "alerts", label: "Alerts" }
+  { id: "prescriptions", label: "Prescriptions" }
 ];
 
 const EMPTY_CLIENT: ClientForm = {
@@ -310,6 +311,241 @@ const normalizeDateInput = (value: string) => {
   return trimmed;
 };
 
+const formatDateInput = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) {
+    return digits;
+  }
+  if (digits.length <= 4) {
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  }
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
+const formatPhoneInput = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (!digits) {
+    return "";
+  }
+  if (digits.length <= 3) {
+    return digits;
+  }
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  }
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+};
+
+const formatCompactValue = (value: string) => {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : "—";
+};
+
+const formatCompactAddress = (form: ClientForm) => {
+  const address1 = form.address1.trim();
+  const address2 = form.address2.trim();
+  const cityState = [form.city.trim(), form.state.trim()]
+    .filter(Boolean)
+    .join(", ");
+  const zip = form.zip.trim();
+
+  return [address1, address2, cityState, zip].filter(Boolean).join("\n");
+};
+
+const formatCompactPhones = (primary: string, secondary: string) => {
+  const primaryTrimmed = primary.trim();
+  const secondaryTrimmed = secondary.trim();
+
+  if (!primaryTrimmed && !secondaryTrimmed) {
+    return "";
+  }
+  if (!primaryTrimmed) {
+    return secondaryTrimmed;
+  }
+  if (!secondaryTrimmed) {
+    return primaryTrimmed;
+  }
+  return `${primaryTrimmed}\n${secondaryTrimmed}`;
+};
+
+const REFERRED_BY_PREFIX = "client:";
+
+const parseReferredById = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith(REFERRED_BY_PREFIX)) {
+    return null;
+  }
+  const id = Number(trimmed.slice(REFERRED_BY_PREFIX.length));
+  return Number.isFinite(id) ? id : null;
+};
+
+const resolveReferredByName = (value: string, clients: Client[]) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const id = parseReferredById(trimmed);
+  if (id === null) {
+    return trimmed;
+  }
+  const match = clients.find((client) => client.id === id);
+  return match?.full_name ?? trimmed;
+};
+
+const CompactValue = ({
+  value,
+  multiline = false,
+  allowTruncate = true
+}: {
+  value: string;
+  multiline?: boolean;
+  allowTruncate?: boolean;
+}) => {
+  const textRef = useRef<HTMLSpanElement | null>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+  const displayValue = formatCompactValue(value);
+
+  useEffect(() => {
+    if (!allowTruncate) {
+      setIsTruncated(false);
+      return;
+    }
+    const element = textRef.current;
+    if (!element) {
+      return;
+    }
+
+    const checkTruncation = () => {
+      if (multiline) {
+        setIsTruncated(element.scrollHeight > element.clientHeight);
+      } else {
+        setIsTruncated(element.scrollWidth > element.clientWidth);
+      }
+    };
+
+    checkTruncation();
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(checkTruncation);
+      observer.observe(element);
+    } else {
+      window.addEventListener("resize", checkTruncation);
+    }
+
+    return () => {
+      if (observer) {
+        observer.disconnect();
+      } else {
+        window.removeEventListener("resize", checkTruncation);
+      }
+    };
+  }, [displayValue, multiline, allowTruncate]);
+
+  const tooltipValue = value.trim();
+
+  return (
+    <span
+      className={`${styles.readonlyValue} ${
+        multiline ? styles.readonlyValueMultiline : ""
+      } ${!allowTruncate ? styles.readonlyValueWrap : ""}`}
+      data-tooltip={
+        allowTruncate && isTruncated && tooltipValue ? tooltipValue : undefined
+      }
+    >
+      <span
+        ref={textRef}
+        className={
+          allowTruncate
+            ? multiline
+              ? styles.readonlyTextMultiline
+              : styles.readonlyText
+            : styles.readonlyTextWrap
+        }
+      >
+        {displayValue}
+      </span>
+    </span>
+  );
+};
+
+const ExpandableValue = ({
+  value,
+  previewLines = 2
+}: {
+  value: string;
+  previewLines?: number;
+}) => {
+  const textRef = useRef<HTMLDivElement | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const displayValue = formatCompactValue(value);
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [displayValue]);
+
+  useEffect(() => {
+    const element = textRef.current;
+    if (!element || expanded) {
+      return;
+    }
+
+    const checkOverflow = () => {
+      setHasOverflow(element.scrollHeight > element.clientHeight + 1);
+    };
+
+    checkOverflow();
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(checkOverflow);
+      observer.observe(element);
+    } else {
+      window.addEventListener("resize", checkOverflow);
+    }
+
+    return () => {
+      if (observer) {
+        observer.disconnect();
+      } else {
+        window.removeEventListener("resize", checkOverflow);
+      }
+    };
+  }, [displayValue, expanded, previewLines]);
+
+  const showToggle = hasOverflow || expanded;
+
+  return (
+    <div className={styles.expandableValue}>
+      <div
+        ref={textRef}
+        className={`${styles.expandableText} ${
+          expanded ? "" : styles.expandableTextClamped
+        }`}
+        style={
+          expanded
+            ? undefined
+            : ({ "--clamp-lines": String(previewLines) } as CSSProperties)
+        }
+      >
+        {displayValue}
+      </div>
+      {showToggle && (
+        <button
+          className={`${styles.expandableToggle} ${
+            expanded ? styles.expandableToggleExpanded : ""
+          }`}
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          {expanded ? "Less" : "More"}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const parseDateParts = (value: string) => {
   const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!match) {
@@ -359,6 +595,8 @@ const calculateAlertStatus = (deadline: string) => {
 };
 
 export default function ClientsDashboard() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const initialClientIdRef = useRef<number | null>(null);
   const [allClients, setAllClients] = useState<Client[]>([]);
@@ -379,6 +617,11 @@ export default function ClientsDashboard() {
   );
   const [profileUploadFile, setProfileUploadFile] = useState<File | null>(null);
   const [profileUploadKey, setProfileUploadKey] = useState(0);
+  const [isProfileUploadOpen, setIsProfileUploadOpen] = useState(false);
+  const [profileUploadMode, setProfileUploadMode] = useState<"local" | "qr">(
+    "qr"
+  );
+  const profileFileInputRef = useRef<HTMLInputElement | null>(null);
   const [photoUploadAppointmentId, setPhotoUploadAppointmentId] =
     useState<string>("");
   const [photoUploadFiles, setPhotoUploadFiles] = useState<FileList | null>(
@@ -421,11 +664,16 @@ export default function ClientsDashboard() {
   const [printUrl, setPrintUrl] = useState<string | null>(null);
   const printFrameRef = useRef<HTMLIFrameElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
+  const [referredByQuery, setReferredByQuery] = useState("");
+  const [referredByValue, setReferredByValue] = useState("");
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingClients, setLoadingClients] = useState(false);
+  const [overviewTab, setOverviewTab] = useState<OverviewTab>("info");
+  const [overviewMode, setOverviewMode] = useState<OverviewMode>("compact");
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("appointments");
-  const [isClientFinderHidden, setIsClientFinderHidden] = useState(false);
 
   const sortedAppointments = useMemo(() => {
     return [...appointments].sort((a, b) => {
@@ -449,6 +697,66 @@ export default function ClientsDashboard() {
     );
   }, [allClients, searchQuery]);
 
+  const hasSearchQuery = searchQuery.trim().length > 0;
+
+  const referredByMatches = useMemo(() => {
+    const normalizedQuery = referredByQuery.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return [];
+    }
+    return allClients
+      .filter((client) => {
+        if (selectedClientId && client.id === selectedClientId) {
+          return false;
+        }
+        return client.full_name.toLowerCase().includes(normalizedQuery);
+      })
+      .slice(0, 3);
+  }, [allClients, referredByQuery, selectedClientId]);
+
+  const referredByDisplay = useMemo(() => {
+    return resolveReferredByName(referredByValue, allClients);
+  }, [referredByValue, allClients]);
+
+  const referralStats = useMemo(() => {
+    if (!selectedClientId) {
+      return { count: 0, latestName: "" };
+    }
+    const selected = allClients.find((client) => client.id === selectedClientId);
+    if (!selected) {
+      return { count: 0, latestName: "" };
+    }
+    const selectedName = selected.full_name.trim().toLowerCase();
+    const idToken = `${REFERRED_BY_PREFIX}${selectedClientId}`;
+    const matches = allClients.filter((client) => {
+      if (client.id === selectedClientId) {
+        return false;
+      }
+      const referredBy = client.referred_by?.trim();
+      if (!referredBy) {
+        return false;
+      }
+      if (referredBy === idToken) {
+        return true;
+      }
+      if (selectedName && referredBy.toLowerCase() === selectedName) {
+        return true;
+      }
+      return false;
+    });
+
+    let latestName = "";
+    let latestId = -1;
+    for (const client of matches) {
+      if (client.id > latestId) {
+        latestId = client.id;
+        latestName = client.full_name;
+      }
+    }
+
+    return { count: matches.length, latestName };
+  }, [allClients, selectedClientId]);
+
   const selectedPhoto = useMemo(() => {
     return photos.find((photo) => photo.id === selectedPhotoId) ?? null;
   }, [photos, selectedPhotoId]);
@@ -460,11 +768,29 @@ export default function ClientsDashboard() {
     );
   }, [prescriptions, selectedPrescriptionId]);
 
+  const activeSearchClientId = useMemo(() => {
+    if (
+      !hasSearchQuery ||
+      searchActiveIndex < 0 ||
+      searchActiveIndex >= filteredClients.length
+    ) {
+      return null;
+    }
+    return filteredClients[searchActiveIndex].id;
+  }, [hasSearchQuery, searchActiveIndex, filteredClients]);
+
   useEffect(() => {
     void loadClients();
     void loadClientOptions();
     void loadPrescriptionTemplates();
     void loadAlerts();
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    setPortalTarget(document.body ?? null);
   }, []);
 
   useEffect(() => {
@@ -493,6 +819,35 @@ export default function ClientsDashboard() {
     setProfileQrUrl(null);
   }, [selectedClientId]);
 
+  useEffect(() => {
+    setSearchActiveIndex(-1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!hasSearchQuery || filteredClients.length === 0) {
+      if (searchActiveIndex !== -1) {
+        setSearchActiveIndex(-1);
+      }
+      return;
+    }
+    if (searchActiveIndex >= filteredClients.length) {
+      setSearchActiveIndex(filteredClients.length - 1);
+    }
+  }, [hasSearchQuery, filteredClients.length, searchActiveIndex]);
+
+  useEffect(() => {
+    if (!selectedClientId || overviewMode !== "compact") {
+      return;
+    }
+    setReferredByQuery(resolveReferredByName(referredByValue, allClients));
+  }, [selectedClientId, overviewMode, referredByValue, allClients]);
+
+  useEffect(() => {
+    if (overviewMode === "edit") {
+      setReferredByQuery("");
+    }
+  }, [overviewMode, selectedClientId]);
+
   const setNotice = (message: string | null, isError = false) => {
     if (isError) {
       setError(message);
@@ -501,6 +856,25 @@ export default function ClientsDashboard() {
       setStatus(message);
       setError(null);
     }
+  };
+
+  const syncClientRoute = (clientId: number | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (clientId === null) {
+      params.delete("clientId");
+    } else {
+      params.set("clientId", String(clientId));
+    }
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    const currentQuery = searchParams.toString();
+    const currentUrl = currentQuery ? `${pathname}?${currentQuery}` : pathname;
+    if (nextUrl === currentUrl) {
+      initialClientIdRef.current = clientId;
+      return;
+    }
+    initialClientIdRef.current = clientId;
+    router.replace(nextUrl);
   };
 
   const getAlertStatusClass = (status: string) => {
@@ -582,21 +956,24 @@ export default function ClientsDashboard() {
       }
 
       const client = data.client;
+      const referredByRaw = client.referred_by ?? "";
       setClientForm({
         id: client.id,
         full_name: client.full_name ?? "",
         gender: client.gender ?? "",
-        birthdate: client.birthdate ?? "",
-        primary_phone: client.primary_phone ?? "",
-        secondary_phone: client.secondary_phone ?? "",
+        birthdate: formatDateInput(client.birthdate ?? ""),
+        primary_phone: formatPhoneInput(client.primary_phone ?? ""),
+        secondary_phone: formatPhoneInput(client.secondary_phone ?? ""),
         email: client.email ?? "",
         address1: client.address1 ?? "",
         address2: client.address2 ?? "",
         city: client.city ?? "",
         state: client.state ?? "",
         zip: client.zip ?? "",
-        referred_by: client.referred_by ?? ""
+        referred_by: referredByRaw
       });
+      setReferredByValue(referredByRaw);
+      setReferredByQuery(resolveReferredByName(referredByRaw, allClients));
       setProfilePictureUrl(
         client.profile_picture
           ? `/api/clients/${client.id}/profile-picture?ts=${Date.now()}`
@@ -716,6 +1093,7 @@ export default function ClientsDashboard() {
 
   const handleSelectClient = async (clientId: number) => {
     setSelectedClientId(clientId);
+    syncClientRoute(clientId);
     setNotice(null);
     setCopyTargetClientId("");
     setCopyStartDate(getTodayDateString());
@@ -730,7 +1108,11 @@ export default function ClientsDashboard() {
 
   const handleNewClient = () => {
     setSelectedClientId(null);
+    syncClientRoute(null);
+    setOverviewMode("edit");
     setClientForm(EMPTY_CLIENT);
+    setReferredByQuery("");
+    setReferredByValue("");
     setHealthForm(EMPTY_HEALTH);
     setAppointments([]);
     setAppointmentForm(EMPTY_APPOINTMENT);
@@ -760,11 +1142,59 @@ export default function ClientsDashboard() {
   };
 
   const handleClientChange = (
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    event: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value } = event.target;
     const field = name as keyof ClientForm;
-    setClientForm((prev) => ({ ...prev, [field]: value }));
+    let nextValue = value;
+    if (field === "primary_phone" || field === "secondary_phone") {
+      nextValue = formatPhoneInput(value);
+    }
+    if (field === "birthdate") {
+      nextValue = formatDateInput(value);
+    }
+    setClientForm((prev) => ({ ...prev, [field]: nextValue }));
+  };
+
+  const handleReferredByChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = event.target.value;
+    setReferredByQuery(value);
+  };
+
+  const handleReferredBySelect = (client: Client) => {
+    const nextValue = `${REFERRED_BY_PREFIX}${client.id}`;
+    setClientForm((prev) => ({
+      ...prev,
+      referred_by: nextValue
+    }));
+    setReferredByValue(nextValue);
+    setReferredByQuery("");
+  };
+
+  const handleReferredByCommit = () => {
+    const trimmed = referredByQuery.trim();
+    if (!trimmed) {
+      return;
+    }
+    setClientForm((prev) => ({
+      ...prev,
+      referred_by: trimmed
+    }));
+    setReferredByValue(trimmed);
+    setReferredByQuery("");
+  };
+
+  const handleReferredByClear = () => {
+    setClientForm((prev) => ({
+      ...prev,
+      referred_by: ""
+    }));
+    setReferredByValue("");
+    setReferredByQuery("");
   };
 
   const handleHealthChange = (
@@ -793,7 +1223,10 @@ export default function ClientsDashboard() {
     }
 
     try {
-      const payload = { ...clientForm };
+      const payload = {
+        ...clientForm,
+        referred_by: referredByValue.trim()
+      };
       delete payload.id;
 
       if (selectedClientId) {
@@ -814,6 +1247,7 @@ export default function ClientsDashboard() {
           await handleSelectClient(data.client.id);
           await loadAlerts();
           setNotice("Client updated.");
+          setOverviewMode("compact");
         }
       } else {
         const response = await fetch("/api/clients", {
@@ -831,6 +1265,7 @@ export default function ClientsDashboard() {
         await loadClientOptions();
         await handleSelectClient(data.client.id);
         setNotice("Client created.");
+        setOverviewMode("compact");
       }
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Save failed", true);
@@ -886,6 +1321,7 @@ export default function ClientsDashboard() {
         throw new Error(data.error ?? "Failed to save health info");
       }
       setNotice("Health info saved.");
+      setOverviewMode("compact");
     } catch (err) {
       setNotice(
         err instanceof Error ? err.message : "Failed to save health info",
@@ -901,20 +1337,15 @@ export default function ClientsDashboard() {
     setProfileUploadFile(file);
   };
 
-  const handleProfileUpload = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const uploadProfileFile = async (file: File) => {
     if (!selectedClientId) {
       setNotice("Select a client before uploading a profile picture.", true);
-      return;
-    }
-    if (!profileUploadFile) {
-      setNotice("Choose a profile image first.", true);
-      return;
+      return false;
     }
 
     try {
       const formData = new FormData();
-      formData.append("photo", profileUploadFile);
+      formData.append("photo", file);
 
       const response = await fetch(
         `/api/clients/${selectedClientId}/profile-picture`,
@@ -940,12 +1371,85 @@ export default function ClientsDashboard() {
       setProfileUploadFile(null);
       setProfileUploadKey((prev) => prev + 1);
       setNotice("Profile picture updated.");
+      return true;
     } catch (err) {
       setNotice(
         err instanceof Error ? err.message : "Profile upload failed",
         true
       );
+      return false;
     }
+  };
+
+  const handleProfileUploadClick = async () => {
+    if (!profileUploadFile) {
+      setNotice("Choose a profile image first.", true);
+      return;
+    }
+    const success = await uploadProfileFile(profileUploadFile);
+    if (success) {
+      setIsProfileUploadOpen(false);
+    }
+  };
+
+  const openProfileLocalPicker = async () => {
+    const showOpenFilePicker = (
+      window as Window & {
+        showOpenFilePicker?: (options?: unknown) => Promise<
+          {
+            getFile: () => Promise<File>;
+          }[]
+        >;
+      }
+    ).showOpenFilePicker;
+
+    if (showOpenFilePicker) {
+      try {
+        const [handle] = await showOpenFilePicker({
+          multiple: false,
+          startIn: "pictures",
+          types: [
+            {
+              description: "Images",
+              accept: {
+                "image/*": [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"]
+              }
+            }
+          ]
+        });
+        const file = await handle.getFile();
+        setProfileUploadFile(file);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        setNotice(
+          err instanceof Error ? err.message : "Failed to open file picker",
+          true
+        );
+      }
+    } else {
+      profileFileInputRef.current?.click();
+    }
+  };
+
+  const handleProfileModeChange = (mode: "local" | "qr") => {
+    setProfileUploadMode(mode);
+    if (mode === "qr" && !profileQrDataUrl && !profileQrLoading) {
+      void handleProfileQrGenerate();
+    }
+  };
+
+  const openProfileUploadModal = () => {
+    setProfileUploadMode("qr");
+    setIsProfileUploadOpen(true);
+    if (!profileQrDataUrl && !profileQrLoading) {
+      void handleProfileQrGenerate();
+    }
+  };
+
+  const closeProfileUploadModal = () => {
+    setIsProfileUploadOpen(false);
   };
 
   const handlePhotoUpload = async (event: React.FormEvent) => {
@@ -1766,59 +2270,80 @@ export default function ClientsDashboard() {
 
   const handleSearchClear = () => {
     setSearchQuery("");
+    setSearchActiveIndex(-1);
+  };
+
+  const handleSearch = () => {
+    setSearchQuery((prev) => prev.trim());
+  };
+
+  const handleSelectClientFromSearch = async (clientId: number) => {
+    setSearchQuery("");
+    setSearchActiveIndex(-1);
+    await handleSelectClient(clientId);
   };
 
   return (
     <div className={styles.page}>
-      {isClientFinderHidden && (
-        <button
-          className={styles.clientRailButton}
-          type="button"
-          onClick={() => setIsClientFinderHidden(false)}
-          aria-label="Show client finder"
-        >
-          Clients
-        </button>
-      )}
       <div className={styles.topGrid}>
-        <section className={`${styles.panel} ${styles.overviewPanel}`}>
-          {!isClientFinderHidden && (
-            <div className={styles.collapsedClientPanel}>
-              <div className={styles.collapsedClientHeader}>
-                <div>
-                  <h3 className={styles.panelTitle}>Clients</h3>
-                  <p className={styles.notice}>
-                    Search and select a client, or start a new one.
-                  </p>
-                </div>
-                <div className={styles.headerActions}>
-                  <button
-                    className={styles.buttonSecondary}
-                    type="button"
-                    onClick={() => setIsClientFinderHidden(true)}
-                  >
-                    Hide
-                  </button>
-                  <button
-                    className={styles.button}
-                    type="button"
-                    onClick={handleNewClient}
-                  >
-                    New
-                  </button>
-                </div>
-              </div>
-              <div className={styles.collapsedSearchRow}>
-                <label className={styles.field}>
-                  <span className={styles.label}>Search clients</span>
-                  <input
-                    className={styles.input}
-                    name="search"
-                    placeholder="Enter client name"
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                  />
-                </label>
+        <section className={`${styles.panel} ${styles.clientsPanel}`}>
+          <div className={styles.clientSearchPanel}>
+            <div className={styles.clientSearchRow}>
+              <label className={styles.field}>
+                <input
+                  className={styles.input}
+                  name="search"
+                  placeholder="Search client name"
+                  value={searchQuery}
+                  aria-label="Search client name"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown" && hasSearchQuery) {
+                      event.preventDefault();
+                      if (filteredClients.length > 0) {
+                        setSearchActiveIndex((prev) =>
+                          Math.min(prev + 1, filteredClients.length - 1)
+                        );
+                      }
+                      return;
+                    }
+                    if (event.key === "ArrowUp" && hasSearchQuery) {
+                      event.preventDefault();
+                      if (filteredClients.length > 0) {
+                        setSearchActiveIndex((prev) =>
+                          prev <= 0 ? 0 : prev - 1
+                        );
+                      }
+                      return;
+                    }
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      if (hasSearchQuery && filteredClients.length > 0) {
+                        const nextIndex =
+                          searchActiveIndex >= 0 ? searchActiveIndex : 0;
+                        const nextClient = filteredClients[nextIndex];
+                        if (nextClient) {
+                          void handleSelectClientFromSearch(nextClient.id);
+                          return;
+                        }
+                      }
+                      handleSearch();
+                    }
+                  }}
+                />
+              </label>
+              <div className={styles.clientSearchActions}>
+                <button
+                  className={styles.buttonSecondary}
+                  type="button"
+                  onClick={handleSearch}
+                >
+                  Search
+                </button>
                 <button
                   className={styles.buttonSecondary}
                   type="button"
@@ -1826,63 +2351,92 @@ export default function ClientsDashboard() {
                 >
                   Clear
                 </button>
+                <button
+                  className={styles.button}
+                  type="button"
+                  onClick={handleNewClient}
+                >
+                  New
+                </button>
               </div>
-              {loadingClients && (
-                <p className={styles.notice}>Loading clients...</p>
-              )}
-              {!loadingClients && filteredClients.length === 0 && (
-                <p className={styles.notice}>No clients found.</p>
-              )}
-              {!loadingClients && filteredClients.length > 0 && (
-                <ul className={styles.collapsedClientList}>
-                  {filteredClients.map((client) => (
-                    <li
-                      key={client.id}
-                      className={`${styles.clientItem} ${
-                        selectedClientId === client.id
-                          ? styles.clientItemSelected
-                          : ""
-                      }`}
-                      onClick={() => void handleSelectClient(client.id)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          void handleSelectClient(client.id);
-                        }
-                      }}
-                    >
-                      <div className={styles.clientItemName}>
-                        {client.full_name}
-                      </div>
-                      <div className={styles.notice}>
-                        {client.primary_phone || "No phone"}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
-          )}
+            {hasSearchQuery && (
+              <div className={styles.clientSearchResults}>
+                {loadingClients && (
+                  <p className={styles.notice}>Loading clients...</p>
+                )}
+                {!loadingClients && filteredClients.length === 0 && (
+                  <p className={styles.notice}>No clients found.</p>
+                )}
+                {!loadingClients && filteredClients.length > 0 && (
+                  <ul className={styles.clientSearchList}>
+                    {filteredClients.map((client) => (
+                      <li
+                        key={client.id}
+                        className={`${styles.clientItem} ${
+                          activeSearchClientId === client.id
+                            ? styles.clientItemSelected
+                            : ""
+                        }`}
+                        onClick={() => void handleSelectClientFromSearch(client.id)}
+                        role="button"
+                        tabIndex={0}
+                        aria-selected={activeSearchClientId === client.id}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            void handleSelectClientFromSearch(client.id);
+                          }
+                        }}
+                      >
+                        <div className={styles.clientItemName}>
+                          {client.full_name}
+                        </div>
+                        <div className={styles.notice}>
+                          {client.primary_phone || "No phone"}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+        <section className={`${styles.panel} ${styles.overviewPanel}`}>
           <div className={styles.overviewHeader}>
             <div>
-              <h2 className={styles.overviewTitle}>Client Overview</h2>
-              <p className={styles.notice}>
-                {selectedClientId
-                  ? `Editing ${clientForm.full_name || "selected client"}.`
-                  : "Select a client to view details."}
-              </p>
+              <h2 className={styles.overviewTitle}>
+                {clientForm.full_name ? clientForm.full_name : "Client Overview"}
+              </h2>
             </div>
             {selectedClientId && (
-              <span className={styles.overviewMeta}>ID #{selectedClientId}</span>
+              <div className={styles.overviewMetaRow}>
+                {referralStats.count > 0 && (
+                  <span
+                    className={`${styles.overviewMeta} ${styles.overviewMetaReferral}`}
+                  >
+                    +{referralStats.count} Referral
+                    {referralStats.count === 1 ? "" : "s"}
+                    {referralStats.latestName
+                      ? ` -> ${referralStats.latestName}`
+                      : ""}
+                  </span>
+                )}
+                <span className={styles.overviewMeta}>ID #{selectedClientId}</span>
+              </div>
             )}
           </div>
 
-          <div className={styles.overviewGrid}>
-            <div className={styles.profileCard}>
-              <div className={styles.profileHeader}>
-                <h3 className={styles.panelTitle}>Profile Photo</h3>
-              </div>
+          <div
+            className={`${styles.overviewGrid} ${
+              overviewMode === "compact" ? styles.overviewGridCompact : ""
+            }`}
+          >
+            <div
+              className={`${styles.profileCard} ${
+                overviewMode === "compact" ? styles.compactCard : ""
+              }`}
+            >
               {!selectedClientId && (
                 <p className={styles.notice}>
                   Select a client to manage profile photos.
@@ -1890,225 +2444,652 @@ export default function ClientsDashboard() {
               )}
               {selectedClientId && (
                 <>
-                  <div className={styles.profileStack}>
+                  <div
+                    className={`${styles.profileStack} ${
+                      overviewMode === "compact" ? styles.profileStackCompact : ""
+                    }`}
+                  >
                     {profilePictureUrl ? (
                       <img
-                        className={styles.profileImage}
+                        className={`${styles.profileImage} ${
+                          overviewMode === "compact"
+                            ? styles.profileImageCompact
+                            : ""
+                        }`}
                         src={profilePictureUrl}
                         alt="Profile"
                         onError={() => setProfilePictureUrl(null)}
                       />
                     ) : (
-                      <div className={styles.profilePlaceholder}>
+                      <div
+                        className={`${styles.profilePlaceholder} ${
+                          overviewMode === "compact"
+                            ? styles.profilePlaceholderCompact
+                            : ""
+                        }`}
+                      >
                         No profile picture yet.
                       </div>
                     )}
-                    <form onSubmit={handleProfileUpload}>
-                      <div className={styles.field}>
-                        <span className={styles.label}>Upload Profile Photo</span>
-                        <input
-                          key={profileUploadKey}
-                          className={styles.input}
-                          type="file"
-                          accept="image/*"
-                          onChange={handleProfileFileChange}
-                        />
-                      </div>
+                    {overviewMode === "edit" && (
                       <div className={styles.buttonRow}>
-                        <button className={styles.button} type="submit">
+                        <button
+                          className={styles.button}
+                          type="button"
+                          onClick={openProfileUploadModal}
+                        >
                           Upload
                         </button>
                       </div>
-                    </form>
-                  </div>
-
-                  <div className={styles.qrPanel}>
-                    <div className={styles.qrHeader}>
-                      <h3>Profile QR Upload</h3>
-                      <button
-                        className={styles.buttonSecondary}
-                        type="button"
-                        onClick={handleProfileQrGenerate}
-                        disabled={profileQrLoading}
-                      >
-                        {profileQrLoading ? "Generating..." : "Generate QR"}
-                      </button>
-                    </div>
-                    {profileQrDataUrl && (
-                      <div className={styles.qrContent}>
-                        <img
-                          className={styles.qrImage}
-                          src={profileQrDataUrl}
-                          alt="Profile upload QR code"
-                        />
-                        <div className={styles.qrActions}>
-                          {profileQrUrl && (
-                            <>
-                              <a
-                                className={styles.buttonSecondary}
-                                href={profileQrUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                Open Upload
-                              </a>
-                              <button
-                                className={styles.buttonSecondary}
-                                type="button"
-                                onClick={() => handleCopyQrLink(profileQrUrl)}
-                              >
-                                Copy Link
-                              </button>
-                            </>
-                          )}
-                        </div>
-                        {profileQrUrl && (
-                          <div className={styles.qrUrl}>{profileQrUrl}</div>
-                        )}
-                      </div>
                     )}
                   </div>
+
+                  {isProfileUploadOpen && portalTarget
+                    ? createPortal(
+                        <div
+                          className={styles.modalBackdrop}
+                          role="dialog"
+                          aria-modal="true"
+                          aria-labelledby="profile-upload-title"
+                          onClick={closeProfileUploadModal}
+                        >
+                          <div
+                            className={styles.modal}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <div className={styles.modalHeader}>
+                              <div>
+                                <h3
+                                  id="profile-upload-title"
+                                  className={styles.modalTitle}
+                                >
+                                  Upload Profile Photo
+                                </h3>
+                                <p className={styles.notice}>
+                                  {clientForm.full_name
+                                    ? `For ${clientForm.full_name}`
+                                    : "Select a client to upload."}
+                                </p>
+                              </div>
+                              <button
+                                className={styles.iconButton}
+                                type="button"
+                                onClick={closeProfileUploadModal}
+                                aria-label="Close"
+                                title="Close"
+                              >
+                                X
+                              </button>
+                            </div>
+
+                            <div className={styles.overviewTabs}>
+                              <button
+                                className={`${styles.tabButton} ${
+                                  profileUploadMode === "qr"
+                                    ? styles.tabButtonActive
+                                    : ""
+                                }`}
+                                type="button"
+                                onClick={() => handleProfileModeChange("qr")}
+                              >
+                                QR
+                              </button>
+                              <button
+                                className={`${styles.tabButton} ${
+                                  profileUploadMode === "local"
+                                    ? styles.tabButtonActive
+                                    : ""
+                                }`}
+                                type="button"
+                                onClick={() => handleProfileModeChange("local")}
+                              >
+                                Local
+                              </button>
+                            </div>
+
+                            {profileUploadMode === "local" && (
+                              <div className={styles.modalSection}>
+                                <input
+                                  ref={profileFileInputRef}
+                                  key={profileUploadKey}
+                                  className={styles.hiddenInput}
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleProfileFileChange}
+                                />
+                                <div className={styles.uploadPanel}>
+                                  <div className={styles.modalRow}>
+                                    <button
+                                      className={styles.buttonSecondary}
+                                      type="button"
+                                      onClick={openProfileLocalPicker}
+                                    >
+                                      Choose File
+                                    </button>
+                                    <span className={styles.notice}>
+                                      {profileUploadFile
+                                        ? profileUploadFile.name
+                                        : "No file selected."}
+                                    </span>
+                                  </div>
+                                  <div className={styles.buttonRow}>
+                                    <button
+                                      className={styles.button}
+                                      type="button"
+                                      onClick={handleProfileUploadClick}
+                                      disabled={!profileUploadFile}
+                                    >
+                                      Upload
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {profileUploadMode === "qr" && (
+                              <div className={styles.modalSection}>
+                                <div className={styles.qrPanel}>
+                                <div className={styles.qrHeader}>
+                                  <h3>Profile QR Upload</h3>
+                                  {profileQrLoading && (
+                                    <span className={styles.notice}>
+                                      Generating...
+                                    </span>
+                                  )}
+                                </div>
+                                  {profileQrDataUrl && (
+                                    <div className={styles.qrContent}>
+                                      <img
+                                        className={styles.qrImage}
+                                        src={profileQrDataUrl}
+                                        alt="Profile upload QR code"
+                                      />
+                                      {profileQrUrl && (
+                                        <div className={styles.qrUrl}>
+                                          {profileQrUrl}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>,
+                        portalTarget
+                      )
+                    : null}
                 </>
               )}
             </div>
 
-            <div className={styles.detailsCard}>
+            <div className={styles.detailsPanel}>
               <div className={styles.detailsHeader}>
-                <h3 className={styles.panelTitle}>Client Details</h3>
-                {selectedClientId && (
-                  <span className={styles.detailsMeta}>
-                    {clientForm.email || "No email on file"}
-                  </span>
-                )}
-              </div>
-              <form onSubmit={handleClientSave}>
-                <div className={styles.formGrid}>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Full Name</span>
-                    <input
-                      className={styles.input}
-                      name="full_name"
-                      value={clientForm.full_name}
-                      onChange={handleClientChange}
-                      required
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Gender</span>
-                    <input
-                      className={styles.input}
-                      name="gender"
-                      value={clientForm.gender}
-                      onChange={handleClientChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Birthdate</span>
-                    <input
-                      className={styles.input}
-                      name="birthdate"
-                      placeholder="MM/DD/YYYY"
-                      value={clientForm.birthdate}
-                      onChange={handleClientChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Primary Phone</span>
-                    <input
-                      className={styles.input}
-                      name="primary_phone"
-                      value={clientForm.primary_phone}
-                      onChange={handleClientChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Secondary Phone</span>
-                    <input
-                      className={styles.input}
-                      name="secondary_phone"
-                      value={clientForm.secondary_phone}
-                      onChange={handleClientChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Email</span>
-                    <input
-                      className={styles.input}
-                      name="email"
-                      value={clientForm.email}
-                      onChange={handleClientChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Address 1</span>
-                    <input
-                      className={styles.input}
-                      name="address1"
-                      value={clientForm.address1}
-                      onChange={handleClientChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Address 2</span>
-                    <input
-                      className={styles.input}
-                      name="address2"
-                      value={clientForm.address2}
-                      onChange={handleClientChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>City</span>
-                    <input
-                      className={styles.input}
-                      name="city"
-                      value={clientForm.city}
-                      onChange={handleClientChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>State</span>
-                    <input
-                      className={styles.input}
-                      name="state"
-                      value={clientForm.state}
-                      onChange={handleClientChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Zip</span>
-                    <input
-                      className={styles.input}
-                      name="zip"
-                      value={clientForm.zip}
-                      onChange={handleClientChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Referred By</span>
-                    <input
-                      className={styles.input}
-                      name="referred_by"
-                      value={clientForm.referred_by}
-                      onChange={handleClientChange}
-                    />
-                  </label>
-                </div>
-                <div className={styles.buttonRow}>
-                  <button className={styles.button} type="submit">
-                    {selectedClientId ? "Save Changes" : "Create Client"}
+                <div className={styles.overviewTabs}>
+                  <button
+                    className={`${styles.tabButton} ${
+                      overviewTab === "info" ? styles.tabButtonActive : ""
+                    }`}
+                    type="button"
+                    onClick={() => setOverviewTab("info")}
+                    aria-pressed={overviewTab === "info"}
+                  >
+                    Info
                   </button>
-                  {selectedClientId && (
-                    <button
-                      className={`${styles.button} ${styles.buttonDanger}`}
-                      type="button"
-                      onClick={handleClientDelete}
-                    >
-                      Delete Client
-                    </button>
-                  )}
+                  <button
+                    className={`${styles.tabButton} ${
+                      overviewTab === "health" ? styles.tabButtonActive : ""
+                    }`}
+                    type="button"
+                    onClick={() => setOverviewTab("health")}
+                    aria-pressed={overviewTab === "health"}
+                  >
+                    Health
+                  </button>
                 </div>
-              </form>
+                <button
+                  className={`${styles.buttonSecondary} ${
+                    overviewMode === "edit" ? styles.editToggleIcon : ""
+                  }`}
+                  type="button"
+                  onClick={() =>
+                    setOverviewMode((prev) =>
+                      prev === "edit" ? "compact" : "edit"
+                    )
+                  }
+                  aria-label={
+                    overviewMode === "edit" ? "Exit edit mode" : "Edit client"
+                  }
+                  title={overviewMode === "edit" ? "Close edit" : "Edit"}
+                >
+                  {overviewMode === "edit" ? "X" : "Edit"}
+                </button>
+              </div>
+
+              <div
+                className={`${styles.detailsCard} ${
+                  overviewMode === "compact" ? styles.compactCard : ""
+                }`}
+              >
+              {overviewTab === "info" && (
+                <>
+                  {overviewMode === "compact" ? (
+                    <>
+                      {!selectedClientId && (
+                        <p className={styles.notice}>
+                          Select a client to view info.
+                        </p>
+                      )}
+                      {selectedClientId && (
+                        <div
+                          className={`${styles.formGrid} ${styles.compactGrid} ${styles.infoGrid}`}
+                        >
+                          <div className={styles.field}>
+                            <span className={styles.label}>Gender</span>
+                            <CompactValue value={clientForm.gender} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Birthdate</span>
+                            <CompactValue value={clientForm.birthdate} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Referred By</span>
+                            <CompactValue value={referredByDisplay} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Address</span>
+                            <CompactValue
+                              value={formatCompactAddress(clientForm)}
+                              multiline
+                            />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Phone</span>
+                            <CompactValue
+                              value={formatCompactPhones(
+                                clientForm.primary_phone,
+                                clientForm.secondary_phone
+                              )}
+                              multiline
+                            />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Email</span>
+                            <CompactValue value={clientForm.email} />
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <form onSubmit={handleClientSave}>
+                      <div className={`${styles.formGrid} ${styles.infoGrid}`}>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Full Name</span>
+                          <input
+                            className={styles.input}
+                            name="full_name"
+                            value={clientForm.full_name}
+                            onChange={handleClientChange}
+                            required
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Gender</span>
+                          <select
+                            className={styles.select}
+                            name="gender"
+                            value={clientForm.gender}
+                            onChange={handleClientChange}
+                          >
+                            <option value="">Select</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                          </select>
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Primary Phone</span>
+                          <input
+                            className={styles.input}
+                            name="primary_phone"
+                            placeholder="(###) ###-####"
+                            inputMode="numeric"
+                            value={clientForm.primary_phone}
+                            onChange={handleClientChange}
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Birthdate</span>
+                          <input
+                            className={styles.input}
+                            name="birthdate"
+                            placeholder="MM/DD/YYYY"
+                            inputMode="numeric"
+                            value={clientForm.birthdate}
+                            onChange={handleClientChange}
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Email</span>
+                          <input
+                            className={styles.input}
+                            name="email"
+                            value={clientForm.email}
+                            onChange={handleClientChange}
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Secondary Phone</span>
+                          <input
+                            className={styles.input}
+                            name="secondary_phone"
+                            placeholder="(###) ###-####"
+                            inputMode="numeric"
+                            value={clientForm.secondary_phone}
+                            onChange={handleClientChange}
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Address 1</span>
+                          <input
+                            className={styles.input}
+                            name="address1"
+                            value={clientForm.address1}
+                            onChange={handleClientChange}
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Address 2</span>
+                          <input
+                            className={styles.input}
+                            name="address2"
+                            value={clientForm.address2}
+                            onChange={handleClientChange}
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>City</span>
+                          <input
+                            className={styles.input}
+                            name="city"
+                            value={clientForm.city}
+                            onChange={handleClientChange}
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>State</span>
+                          <input
+                            className={styles.input}
+                            name="state"
+                            value={clientForm.state}
+                            onChange={handleClientChange}
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Zip</span>
+                          <input
+                            className={styles.input}
+                            name="zip"
+                            value={clientForm.zip}
+                            onChange={handleClientChange}
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Referred By</span>
+                          <div className={styles.referredByField}>
+                            {referredByValue.trim() && (
+                              <div className={styles.referredByTags}>
+                                <span className={styles.referredByTag}>
+                                  <span className={styles.referredByTagLabel}>
+                                    {referredByDisplay}
+                                  </span>
+                                  <button
+                                    className={styles.referredByTagRemove}
+                                    type="button"
+                                    onClick={handleReferredByClear}
+                                    aria-label="Remove referral"
+                                    title="Remove referral"
+                                  >
+                                    X
+                                  </button>
+                                </span>
+                              </div>
+                            )}
+                            <input
+                              className={styles.input}
+                              name="referred_by"
+                              value={referredByQuery}
+                              onChange={handleReferredByChange}
+                              placeholder="Search client name"
+                              autoComplete="off"
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  if (referredByMatches.length > 0) {
+                                    handleReferredBySelect(referredByMatches[0]);
+                                    return;
+                                  }
+                                  handleReferredByCommit();
+                                }
+                              }}
+                            />
+                            {referredByQuery.trim() !== "" && (
+                              <div className={styles.referredByResults}>
+                                {referredByMatches.length > 0 ? (
+                                  <ul className={styles.referredByList}>
+                                    {referredByMatches.map((client) => {
+                                      const isSelected =
+                                        parseReferredById(referredByValue) === client.id;
+                                      return (
+                                        <li key={client.id}>
+                                          <button
+                                            className={`${styles.referredByItem} ${
+                                              isSelected
+                                                ? styles.referredByItemSelected
+                                                : ""
+                                            }`}
+                                            type="button"
+                                            onClick={() =>
+                                              handleReferredBySelect(client)
+                                            }
+                                          >
+                                            <span className={styles.referredByName}>
+                                              {client.full_name}
+                                            </span>
+                                            {client.primary_phone && (
+                                              <span className={styles.referredByMeta}>
+                                                {client.primary_phone}
+                                              </span>
+                                            )}
+                                          </button>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                ) : (
+                                  <div className={styles.referredByEmpty}>
+                                    No results
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      </div>
+                      <div className={styles.buttonRow}>
+                        <button className={styles.button} type="submit">
+                          {selectedClientId ? "Save Changes" : "Create Client"}
+                        </button>
+                        {selectedClientId && (
+                          <button
+                            className={`${styles.button} ${styles.buttonDanger}`}
+                            type="button"
+                            onClick={handleClientDelete}
+                          >
+                            Delete Client
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  )}
+                </>
+              )}
+
+              {overviewTab === "health" && (
+                <>
+                  {overviewMode === "compact" ? (
+                    <>
+                      {!selectedClientId && (
+                        <p className={styles.notice}>
+                          Select a client to view health info.
+                        </p>
+                      )}
+                      {selectedClientId && (
+                        <div className={`${styles.formGrid} ${styles.compactGrid}`}>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Allergies</span>
+                            <ExpandableValue value={healthForm.allergies} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Health Conditions</span>
+                            <ExpandableValue value={healthForm.health_conditions} />
+                          </div>
+                          <div
+                            className={`${styles.field} ${styles.healthRiskField}`}
+                          >
+                            <span className={styles.label}>Health Risks</span>
+                            <ExpandableValue value={healthForm.health_risks} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Medications</span>
+                            <ExpandableValue value={healthForm.medications} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Treatment Areas</span>
+                            <ExpandableValue value={healthForm.treatment_areas} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Current Products</span>
+                            <ExpandableValue value={healthForm.current_products} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Skin Conditions</span>
+                            <ExpandableValue value={healthForm.skin_conditions} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Other Notes</span>
+                            <ExpandableValue value={healthForm.other_notes} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Desired Improvement</span>
+                            <ExpandableValue value={healthForm.desired_improvement} />
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <form onSubmit={handleHealthSave}>
+                      <fieldset
+                        className={styles.fieldset}
+                        disabled={!selectedClientId}
+                      >
+                        <div className={styles.formGrid}>
+                          <label className={styles.field}>
+                            <span className={styles.label}>Allergies</span>
+                            <textarea
+                              className={styles.textarea}
+                              name="allergies"
+                              value={healthForm.allergies}
+                              onChange={handleHealthChange}
+                            />
+                          </label>
+                          <label className={styles.field}>
+                            <span className={styles.label}>Health Conditions</span>
+                            <textarea
+                              className={styles.textarea}
+                              name="health_conditions"
+                              value={healthForm.health_conditions}
+                              onChange={handleHealthChange}
+                            />
+                          </label>
+                          <label className={styles.field}>
+                            <span className={styles.label}>Health Risks</span>
+                            <textarea
+                              className={styles.textarea}
+                              name="health_risks"
+                              value={healthForm.health_risks}
+                              onChange={handleHealthChange}
+                            />
+                          </label>
+                          <label className={styles.field}>
+                            <span className={styles.label}>Medications</span>
+                            <textarea
+                              className={styles.textarea}
+                              name="medications"
+                              value={healthForm.medications}
+                              onChange={handleHealthChange}
+                            />
+                          </label>
+                          <label className={styles.field}>
+                            <span className={styles.label}>Treatment Areas</span>
+                            <textarea
+                              className={styles.textarea}
+                              name="treatment_areas"
+                              value={healthForm.treatment_areas}
+                              onChange={handleHealthChange}
+                            />
+                          </label>
+                          <label className={styles.field}>
+                            <span className={styles.label}>Current Products</span>
+                            <textarea
+                              className={styles.textarea}
+                              name="current_products"
+                              value={healthForm.current_products}
+                              onChange={handleHealthChange}
+                            />
+                          </label>
+                          <label className={styles.field}>
+                            <span className={styles.label}>Skin Conditions</span>
+                            <textarea
+                              className={styles.textarea}
+                              name="skin_conditions"
+                              value={healthForm.skin_conditions}
+                              onChange={handleHealthChange}
+                            />
+                          </label>
+                          <label className={styles.field}>
+                            <span className={styles.label}>Other Notes</span>
+                            <textarea
+                              className={styles.textarea}
+                              name="other_notes"
+                              value={healthForm.other_notes}
+                              onChange={handleHealthChange}
+                            />
+                          </label>
+                          <label className={styles.field}>
+                            <span className={styles.label}>Desired Improvement</span>
+                            <textarea
+                              className={styles.textarea}
+                              name="desired_improvement"
+                              value={healthForm.desired_improvement}
+                              onChange={handleHealthChange}
+                            />
+                          </label>
+                        </div>
+                      </fieldset>
+                      <div className={styles.buttonRow}>
+                        <button
+                          className={styles.button}
+                          type="submit"
+                          disabled={!selectedClientId}
+                        >
+                          Save Health Info
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </>
+              )}
+              </div>
             </div>
           </div>
         </section>
@@ -2131,111 +3112,6 @@ export default function ClientsDashboard() {
       </nav>
 
       <section className={`${styles.panel} ${styles.workspacePanel}`}>
-        {activeTab === "health" && (
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>Health Info</h2>
-            {!selectedClientId && (
-              <p className={styles.notice}>Select a client to manage health info.</p>
-            )}
-            <form onSubmit={handleHealthSave}>
-              <fieldset className={styles.fieldset} disabled={!selectedClientId}>
-                <div className={styles.formGrid}>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Allergies</span>
-                    <textarea
-                      className={styles.textarea}
-                      name="allergies"
-                      value={healthForm.allergies}
-                      onChange={handleHealthChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Health Conditions</span>
-                    <textarea
-                      className={styles.textarea}
-                      name="health_conditions"
-                      value={healthForm.health_conditions}
-                      onChange={handleHealthChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Health Risks</span>
-                    <textarea
-                      className={styles.textarea}
-                      name="health_risks"
-                      value={healthForm.health_risks}
-                      onChange={handleHealthChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Medications</span>
-                    <textarea
-                      className={styles.textarea}
-                      name="medications"
-                      value={healthForm.medications}
-                      onChange={handleHealthChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Treatment Areas</span>
-                    <textarea
-                      className={styles.textarea}
-                      name="treatment_areas"
-                      value={healthForm.treatment_areas}
-                      onChange={handleHealthChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Current Products</span>
-                    <textarea
-                      className={styles.textarea}
-                      name="current_products"
-                      value={healthForm.current_products}
-                      onChange={handleHealthChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Skin Conditions</span>
-                    <textarea
-                      className={styles.textarea}
-                      name="skin_conditions"
-                      value={healthForm.skin_conditions}
-                      onChange={handleHealthChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Other Notes</span>
-                    <textarea
-                      className={styles.textarea}
-                      name="other_notes"
-                      value={healthForm.other_notes}
-                      onChange={handleHealthChange}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Desired Improvement</span>
-                    <textarea
-                      className={styles.textarea}
-                      name="desired_improvement"
-                      value={healthForm.desired_improvement}
-                      onChange={handleHealthChange}
-                    />
-                  </label>
-                </div>
-              </fieldset>
-              <div className={styles.buttonRow}>
-                <button
-                  className={styles.button}
-                  type="submit"
-                  disabled={!selectedClientId}
-                >
-                  Save Health Info
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
         {activeTab === "appointments" && (
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>Appointments</h2>
@@ -2834,151 +3710,6 @@ export default function ClientsDashboard() {
                   )}
                 </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "alerts" && (
-          <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>Alerts</h2>
-            <form onSubmit={handleAlertCreate} className={styles.alertForm}>
-              <label className={styles.field}>
-                <span className={styles.label}>Deadline</span>
-                <input
-                  className={styles.input}
-                  placeholder="MM/DD/YYYY"
-                  value={alertDeadline}
-                  onChange={(event) => setAlertDeadline(event.target.value)}
-                  onBlur={handleAlertDeadlineBlur}
-                  disabled={!selectedClientId}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Notes</span>
-                <textarea
-                  className={styles.textarea}
-                  value={alertNotes}
-                  onChange={(event) => setAlertNotes(event.target.value)}
-                  disabled={!selectedClientId}
-                />
-              </label>
-              <div className={styles.buttonRow}>
-                <button
-                  className={styles.button}
-                  type="submit"
-                  disabled={!selectedClientId}
-                >
-                  Set Alert
-                </button>
-                {selectedClientId ? (
-                  <span className={styles.notice}>
-                    Setting alert for {clientForm.full_name || "selected client"}.
-                  </span>
-                ) : (
-                  <span className={styles.notice}>
-                    Select a client to set a new alert.
-                  </span>
-                )}
-              </div>
-            </form>
-
-            {loadingAlerts && <p className={styles.notice}>Loading alerts...</p>}
-            {!loadingAlerts && sortedAlerts.length === 0 && (
-              <p className={styles.notice}>No alerts yet.</p>
-            )}
-            {!loadingAlerts && sortedAlerts.length > 0 && (
-              <div className={styles.alertsTableWrap}>
-                <table className={styles.alertsTable}>
-                  <thead>
-                    <tr>
-                      <th>Client</th>
-                      <th>Status</th>
-                      <th>Deadline</th>
-                      <th>Phone</th>
-                      <th>Notes</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedAlerts.map((alert) => {
-                      const status = calculateAlertStatus(alert.deadline);
-                      return (
-                        <tr key={alert.id}>
-                          <td>{alert.full_name}</td>
-                          <td>
-                            <span
-                              className={`${styles.alertStatus} ${getAlertStatusClass(
-                                status
-                              )}`}
-                            >
-                              {status}
-                            </span>
-                          </td>
-                          <td>{alert.deadline}</td>
-                          <td>{alert.primary_phone ?? ""}</td>
-                          <td>{alert.notes ?? ""}</td>
-                          <td>
-                            <div className={styles.alertActions}>
-                              <button
-                                className={styles.buttonSecondary}
-                                type="button"
-                                onClick={() => handleAlertEditStart(alert)}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                className={`${styles.button} ${styles.buttonDanger}`}
-                                type="button"
-                                onClick={() => handleAlertDelete(alert)}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {editingAlertId && (
-              <form onSubmit={handleAlertUpdate} className={styles.alertEditPanel}>
-                <h3>Edit Alert</h3>
-                <div className={styles.formGrid}>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Deadline</span>
-                    <input
-                      className={styles.input}
-                      placeholder="MM/DD/YYYY"
-                      value={editAlertDeadline}
-                      onChange={(event) => setEditAlertDeadline(event.target.value)}
-                      onBlur={handleAlertEditDeadlineBlur}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Notes</span>
-                    <textarea
-                      className={styles.textarea}
-                      value={editAlertNotes}
-                      onChange={(event) => setEditAlertNotes(event.target.value)}
-                    />
-                  </label>
-                </div>
-                <div className={styles.buttonRow}>
-                  <button className={styles.button} type="submit">
-                    Save Changes
-                  </button>
-                  <button
-                    className={styles.buttonSecondary}
-                    type="button"
-                    onClick={handleAlertEditCancel}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
             )}
           </div>
         )}
