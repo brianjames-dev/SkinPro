@@ -634,6 +634,13 @@
   font-size: 18px;
 }
 
+.sectionHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .formGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -793,6 +800,75 @@
   min-width: 0;
 }
 
+.birthdayInputWrap {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.birthdayInputWrapActive {
+  padding: 2px;
+  border-radius: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  background-image: linear-gradient(
+    120deg,
+    rgba(212, 142, 178, 0.7) 0%,
+    rgba(157, 195, 235, 0.75) 45%,
+    rgba(226, 199, 132, 0.7) 70%,
+    rgba(212, 142, 178, 0.7) 100%
+  );
+  background-size: 200% 100%;
+  background-position: 0% 50%;
+  animation: birthdayShimmer 3.8s ease-in-out infinite;
+}
+
+.birthdayInputWrapActive .input {
+  border-color: transparent;
+  background: #ffffff;
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: none;
+}
+
+.birthdayInputWrapActive .input:focus-visible {
+  box-shadow: none;
+  border-color: transparent;
+}
+
+.birthdayField .readonlyText,
+.birthdayField .readonlyText {
+  background-image: linear-gradient(
+    120deg,
+    rgba(212, 142, 178, 0.6) 0%,
+    rgba(157, 195, 235, 0.65) 45%,
+    rgba(226, 199, 132, 0.6) 70%,
+    rgba(212, 142, 178, 0.6) 100%
+  );
+  background-size: 200% 100%;
+  background-position: 0% 50%;
+  color: #2a241f;
+  animation: birthdayShimmer 3.8s ease-in-out infinite;
+}
+
+.birthdayField .readonlyText {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+@keyframes birthdayShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 .readonlyText {
   display: block;
   overflow: hidden;
@@ -814,6 +890,7 @@
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 4;
+  line-clamp: 4;
   -webkit-box-orient: vertical;
 }
 
@@ -844,6 +921,7 @@
 .expandableTextClamped {
   display: -webkit-box;
   -webkit-line-clamp: var(--clamp-lines, 2);
+  line-clamp: var(--clamp-lines, 2);
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -966,6 +1044,14 @@
   flex-wrap: wrap;
 }
 
+.clientEditActions {
+  margin-top: 82px;
+}
+
+.buttonRowEnd {
+  margin-left: auto;
+}
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -1026,6 +1112,18 @@
   font-size: 15px;
 }
 
+.editToggleFloatingCard {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  border: 1px solid var(--ink);
+  z-index: 2;
+}
+
+.detailsCard {
+  position: relative;
+}
+
 .buttonDanger {
   background: var(--danger);
 }
@@ -1045,13 +1143,12 @@
   line-height: 1;
   cursor: pointer;
   box-shadow: 0 8px 16px rgba(31, 27, 22, 0.16);
-  transition: transform 0.2s ease, box-shadow 0.2s ease,
-    background 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  background: 0.2s ease;
 }
 
 .iconButton:hover {
   transform: translateY(-1px);
-  background: #fffaf0;
   box-shadow: 0 10px 20px rgba(31, 27, 22, 0.2);
 }
 
@@ -1099,6 +1196,198 @@
   align-items: start;
 }
 
+.appointmentsMain {
+  display: grid;
+  gap: 16px;
+}
+
+.appointmentFormCard {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  background: #fffaf0;
+  position: relative;
+}
+
+.appointmentFormPlaceholder {
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: #fffdf7;
+}
+
+.appointmentFormPlaceholder .notice {
+  margin: 0;
+}
+
+.appointmentFormClose {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  background: var(--ink);
+  color: #fffaf0;
+  border-color: var(--ink);
+}
+
+.appointmentNotesPanel {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  background: #f7efe0;
+  display: grid;
+  gap: 12px;
+  min-height: 240px;
+}
+
+.appointmentNotesHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.appointmentNotesHeading {
+  display: grid;
+  gap: 4px;
+}
+
+.appointmentNotesTitle {
+  margin: 0;
+  font-size: 16px;
+}
+
+.appointmentNotesMeta {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.notesToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fffdf7;
+  padding: 4px;
+}
+
+.notesToggleButton {
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.notesToggleButtonActive {
+  background: #1b1813;
+  color: #fffaf0;
+  box-shadow: 0 8px 16px rgba(31, 27, 22, 0.2);
+}
+
+.appointmentNotesBody {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fffdf7;
+  max-height: 420px;
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+}
+
+.appointmentNotesHint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.appointmentNotesList {
+  display: grid;
+  gap: 10px;
+}
+
+.appointmentNoteCard {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fffaf0;
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.appointmentNoteCard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 18px rgba(31, 27, 22, 0.15);
+}
+
+.appointmentNoteCardSelected {
+  border-color: #1b1813;
+  box-shadow: 0 12px 18px rgba(31, 27, 22, 0.18);
+}
+
+.appointmentNoteDetail {
+  display: grid;
+  gap: 8px;
+}
+
+.appointmentNoteHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.appointmentNoteTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.appointmentNoteMeta {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.appointmentNoteSub {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.appointmentNoteBody {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.appointmentNoteBodyFull {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
 @media (max-width: 980px) {
   .appointmentsLayout {
     grid-template-columns: 1fr;
@@ -1133,6 +1422,169 @@
   background: #efe7d6;
 }
 
+.photoComparePanel {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  background: #fffdf7;
+  display: grid;
+  gap: 12px;
+}
+
+.photoCompareArea {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.photoCompareHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.photoCompareTitle {
+  margin: 0;
+  font-size: 16px;
+}
+
+.photoCompareToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fffaf0;
+  padding: 4px;
+}
+
+.photoCompareToggleButton {
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.photoCompareToggleButtonActive {
+  background: #1b1813;
+  color: #fffaf0;
+  box-shadow: 0 8px 16px rgba(31, 27, 22, 0.2);
+}
+
+.photoCompareGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.photoCompareSlot {
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background: #fffaf0;
+  display: grid;
+  gap: 10px;
+  min-height: 360px;
+}
+
+.photoCompareSlotFilled {
+  border-style: solid;
+  background: #fffdf7;
+}
+
+.photoCompareSlotDrag {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.photoCompareLabelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.photoCompareLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.photoCompareMeta {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.photoCompareImage {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  height: auto;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fffdf7;
+}
+
+.photoCompareEmpty {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-muted);
+  background: #fffdf7;
+}
+
+.photoCompareComment {
+  display: grid;
+  gap: 8px;
+}
+
+.photoCompareCommentHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.photoCompareCommentLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.photoCompareCommentText {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.photoCompareActions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.photoUploadFooter {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-start;
+}
+
 .photosGrid {
   margin-top: 16px;
   display: grid;
@@ -1146,8 +1598,35 @@
   padding: 8px;
   background: #fffdf7;
   text-align: left;
-  cursor: pointer;
+  cursor: grab;
   transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.photoCard:active {
+  cursor: grabbing;
+}
+
+.photoDragActive {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.photoDragActive * {
+  user-select: none;
+}
+
+.photoDragGhost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2000;
+  pointer-events: none;
+}
+
+.photoDragGhostCard {
+  transform: rotate(-2deg);
+  box-shadow: 0 20px 30px rgba(31, 27, 22, 0.2);
+  opacity: 0.95;
 }
 
 .photoCard:hover {
@@ -1157,6 +1636,41 @@
 .photoCardSelected {
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+
+.photoCardBefore {
+  border-color: #2d6b5d;
+}
+
+.photoCardAfter {
+  border-color: #9a5a2a;
+}
+
+.photoBadgeRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.photoBadge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-weight: 700;
+  background: #efe7d6;
+  color: var(--ink);
+}
+
+.photoBadgeBefore {
+  background: #dbe9e3;
+  color: #1f4d44;
+}
+
+.photoBadgeAfter {
+  background: #f2e2d0;
+  color: #6b3f1e;
 }
 
 .photoThumb {
@@ -1170,6 +1684,11 @@
 .photoMeta {
   font-size: 12px;
   color: var(--ink-muted);
+}
+
+.photoMetaType {
+  font-size: 11px;
+  color: var(--ink);
 }
 
 .photoDetail {
@@ -1198,6 +1717,11 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 12px;
+}
+
+.prescriptionsEditor {
+  display: flex;
+  flex-direction: column;
 }
 
 .headerRow {
@@ -1254,12 +1778,14 @@
 }
 
 .prescriptionPreview {
-  margin-top: 16px;
+  margin: 0;
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
   background: #f5f1e8;
-  height: 420px;
+  height: 100%;
+  min-height: 520px;
+  flex: 1;
 }
 
 .prescriptionPreview iframe {
@@ -1328,10 +1854,15 @@
 
 .copyRow {
   display: grid;
-  grid-template-columns: 1fr 140px auto;
+  grid-template-columns: minmax(0, 1fr) 140px;
   gap: 8px;
-  align-items: center;
+  align-items: start;
   margin-top: 6px;
+}
+
+.copyColumn {
+  display: grid;
+  gap: 8px;
 }
 
 .templatePanel {
@@ -1458,5 +1989,96 @@
 
   .sectionTabs {
     width: 100%;
+  }
+}
+
+.birthdayOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.confettiBurst,
+.balloonField {
+  position: absolute;
+  inset: 0;
+}
+
+.confettiBurst {
+  z-index: 2;
+}
+
+.balloonField {
+  z-index: 1;
+}
+
+.confettiPiece {
+  position: absolute;
+  top: -10vh;
+  left: var(--left);
+  width: var(--size);
+  height: calc(var(--size) * 0.45);
+  background: var(--color);
+  border-radius: 2px;
+  opacity: 0;
+  animation: confettiBurst var(--duration) ease-out forwards;
+  animation-delay: var(--delay);
+}
+
+.balloon {
+  position: absolute;
+  left: var(--x);
+  bottom: -20vh;
+  width: var(--size);
+  height: calc(var(--size) * 1.25);
+  border-radius: 50% 50% 45% 45%;
+  background: var(--color);
+  box-shadow: 0 10px 20px rgba(31, 27, 22, 0.12);
+  opacity: 0;
+  animation: balloonFloat var(--duration) ease-in forwards;
+  animation-delay: var(--delay);
+}
+
+.balloon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 2px;
+  height: 70px;
+  background: rgba(31, 27, 22, 0.2);
+  transform: translateX(-50%);
+}
+
+@keyframes confettiBurst {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -10vh) rotate(var(--rotation));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 80vh) rotate(720deg);
+  }
+}
+
+@keyframes balloonFloat {
+  0% {
+    transform: translateY(20vh);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-140vh);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .birthdayOverlay {
+    display: none;
   }
 }

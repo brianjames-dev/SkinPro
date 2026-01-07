@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties
+} from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import styles from "./clients.module.css";
@@ -54,6 +61,23 @@ type Photo = {
   type?: string | null;
   description?: string | null;
   file_url?: string;
+};
+
+type PhotoDragState = {
+  photo: Photo;
+  startX: number;
+  startY: number;
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  isDragging: boolean;
+};
+
+type PhotoDragGhost = {
+  photo: Photo;
+  x: number;
+  y: number;
+  width: number;
 };
 
 type Prescription = {
@@ -183,6 +207,13 @@ const EMPTY_APPOINTMENT: AppointmentForm = {
 };
 
 const MAX_PRESCRIPTION_ROWS = 10;
+const BIRTHDAY_WINDOW_BEFORE_DAYS = 14;
+const BIRTHDAY_WINDOW_AFTER_DAYS = 7;
+const CELEBRATION_DURATION_MS = 5600;
+const CONFETTI_COUNT = 300;
+const BALLOON_COUNT = 14;
+const CONFETTI_COLORS = ["#f06b6b", "#ffd36b", "#7cc7ff", "#b8f28f", "#c78bff"];
+const BALLOON_COLORS = ["#f7a2b6", "#f9d270", "#8fd2ff", "#b4ef9a", "#f2a2f5"];
 
 const createPrescriptionDraft = (columnCount: number): PrescriptionDraft => {
   const columns: PrescriptionColumn[] = Array.from({ length: columnCount }, (_, index) => ({
@@ -320,6 +351,69 @@ const formatDateInput = (value: string) => {
     return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   }
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
+const parseMonthDay = (value: string): { month: number; day: number } | null => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parts = trimmed.split(/[-/]/).filter(Boolean);
+  let month: number | null = null;
+  let day: number | null = null;
+
+  if (parts.length >= 3 && parts[0]?.length === 4) {
+    month = Number(parts[1]);
+    day = Number(parts[2]);
+  } else {
+    const digits = trimmed.replace(/\D/g, "");
+    if (digits.length >= 4) {
+      month = Number(digits.slice(0, 2));
+      day = Number(digits.slice(2, 4));
+    } else if (parts.length >= 2) {
+      month = Number(parts[0]);
+      day = Number(parts[1]);
+    }
+  }
+
+  if (!month || !day || month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+
+  return { month, day };
+};
+
+const diffDays = (target: Date, base: Date) => {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const baseMid = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 12);
+  const targetMid = new Date(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate(),
+    12
+  );
+  return Math.round((targetMid.getTime() - baseMid.getTime()) / msPerDay);
+};
+
+const isWithinBirthdayWindow = (value: string, now = new Date()) => {
+  const parsed = parseMonthDay(value);
+  if (!parsed) {
+    return false;
+  }
+
+  const { month, day } = parsed;
+  const year = now.getFullYear();
+  const candidates = [year - 1, year, year + 1].map(
+    (candidateYear) => new Date(candidateYear, month - 1, day)
+  );
+
+  return candidates.some((candidate) => {
+    const delta = diffDays(candidate, now);
+    return (
+      delta >= -BIRTHDAY_WINDOW_AFTER_DAYS && delta <= BIRTHDAY_WINDOW_BEFORE_DAYS
+    );
+  });
 };
 
 const formatPhoneInput = (value: string) => {
@@ -603,6 +697,9 @@ export default function ClientsDashboard() {
   const clientDetailsRequestIdRef = useRef(0);
   const clientDetailsAbortRef = useRef<AbortController | null>(null);
   const clientFormMutationIdRef = useRef(0);
+  const lastSavedClientFormRef = useRef<ClientForm>(EMPTY_CLIENT);
+  const lastSavedHealthFormRef = useRef<HealthForm>(EMPTY_HEALTH);
+  const lastSavedReferredByValueRef = useRef("");
   const [allClients, setAllClients] = useState<Client[]>([]);
   const [clientOptions, setClientOptions] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
@@ -613,9 +710,31 @@ export default function ClientsDashboard() {
     useState<AppointmentForm>(EMPTY_APPOINTMENT);
   const [selectedAppointmentId, setSelectedAppointmentId] =
     useState<number | null>(null);
+  const [isAppointmentFormOpen, setIsAppointmentFormOpen] = useState(false);
+  const [appointmentNotesMode, setAppointmentNotesMode] = useState<
+    "selected" | "all"
+  >("selected");
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
-  const [photoDescription, setPhotoDescription] = useState("");
+  const [comparePickMode, setComparePickMode] = useState<"before" | "after">(
+    "before"
+  );
+  const [compareBeforeId, setCompareBeforeId] = useState<number | null>(null);
+  const [compareAfterId, setCompareAfterId] = useState<number | null>(null);
+  const [photoDragTarget, setPhotoDragTarget] = useState<"before" | "after" | null>(
+    null
+  );
+  const [isPhotoDragging, setIsPhotoDragging] = useState(false);
+  const [photoDragGhost, setPhotoDragGhost] = useState<PhotoDragGhost | null>(
+    null
+  );
+  const photoDragStateRef = useRef<PhotoDragState | null>(null);
+  const photoBeforeSlotRef = useRef<HTMLDivElement | null>(null);
+  const photoAfterSlotRef = useRef<HTMLDivElement | null>(null);
+  const [isBeforeCommentEditing, setIsBeforeCommentEditing] = useState(false);
+  const [isAfterCommentEditing, setIsAfterCommentEditing] = useState(false);
+  const [beforeCommentDraft, setBeforeCommentDraft] = useState("");
+  const [afterCommentDraft, setAfterCommentDraft] = useState("");
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(
     null
   );
@@ -632,6 +751,9 @@ export default function ClientsDashboard() {
     null
   );
   const [photoUploadKey, setPhotoUploadKey] = useState(0);
+  const [isPhotoUploadOpen, setIsPhotoUploadOpen] = useState(false);
+  const [photoUploadMode, setPhotoUploadMode] = useState<"local" | "qr">("qr");
+  const photoFileInputRef = useRef<HTMLInputElement | null>(null);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [photoQrDataUrl, setPhotoQrDataUrl] = useState<string | null>(null);
   const [photoQrUrl, setPhotoQrUrl] = useState<string | null>(null);
@@ -650,6 +772,14 @@ export default function ClientsDashboard() {
   );
   const [prescriptionColumnCount, setPrescriptionColumnCount] = useState(2);
   const [prescriptionPreviewUrl, setPrescriptionPreviewUrl] = useState<string | null>(null);
+  const [isPrescriptionEditing, setIsPrescriptionEditing] = useState(false);
+  const [highlightTarget, setHighlightTarget] = useState<{
+    colIndex: number;
+    rowIndex: number;
+  } | null>(null);
+  const [showBirthdayCelebration, setShowBirthdayCelebration] = useState(false);
+  const [celebrationKey, setCelebrationKey] = useState(0);
+  const celebrationTimeoutRef = useRef<number | null>(null);
   const [loadingPrescriptions, setLoadingPrescriptions] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
@@ -680,11 +810,98 @@ export default function ClientsDashboard() {
   const [overviewMode, setOverviewMode] = useState<OverviewMode>("compact");
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("appointments");
 
+  const confettiPieces = useMemo(
+    () =>
+      Array.from({ length: CONFETTI_COUNT }, (_, index) => ({
+        id: `${celebrationKey}-${index}`,
+        left: Math.round(Math.random() * 1000) / 10,
+        delay: 0,
+        duration: 1800 + Math.random() * 1400,
+        size: 6 + Math.random() * 6,
+        rotation: Math.random() * 360,
+        color: CONFETTI_COLORS[index % CONFETTI_COLORS.length]
+      })),
+    [celebrationKey]
+  );
+
+  const balloons = useMemo(
+    () =>
+      Array.from({ length: BALLOON_COUNT }, (_, index) => ({
+        id: `${celebrationKey}-${index}`,
+        x: Math.round(Math.random() * 1000) / 10,
+        delay: 0,
+        duration: 2600 + Math.random() * 1800,
+        size: 44 + Math.random() * 24,
+        color: BALLOON_COLORS[index % BALLOON_COLORS.length]
+      })),
+    [celebrationKey]
+  );
+
+  const triggerBirthdayCelebration = useCallback(() => {
+    setCelebrationKey((prev) => prev + 1);
+    setShowBirthdayCelebration(true);
+  }, []);
+
+  useEffect(() => {
+    if (!showBirthdayCelebration) {
+      return;
+    }
+
+    if (celebrationTimeoutRef.current) {
+      window.clearTimeout(celebrationTimeoutRef.current);
+    }
+
+    celebrationTimeoutRef.current = window.setTimeout(() => {
+      setShowBirthdayCelebration(false);
+    }, CELEBRATION_DURATION_MS);
+
+    return () => {
+      if (celebrationTimeoutRef.current) {
+        window.clearTimeout(celebrationTimeoutRef.current);
+        celebrationTimeoutRef.current = null;
+      }
+    };
+  }, [showBirthdayCelebration, celebrationKey]);
+
   const sortedAppointments = useMemo(() => {
     return [...appointments].sort((a, b) => {
       return parseMmddyyyy(b.date) - parseMmddyyyy(a.date);
     });
   }, [appointments]);
+
+  const selectedAppointment = useMemo(() => {
+    if (!selectedAppointmentId) {
+      return null;
+    }
+    return (
+      sortedAppointments.find(
+        (appointment) => appointment.id === selectedAppointmentId
+      ) ?? null
+    );
+  }, [sortedAppointments, selectedAppointmentId]);
+
+  const appointmentsWithNotes = useMemo(() => {
+    return sortedAppointments.filter(
+      (appointment) => (appointment.treatment_notes ?? "").trim()
+    );
+  }, [sortedAppointments]);
+
+  const isBirthdayWindow = useMemo(
+    () => isWithinBirthdayWindow(clientForm.birthdate),
+    [clientForm.birthdate]
+  );
+
+  const appointmentNotesMeta = useMemo(() => {
+    if (appointmentNotesMode === "all") {
+      if (appointmentsWithNotes.length === 0) {
+        return "No notes yet";
+      }
+      return `${appointmentsWithNotes.length} note${
+        appointmentsWithNotes.length === 1 ? "" : "s"
+      }`;
+    }
+    return "";
+  }, [appointmentNotesMode, appointmentsWithNotes.length, selectedAppointment]);
 
   const sortedAlerts = useMemo(() => {
     return [...alerts].sort((a, b) => {
@@ -770,9 +987,23 @@ export default function ClientsDashboard() {
     return { count: matches.length, latestName };
   }, [allClients, selectedClientId]);
 
-  const selectedPhoto = useMemo(() => {
-    return photos.find((photo) => photo.id === selectedPhotoId) ?? null;
-  }, [photos, selectedPhotoId]);
+  const compareBeforePhoto = useMemo(() => {
+    return photos.find((photo) => photo.id === compareBeforeId) ?? null;
+  }, [photos, compareBeforeId]);
+
+  const compareAfterPhoto = useMemo(() => {
+    return photos.find((photo) => photo.id === compareAfterId) ?? null;
+  }, [photos, compareAfterId]);
+
+  useEffect(() => {
+    setBeforeCommentDraft(compareBeforePhoto?.description ?? "");
+    setIsBeforeCommentEditing(false);
+  }, [compareBeforePhoto?.id]);
+
+  useEffect(() => {
+    setAfterCommentDraft(compareAfterPhoto?.description ?? "");
+    setIsAfterCommentEditing(false);
+  }, [compareAfterPhoto?.id]);
 
   const selectedPrescription = useMemo(() => {
     return (
@@ -832,8 +1063,32 @@ export default function ClientsDashboard() {
   }, [selectedClientId, photoUploadAppointmentId]);
 
   useEffect(() => {
+    if (
+      !isPhotoUploadOpen ||
+      photoUploadMode !== "qr" ||
+      !photoUploadAppointmentId ||
+      photoQrDataUrl ||
+      photoQrLoading
+    ) {
+      return;
+    }
+    void handlePhotoQrGenerate();
+  }, [
+    isPhotoUploadOpen,
+    photoUploadMode,
+    photoUploadAppointmentId,
+    photoQrDataUrl,
+    photoQrLoading
+  ]);
+
+  useEffect(() => {
     setProfileQrDataUrl(null);
     setProfileQrUrl(null);
+  }, [selectedClientId]);
+
+  useEffect(() => {
+    setIsAppointmentFormOpen(false);
+    setAppointmentNotesMode("selected");
   }, [selectedClientId]);
 
   useEffect(() => {
@@ -996,7 +1251,7 @@ export default function ClientsDashboard() {
 
       const client = data.client;
       const referredByRaw = client.referred_by ?? "";
-      setClientForm({
+      const nextClientForm = {
         id: client.id,
         full_name: client.full_name ?? "",
         gender: client.gender ?? "",
@@ -1010,8 +1265,11 @@ export default function ClientsDashboard() {
         state: client.state ?? "",
         zip: client.zip ?? "",
         referred_by: referredByRaw
-      });
+      };
+      setClientForm(nextClientForm);
+      lastSavedClientFormRef.current = nextClientForm;
       setReferredByValue(referredByRaw);
+      lastSavedReferredByValueRef.current = referredByRaw;
       setReferredByQuery(resolveReferredByName(referredByRaw, allClients));
       setProfilePictureUrl(
         client.profile_picture
@@ -1021,7 +1279,7 @@ export default function ClientsDashboard() {
       setProfileUploadFile(null);
 
       const health = data.health ?? {};
-      setHealthForm({
+      const nextHealthForm = {
         allergies: health.allergies ?? "",
         health_conditions: health.health_conditions ?? "",
         health_risks: health.health_risks ?? "",
@@ -1031,7 +1289,16 @@ export default function ClientsDashboard() {
         skin_conditions: health.skin_conditions ?? "",
         other_notes: health.other_notes ?? "",
         desired_improvement: health.desired_improvement ?? ""
-      });
+      };
+      setHealthForm(nextHealthForm);
+      lastSavedHealthFormRef.current = nextHealthForm;
+
+      const shouldCelebrate = isWithinBirthdayWindow(client.birthdate ?? "");
+      if (shouldCelebrate) {
+        triggerBirthdayCelebration();
+      } else {
+        setShowBirthdayCelebration(false);
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         return;
@@ -1085,9 +1352,20 @@ export default function ClientsDashboard() {
         throw new Error(data.error ?? "Failed to load photos");
       }
 
-      setPhotos(data.photos ?? []);
-      setSelectedPhotoId(null);
-      setPhotoDescription("");
+      const nextPhotos = data.photos ?? [];
+      setPhotos(nextPhotos);
+
+      const nextSelected = selectedPhotoId
+        ? nextPhotos.find((photo) => photo.id === selectedPhotoId)
+        : null;
+      setSelectedPhotoId(nextSelected ? nextSelected.id : null);
+
+      if (compareBeforeId && !nextPhotos.some((photo) => photo.id === compareBeforeId)) {
+        setCompareBeforeId(null);
+      }
+      if (compareAfterId && !nextPhotos.some((photo) => photo.id === compareAfterId)) {
+        setCompareAfterId(null);
+      }
     } catch (err) {
       setNotice(
         err instanceof Error ? err.message : "Failed to load photos",
@@ -1170,12 +1448,14 @@ export default function ClientsDashboard() {
     setReferredByQuery("");
     setReferredByValue("");
     setHealthForm(EMPTY_HEALTH);
+    lastSavedClientFormRef.current = EMPTY_CLIENT;
+    lastSavedHealthFormRef.current = EMPTY_HEALTH;
+    lastSavedReferredByValueRef.current = "";
     setAppointments([]);
     setAppointmentForm(EMPTY_APPOINTMENT);
     setSelectedAppointmentId(null);
     setPhotos([]);
     setSelectedPhotoId(null);
-    setPhotoDescription("");
     setProfilePictureUrl(null);
     setProfileUploadFile(null);
     setProfileUploadKey((prev) => prev + 1);
@@ -1255,6 +1535,17 @@ export default function ClientsDashboard() {
     }));
     setReferredByValue("");
     setReferredByQuery("");
+  };
+
+  const handleOverviewEditCancel = () => {
+    const savedClient = lastSavedClientFormRef.current;
+    const savedHealth = lastSavedHealthFormRef.current;
+    const savedReferred = lastSavedReferredByValueRef.current;
+    setClientForm({ ...savedClient });
+    setHealthForm({ ...savedHealth });
+    setReferredByValue(savedReferred);
+    setReferredByQuery(resolveReferredByName(savedReferred, allClients));
+    setOverviewMode("compact");
   };
 
   const handleHealthChange = (
@@ -1381,6 +1672,7 @@ export default function ClientsDashboard() {
         throw new Error(data.error ?? "Failed to save health info");
       }
       setNotice("Health info saved.");
+      lastSavedHealthFormRef.current = { ...healthForm };
       setOverviewMode("compact");
     } catch (err) {
       setNotice(
@@ -1512,8 +1804,72 @@ export default function ClientsDashboard() {
     setIsProfileUploadOpen(false);
   };
 
-  const handlePhotoUpload = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const openPhotoUploadModal = () => {
+    setPhotoUploadMode("qr");
+    setIsPhotoUploadOpen(true);
+    if (photoUploadAppointmentId && !photoQrDataUrl && !photoQrLoading) {
+      void handlePhotoQrGenerate();
+    }
+  };
+
+  const closePhotoUploadModal = () => {
+    setIsPhotoUploadOpen(false);
+  };
+
+  const handlePhotoModeChange = (mode: "local" | "qr") => {
+    setPhotoUploadMode(mode);
+    if (mode === "qr" && photoUploadAppointmentId && !photoQrDataUrl && !photoQrLoading) {
+      void handlePhotoQrGenerate();
+    }
+  };
+
+  const openPhotoLocalPicker = async () => {
+    const showOpenFilePicker = (
+      window as Window & {
+        showOpenFilePicker?: (options?: unknown) => Promise<
+          {
+            getFile: () => Promise<File>;
+          }[]
+        >;
+      }
+    ).showOpenFilePicker;
+
+    if (showOpenFilePicker) {
+      try {
+        const handles = await showOpenFilePicker({
+          multiple: true,
+          startIn: "pictures",
+          types: [
+            {
+              description: "Images",
+              accept: {
+                "image/*": [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"]
+              }
+            }
+          ]
+        });
+        const dataTransfer = new DataTransfer();
+        for (const handle of handles) {
+          const file = await handle.getFile();
+          dataTransfer.items.add(file);
+        }
+        setPhotoUploadFiles(dataTransfer.files);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        setNotice(
+          err instanceof Error ? err.message : "Failed to open file picker",
+          true
+        );
+      }
+    } else {
+      photoFileInputRef.current?.click();
+    }
+  };
+
+  const handlePhotoUpload = async (event?: React.FormEvent) => {
+    event?.preventDefault();
     if (!selectedClientId) {
       setNotice("Select a client before uploading photos.", true);
       return;
@@ -1550,6 +1906,7 @@ export default function ClientsDashboard() {
       await loadPhotos(selectedClientId);
       await loadAppointments(selectedClientId);
       setNotice("Photos uploaded.");
+      setIsPhotoUploadOpen(false);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Photo upload failed", true);
     }
@@ -1557,21 +1914,142 @@ export default function ClientsDashboard() {
 
   const handlePhotoSelect = (photo: Photo) => {
     setSelectedPhotoId(photo.id);
-    setPhotoDescription(photo.description ?? "");
+    if (comparePickMode === "before") {
+      setCompareBeforeId(photo.id);
+    } else {
+      setCompareAfterId(photo.id);
+    }
   };
 
-  const handlePhotoDescriptionSave = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!selectedPhotoId) {
-      setNotice("Select a photo first.", true);
+  const getPhotoDropTarget = useCallback((x: number, y: number) => {
+    const beforeRect = photoBeforeSlotRef.current?.getBoundingClientRect();
+    if (
+      beforeRect &&
+      x >= beforeRect.left &&
+      x <= beforeRect.right &&
+      y >= beforeRect.top &&
+      y <= beforeRect.bottom
+    ) {
+      return "before" as const;
+    }
+    const afterRect = photoAfterSlotRef.current?.getBoundingClientRect();
+    if (
+      afterRect &&
+      x >= afterRect.left &&
+      x <= afterRect.right &&
+      y >= afterRect.top &&
+      y <= afterRect.bottom
+    ) {
+      return "after" as const;
+    }
+    return null;
+  }, []);
+
+  const handlePhotoPointerMove = useCallback(
+    (event: PointerEvent) => {
+      const dragState = photoDragStateRef.current;
+      if (!dragState) {
+        return;
+      }
+
+      const distance = Math.hypot(
+        event.clientX - dragState.startX,
+        event.clientY - dragState.startY
+      );
+      if (!dragState.isDragging) {
+        if (distance < 6) {
+          return;
+        }
+        dragState.isDragging = true;
+        setIsPhotoDragging(true);
+      }
+
+      setPhotoDragGhost({
+        photo: dragState.photo,
+        x: event.clientX - dragState.offsetX,
+        y: event.clientY - dragState.offsetY,
+        width: dragState.width
+      });
+
+      setPhotoDragTarget(getPhotoDropTarget(event.clientX, event.clientY));
+    },
+    [getPhotoDropTarget]
+  );
+
+  const handlePhotoPointerUp = useCallback(
+    (event: PointerEvent) => {
+      const dragState = photoDragStateRef.current;
+      if (!dragState) {
+        return;
+      }
+
+      window.removeEventListener("pointermove", handlePhotoPointerMove);
+      window.removeEventListener("pointerup", handlePhotoPointerUp);
+
+      if (dragState.isDragging) {
+        const target = getPhotoDropTarget(event.clientX, event.clientY);
+        if (target === "before") {
+          setCompareBeforeId(dragState.photo.id);
+        } else if (target === "after") {
+          setCompareAfterId(dragState.photo.id);
+        }
+        if (target) {
+          setSelectedPhotoId(dragState.photo.id);
+        }
+      }
+
+      setPhotoDragTarget(null);
+      setPhotoDragGhost(null);
+      setIsPhotoDragging(false);
+      photoDragStateRef.current = null;
+    },
+    [getPhotoDropTarget, handlePhotoPointerMove]
+  );
+
+  const handlePhotoPointerDown = (
+    event: React.PointerEvent<HTMLButtonElement>,
+    photo: Photo
+  ) => {
+    if (event.button !== 0) {
       return;
     }
 
+    const rect = event.currentTarget.getBoundingClientRect();
+    photoDragStateRef.current = {
+      photo,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      width: rect.width,
+      isDragging: false
+    };
+
+    setSelectedPhotoId(photo.id);
+    window.removeEventListener("pointermove", handlePhotoPointerMove);
+    window.removeEventListener("pointerup", handlePhotoPointerUp);
+    window.addEventListener("pointermove", handlePhotoPointerMove);
+    window.addEventListener("pointerup", handlePhotoPointerUp);
+  };
+
+  useEffect(() => {
+    return () => {
+      window.removeEventListener("pointermove", handlePhotoPointerMove);
+      window.removeEventListener("pointerup", handlePhotoPointerUp);
+    };
+  }, [handlePhotoPointerMove, handlePhotoPointerUp]);
+
+  const handlePhotoCommentSave = async (
+    photoId: number,
+    comment: string,
+    target: "before" | "after"
+  ) => {
+    const trimmed = comment.trim();
     try {
-      const response = await fetch(`/api/photos/${selectedPhotoId}`, {
+      const response = await fetch(`/api/photos/${photoId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: photoDescription })
+        body: JSON.stringify({ description: trimmed })
       });
       const data = (await response.json()) as { error?: string };
 
@@ -1582,9 +2060,34 @@ export default function ClientsDashboard() {
       if (selectedClientId) {
         await loadPhotos(selectedClientId);
       }
-      setNotice("Photo updated.");
+      setNotice("Comment saved.");
+      if (target === "before") {
+        setIsBeforeCommentEditing(false);
+        setBeforeCommentDraft(trimmed);
+      } else {
+        setIsAfterCommentEditing(false);
+        setAfterCommentDraft(trimmed);
+      }
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Photo update failed", true);
+    }
+  };
+
+  const handlePhotoCommentEdit = (target: "before" | "after") => {
+    if (target === "before") {
+      setIsBeforeCommentEditing(true);
+    } else {
+      setIsAfterCommentEditing(true);
+    }
+  };
+
+  const handlePhotoCommentCancel = (target: "before" | "after") => {
+    if (target === "before") {
+      setIsBeforeCommentEditing(false);
+      setBeforeCommentDraft(compareBeforePhoto?.description ?? "");
+    } else {
+      setIsAfterCommentEditing(false);
+      setAfterCommentDraft(compareAfterPhoto?.description ?? "");
     }
   };
 
@@ -1606,6 +2109,15 @@ export default function ClientsDashboard() {
       if (selectedClientId) {
         await loadPhotos(selectedClientId);
         await loadAppointments(selectedClientId);
+      }
+      if (selectedPhotoId === photo.id) {
+        setSelectedPhotoId(null);
+      }
+      if (compareBeforeId === photo.id) {
+        setCompareBeforeId(null);
+      }
+      if (compareAfterId === photo.id) {
+        setCompareAfterId(null);
       }
       setNotice("Photo deleted.");
     } catch (err) {
@@ -1884,20 +2396,32 @@ export default function ClientsDashboard() {
     });
   };
 
-  const handlePrescriptionHighlight = (colIndex: number, rowIndex: number) => {
+  const handlePrescriptionHighlight = () => {
+    if (!highlightTarget) {
+      setNotice("Select text to highlight.", true);
+      return;
+    }
+
+    const { colIndex, rowIndex } = highlightTarget;
     const textarea = document.getElementById(
       `dir-${colIndex}-${rowIndex}`
     ) as HTMLTextAreaElement | null;
     if (!textarea) {
+      setNotice("Select text to highlight.", true);
       return;
     }
 
     const start = textarea.selectionStart ?? 0;
     const end = textarea.selectionEnd ?? start;
+    if (start === end) {
+      setNotice("Select text to highlight.", true);
+      textarea.focus();
+      return;
+    }
     const value = textarea.value;
     const nextValue =
       value.slice(0, start) +
-      `[[highlight]]${value.slice(start, end)}[[/highlight]]` +
+      `[h]${value.slice(start, end)}[/h]` +
       value.slice(end);
 
     handlePrescriptionRowChange(colIndex, rowIndex, "directions", nextValue);
@@ -1911,6 +2435,7 @@ export default function ClientsDashboard() {
     setPrescriptionPreviewUrl(
       `/api/prescriptions/${prescription.id}/file?ts=${Date.now()}`
     );
+    setIsPrescriptionEditing(false);
 
     try {
       const response = await fetch(`/api/prescriptions/${prescription.id}`);
@@ -1935,12 +2460,32 @@ export default function ClientsDashboard() {
     }
   };
 
+  const clearPrescriptionSelection = () => {
+    setSelectedPrescriptionId(null);
+    setPrescriptionPreviewUrl(null);
+    setIsPrescriptionEditing(false);
+  };
+
+  const handlePrescriptionCancel = () => {
+    if (selectedPrescriptionId) {
+      const selected = prescriptions.find(
+        (prescription) => prescription.id === selectedPrescriptionId
+      );
+      if (selected) {
+        void handlePrescriptionSelect(selected);
+        return;
+      }
+    }
+    setIsPrescriptionEditing(false);
+  };
+
   const handlePrescriptionNew = () => {
     setSelectedPrescriptionId(null);
     const draft = createPrescriptionDraft(prescriptionColumnCount);
     draft.start_date = getTodayDateString();
     setPrescriptionDraft(draft);
     setPrescriptionPreviewUrl(null);
+    setIsPrescriptionEditing(true);
   };
 
   const handlePrescriptionSave = async (event: React.FormEvent) => {
@@ -1981,6 +2526,7 @@ export default function ClientsDashboard() {
         setPrescriptionPreviewUrl(
           `/api/prescriptions/${selectedPrescriptionId}/file?ts=${Date.now()}`
         );
+        setIsPrescriptionEditing(false);
         setNotice("Prescription updated.");
       } else {
         const response = await fetch("/api/prescriptions", {
@@ -2004,6 +2550,7 @@ export default function ClientsDashboard() {
         setPrescriptionPreviewUrl(
           `/api/prescriptions/${data.prescription.id}/file?ts=${Date.now()}`
         );
+        setIsPrescriptionEditing(false);
         setNotice("Prescription created.");
       }
     } catch (err) {
@@ -2036,7 +2583,7 @@ export default function ClientsDashboard() {
       }
 
       await loadPrescriptions(selectedClientId);
-      handlePrescriptionNew();
+      clearPrescriptionSelection();
       setNotice("Prescription deleted.");
     } catch (err) {
       setNotice(
@@ -2114,6 +2661,7 @@ export default function ClientsDashboard() {
         setPrescriptionPreviewUrl(
           `/api/prescriptions/${data.prescription.id}/file?ts=${Date.now()}`
         );
+        setIsPrescriptionEditing(false);
       }
 
       setNotice("Prescription copied.");
@@ -2145,6 +2693,7 @@ export default function ClientsDashboard() {
     setPrescriptionDraft(draft);
     setSelectedPrescriptionId(null);
     setPrescriptionPreviewUrl(null);
+    setIsPrescriptionEditing(true);
     setNotice(`Template "${template.name}" loaded.`);
   };
 
@@ -2228,12 +2777,23 @@ export default function ClientsDashboard() {
       photos_taken: appointment.photos_taken ?? "No",
       treatment_notes: appointment.treatment_notes ?? ""
     });
+    setAppointmentNotesMode("selected");
     setPhotoUploadAppointmentId(String(appointment.id));
+  };
+
+  const handleAppointmentEdit = (appointment: Appointment) => {
+    handleAppointmentSelect(appointment);
+    setIsAppointmentFormOpen(true);
   };
 
   const handleAppointmentNew = () => {
     setSelectedAppointmentId(null);
     setAppointmentForm(EMPTY_APPOINTMENT);
+    setIsAppointmentFormOpen(true);
+  };
+
+  const handleAppointmentFormClose = () => {
+    setIsAppointmentFormOpen(false);
   };
 
   const handleAppointmentSave = async (event: React.FormEvent) => {
@@ -2274,6 +2834,7 @@ export default function ClientsDashboard() {
         }
         await loadAppointments(selectedClientId);
         setNotice("Appointment updated.");
+        setIsAppointmentFormOpen(false);
       } else {
         const response = await fetch("/api/appointments", {
           method: "POST",
@@ -2289,6 +2850,7 @@ export default function ClientsDashboard() {
         }
         await loadAppointments(selectedClientId);
         setNotice("Appointment created.");
+        setIsAppointmentFormOpen(false);
       }
     } catch (err) {
       setNotice(
@@ -2344,7 +2906,48 @@ export default function ClientsDashboard() {
   };
 
   return (
-    <div className={styles.page}>
+    <div
+      className={`${styles.page} ${isPhotoDragging ? styles.photoDragActive : ""}`}
+    >
+      {showBirthdayCelebration && (
+        <div className={styles.birthdayOverlay} aria-hidden="true">
+          <div className={styles.confettiBurst}>
+            {confettiPieces.map((piece) => (
+              <span
+                key={piece.id}
+                className={styles.confettiPiece}
+                style={
+                  {
+                    "--left": `${piece.left}%`,
+                    "--delay": `${piece.delay}ms`,
+                    "--duration": `${piece.duration}ms`,
+                    "--size": `${piece.size}px`,
+                    "--rotation": `${piece.rotation}deg`,
+                    "--color": piece.color
+                  } as CSSProperties
+                }
+              />
+            ))}
+          </div>
+          <div className={styles.balloonField}>
+            {balloons.map((balloon) => (
+              <div
+                key={balloon.id}
+                className={styles.balloon}
+                style={
+                  {
+                    "--x": `${balloon.x}%`,
+                    "--delay": `${balloon.delay}ms`,
+                    "--duration": `${balloon.duration}ms`,
+                    "--size": `${balloon.size}px`,
+                    "--color": balloon.color
+                  } as CSSProperties
+                }
+              />
+            ))}
+          </div>
+        </div>
+      )}
       <div className={styles.topGrid}>
         <section className={`${styles.panel} ${styles.clientsPanel}`}>
           <div className={styles.clientSearchPanel}>
@@ -2707,24 +3310,20 @@ export default function ClientsDashboard() {
                     Health
                   </button>
                 </div>
-                <button
-                  className={`${styles.buttonSecondary} ${
-                    overviewMode === "edit" ? styles.editToggleIcon : ""
-                  }`}
-                  type="button"
-                  disabled={loadingClientDetails}
-                  onClick={() =>
-                    setOverviewMode((prev) =>
-                      prev === "edit" ? "compact" : "edit"
-                    )
-                  }
-                  aria-label={
-                    overviewMode === "edit" ? "Exit edit mode" : "Edit client"
-                  }
-                  title={overviewMode === "edit" ? "Close edit" : "Edit"}
-                >
-                  {overviewMode === "edit" ? "X" : "Edit"}
-                </button>
+                {overviewMode === "compact" && (
+                  <button
+                    className={styles.buttonSecondary}
+                    type="button"
+                    disabled={loadingClientDetails}
+                    onClick={() =>
+                      setOverviewMode("edit")
+                    }
+                    aria-label="Edit client"
+                    title="Edit"
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
 
               <div
@@ -2732,6 +3331,18 @@ export default function ClientsDashboard() {
                   overviewMode === "compact" ? styles.compactCard : ""
                 }`}
               >
+              {overviewMode === "edit" && (
+                <button
+                  className={`${styles.buttonSecondary} ${styles.editToggleIcon} ${styles.editToggleFloatingCard}`}
+                  type="button"
+                  disabled={loadingClientDetails}
+                  onClick={handleOverviewEditCancel}
+                  aria-label="Exit edit mode"
+                  title="Close edit"
+                >
+                  X
+                </button>
+              )}
               {overviewTab === "info" && (
                 <>
                   {overviewMode === "compact" ? (
@@ -2750,21 +3361,6 @@ export default function ClientsDashboard() {
                             <CompactValue value={clientForm.gender} />
                           </div>
                           <div className={styles.field}>
-                            <span className={styles.label}>Birthdate</span>
-                            <CompactValue value={clientForm.birthdate} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Referred By</span>
-                            <CompactValue value={referredByDisplay} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Address</span>
-                            <CompactValue
-                              value={formatCompactAddress(clientForm)}
-                              multiline
-                            />
-                          </div>
-                          <div className={styles.field}>
                             <span className={styles.label}>Phone</span>
                             <CompactValue
                               value={formatCompactPhones(
@@ -2774,9 +3370,28 @@ export default function ClientsDashboard() {
                               multiline
                             />
                           </div>
+                          <div
+                            className={`${styles.field} ${
+                              isBirthdayWindow ? styles.birthdayField : ""
+                            }`}
+                          >
+                            <span className={styles.label}>Birthdate</span>
+                            <CompactValue value={clientForm.birthdate} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Address</span>
+                            <CompactValue
+                              value={formatCompactAddress(clientForm)}
+                              multiline
+                            />
+                          </div>
                           <div className={styles.field}>
                             <span className={styles.label}>Email</span>
                             <CompactValue value={clientForm.email} />
+                          </div>
+                          <div className={styles.field}>
+                            <span className={styles.label}>Referred By</span>
+                            <CompactValue value={referredByDisplay} />
                           </div>
                         </div>
                       )}
@@ -2821,17 +3436,27 @@ export default function ClientsDashboard() {
                             disabled={loadingClientDetails}
                           />
                         </label>
-                        <label className={styles.field}>
+                        <label
+                          className={`${styles.field} ${
+                            isBirthdayWindow ? styles.birthdayField : ""
+                          }`}
+                        >
                           <span className={styles.label}>Birthdate</span>
-                          <input
-                            className={styles.input}
-                            name="birthdate"
-                            placeholder="MM/DD/YYYY"
-                            inputMode="numeric"
-                            value={clientForm.birthdate}
-                            onChange={handleClientChange}
-                            disabled={loadingClientDetails}
-                          />
+                          <div
+                            className={`${styles.birthdayInputWrap} ${
+                              isBirthdayWindow ? styles.birthdayInputWrapActive : ""
+                            }`}
+                          >
+                            <input
+                              className={styles.input}
+                              name="birthdate"
+                              placeholder="MM/DD/YYYY"
+                              inputMode="numeric"
+                              value={clientForm.birthdate}
+                              onChange={handleClientChange}
+                              disabled={loadingClientDetails}
+                            />
+                          </div>
                         </label>
                         <label className={styles.field}>
                           <span className={styles.label}>Email</span>
@@ -3006,7 +3631,7 @@ export default function ClientsDashboard() {
                         </button>
                         {selectedClientId && (
                           <button
-                            className={`${styles.button} ${styles.buttonDanger}`}
+                            className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
                             type="button"
                             onClick={handleClientDelete}
                             disabled={loadingClientDetails}
@@ -3200,13 +3825,23 @@ export default function ClientsDashboard() {
       <section className={`${styles.panel} ${styles.workspacePanel}`}>
         {activeTab === "appointments" && (
           <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>Appointments</h2>
+            <div className={styles.sectionHeaderRow}>
+              <h2 className={styles.sectionTitle}>Appointments</h2>
+              <button
+                className={styles.button}
+                type="button"
+                onClick={handleAppointmentNew}
+                disabled={!selectedClientId}
+              >
+                Add Appointment
+              </button>
+            </div>
             {!selectedClientId && (
               <p className={styles.notice}>Select a client to manage appointments.</p>
             )}
             {selectedClientId && (
               <div className={styles.appointmentsLayout}>
-                <div>
+                <div className={styles.appointmentsMain}>
                   {sortedAppointments.length === 0 && (
                     <p className={styles.notice}>No appointments yet.</p>
                   )}
@@ -3231,6 +3866,7 @@ export default function ClientsDashboard() {
                                 : undefined
                             }
                             onClick={() => handleAppointmentSelect(appointment)}
+                            onDoubleClick={() => handleAppointmentEdit(appointment)}
                           >
                             <td>{appointment.date}</td>
                             <td>{appointment.type}</td>
@@ -3242,90 +3878,217 @@ export default function ClientsDashboard() {
                       </tbody>
                     </table>
                   )}
-                </div>
-                <div>
-                  <form onSubmit={handleAppointmentSave}>
-                    <div className={styles.field}>
-                      <span className={styles.label}>Date</span>
-                      <input
-                        className={styles.input}
-                        name="date"
-                        placeholder="MM/DD/YYYY"
-                        value={appointmentForm.date}
-                        onChange={handleAppointmentChange}
-                      />
+                  {!isAppointmentFormOpen && (
+                    <div className={styles.appointmentFormPlaceholder}>
+                      <p className={styles.notice}>
+                        Double-click an appointment to edit or click Add Appointment
+                        to create a new one.
+                      </p>
                     </div>
-                    <div className={styles.field}>
-                      <span className={styles.label}>Type</span>
-                      <input
-                        className={styles.input}
-                        name="type"
-                        value={appointmentForm.type}
-                        onChange={handleAppointmentChange}
-                      />
-                    </div>
-                    <div className={styles.field}>
-                      <span className={styles.label}>Treatment</span>
-                      <input
-                        className={styles.input}
-                        name="treatment"
-                        value={appointmentForm.treatment}
-                        onChange={handleAppointmentChange}
-                      />
-                    </div>
-                    <div className={styles.field}>
-                      <span className={styles.label}>Price</span>
-                      <input
-                        className={styles.input}
-                        name="price"
-                        value={appointmentForm.price}
-                        onChange={handleAppointmentChange}
-                      />
-                    </div>
-                    <div className={styles.field}>
-                      <span className={styles.label}>Photos Taken</span>
-                      <select
-                        className={styles.select}
-                        name="photos_taken"
-                        value={appointmentForm.photos_taken}
-                        onChange={handleAppointmentChange}
-                      >
-                        <option value="No">No</option>
-                        <option value="Yes">Yes</option>
-                      </select>
-                    </div>
-                    <div className={styles.field}>
-                      <span className={styles.label}>Treatment Notes</span>
-                      <textarea
-                        className={styles.textarea}
-                        name="treatment_notes"
-                        value={appointmentForm.treatment_notes}
-                        onChange={handleAppointmentChange}
-                      />
-                    </div>
-                    <div className={styles.buttonRow}>
-                      <button className={styles.button} type="submit">
-                        {selectedAppointmentId ? "Save Appointment" : "Add Appointment"}
-                      </button>
+                  )}
+                  {isAppointmentFormOpen && (
+                    <div className={styles.appointmentFormCard}>
+                      <form onSubmit={handleAppointmentSave}>
                       <button
-                        className={styles.buttonSecondary}
+                        className={`${styles.iconButton} ${styles.appointmentFormClose}`}
                         type="button"
-                        onClick={handleAppointmentNew}
+                        onClick={handleAppointmentFormClose}
+                        aria-label="Close appointment form"
+                        title="Close"
                       >
-                        New
+                        X
                       </button>
-                      {selectedAppointmentId && (
-                        <button
-                          className={`${styles.button} ${styles.buttonDanger}`}
-                          type="button"
-                          onClick={handleAppointmentDelete}
+                      <div className={styles.field}>
+                        <span className={styles.label}>Date</span>
+                        <input
+                          className={styles.input}
+                          name="date"
+                          placeholder="MM/DD/YYYY"
+                          value={appointmentForm.date}
+                          onChange={handleAppointmentChange}
+                        />
+                      </div>
+                      <div className={styles.field}>
+                        <span className={styles.label}>Type</span>
+                        <input
+                          className={styles.input}
+                          name="type"
+                          value={appointmentForm.type}
+                          onChange={handleAppointmentChange}
+                        />
+                      </div>
+                      <div className={styles.field}>
+                        <span className={styles.label}>Treatment</span>
+                        <input
+                          className={styles.input}
+                          name="treatment"
+                          value={appointmentForm.treatment}
+                          onChange={handleAppointmentChange}
+                        />
+                      </div>
+                      <div className={styles.field}>
+                        <span className={styles.label}>Price</span>
+                        <input
+                          className={styles.input}
+                          name="price"
+                          value={appointmentForm.price}
+                          onChange={handleAppointmentChange}
+                        />
+                      </div>
+                      <div className={styles.field}>
+                        <span className={styles.label}>Photos Taken</span>
+                        <select
+                          className={styles.select}
+                          name="photos_taken"
+                          value={appointmentForm.photos_taken}
+                          onChange={handleAppointmentChange}
                         >
-                          Delete
+                          <option value="No">No</option>
+                          <option value="Yes">Yes</option>
+                        </select>
+                      </div>
+                      <div className={styles.field}>
+                        <span className={styles.label}>Treatment Notes</span>
+                        <textarea
+                          className={styles.textarea}
+                          name="treatment_notes"
+                          value={appointmentForm.treatment_notes}
+                          onChange={handleAppointmentChange}
+                        />
+                      </div>
+                      <div className={styles.buttonRow}>
+                        <button className={styles.button} type="submit">
+                          {selectedAppointmentId ? "Save Appointment" : "Add Appointment"}
                         </button>
+                        {selectedAppointmentId && (
+                          <button
+                            className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                            type="button"
+                            onClick={handleAppointmentDelete}
+                          >
+                            Delete
+                          </button>
+                          )}
+                      </div>
+                      </form>
+                    </div>
+                  )}
+                </div>
+                <aside className={styles.appointmentNotesPanel}>
+                  <div className={styles.appointmentNotesHeader}>
+                    <div className={styles.appointmentNotesHeading}>
+                      <h3 className={styles.appointmentNotesTitle}>
+                        Treatment Notes
+                      </h3>
+                      {appointmentNotesMeta && (
+                        <span className={styles.appointmentNotesMeta}>
+                          {appointmentNotesMeta}
+                        </span>
                       )}
                     </div>
-                  </form>
-                </div>
+                    <div className={styles.notesToggle}>
+                      <button
+                        className={`${styles.notesToggleButton} ${
+                          appointmentNotesMode === "selected"
+                            ? styles.notesToggleButtonActive
+                            : ""
+                        }`}
+                        type="button"
+                        onClick={() => setAppointmentNotesMode("selected")}
+                        aria-pressed={appointmentNotesMode === "selected"}
+                      >
+                        Selected
+                      </button>
+                      <button
+                        className={`${styles.notesToggleButton} ${
+                          appointmentNotesMode === "all"
+                            ? styles.notesToggleButtonActive
+                            : ""
+                        }`}
+                        type="button"
+                        onClick={() => setAppointmentNotesMode("all")}
+                        aria-pressed={appointmentNotesMode === "all"}
+                      >
+                        All
+                      </button>
+                    </div>
+                  </div>
+                  <div className={styles.appointmentNotesBody}>
+                    {appointmentNotesMode === "selected" && (
+                      <>
+                        {!selectedAppointment && (
+                          <p className={styles.appointmentNotesHint}>
+                            Select an appointment to view treatment notes.
+                          </p>
+                        )}
+                        {selectedAppointment && (
+                          <div className={styles.appointmentNoteDetail}>
+                            <div className={styles.appointmentNoteHeader}>
+                              <span className={styles.appointmentNoteTitle}>
+                                {selectedAppointment.date || "Appointment"}
+                              </span>
+                              <span className={styles.appointmentNoteMeta}>
+                                {selectedAppointment.type || "Appointment"}
+                              </span>
+                            </div>
+                            {selectedAppointment.treatment && (
+                              <div className={styles.appointmentNoteSub}>
+                                {selectedAppointment.treatment}
+                              </div>
+                            )}
+                            <div className={styles.appointmentNoteBodyFull}>
+                              {selectedAppointment.treatment_notes?.trim() ||
+                                "No treatment notes yet."}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {appointmentNotesMode === "all" && (
+                      <>
+                        {appointmentsWithNotes.length === 0 && (
+                          <p className={styles.appointmentNotesHint}>
+                            No treatment notes yet.
+                          </p>
+                        )}
+                        {appointmentsWithNotes.length > 0 && (
+                          <div className={styles.appointmentNotesList}>
+                            {appointmentsWithNotes.map((appointment) => (
+                              <button
+                                key={appointment.id}
+                                className={`${styles.appointmentNoteCard} ${
+                                  selectedAppointmentId === appointment.id
+                                    ? styles.appointmentNoteCardSelected
+                                    : ""
+                                }`}
+                                type="button"
+                                onClick={() => handleAppointmentSelect(appointment)}
+                              >
+                                <div className={styles.appointmentNoteHeader}>
+                                  <span className={styles.appointmentNoteTitle}>
+                                    {appointment.date || "Appointment"}
+                                  </span>
+                                  <span className={styles.appointmentNoteMeta}>
+                                    {appointment.type || "Appointment"}
+                                  </span>
+                                </div>
+                                {appointment.treatment && (
+                                  <div className={styles.appointmentNoteSub}>
+                                    {appointment.treatment}
+                                  </div>
+                                )}
+                                <div className={styles.appointmentNoteBody}>
+                                  {appointment.treatment_notes?.trim() ||
+                                    "No treatment notes yet."}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </aside>
               </div>
             )}
           </div>
@@ -3333,100 +4096,415 @@ export default function ClientsDashboard() {
 
         {activeTab === "photos" && (
           <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>Client Photos</h2>
+            <div className={styles.sectionHeaderRow}>
+              <h2 className={styles.sectionTitle}>Client Photos</h2>
+              <div className={styles.photoCompareToggle}>
+                <button
+                  className={`${styles.photoCompareToggleButton} ${
+                    comparePickMode === "before"
+                      ? styles.photoCompareToggleButtonActive
+                      : ""
+                  }`}
+                  type="button"
+                  onClick={() => setComparePickMode("before")}
+                  aria-pressed={comparePickMode === "before"}
+                >
+                  Before
+                </button>
+                <button
+                  className={`${styles.photoCompareToggleButton} ${
+                    comparePickMode === "after"
+                      ? styles.photoCompareToggleButtonActive
+                      : ""
+                  }`}
+                  type="button"
+                  onClick={() => setComparePickMode("after")}
+                  aria-pressed={comparePickMode === "after"}
+                >
+                  After
+                </button>
+              </div>
+            </div>
             {!selectedClientId && (
               <p className={styles.notice}>Select a client to view photos.</p>
             )}
             {selectedClientId && (
               <>
-                <form onSubmit={handlePhotoUpload}>
-                  <div className={styles.formGrid}>
-                    <label className={styles.field}>
-                      <span className={styles.label}>Appointment</span>
-                      <select
-                        className={styles.select}
-                        value={photoUploadAppointmentId}
-                        onChange={(event) =>
-                          setPhotoUploadAppointmentId(event.target.value)
-                        }
+                {isPhotoUploadOpen && portalTarget
+                  ? createPortal(
+                      <div
+                        className={styles.modalBackdrop}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="photo-upload-title"
+                        onClick={closePhotoUploadModal}
                       >
-                        <option value="">Select appointment</option>
-                        {sortedAppointments.map((appt) => (
-                          <option key={appt.id} value={String(appt.id)}>
-                            {appt.date} - {appt.type}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className={styles.field}>
-                      <span className={styles.label}>Upload Photos</span>
-                      <input
-                        key={photoUploadKey}
-                        className={styles.input}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={(event) =>
-                          setPhotoUploadFiles(event.target.files)
-                        }
-                      />
-                    </label>
-                  </div>
-                  <div className={styles.buttonRow}>
-                    <button className={styles.button} type="submit">
-                      Upload Photos
-                    </button>
-                  </div>
-                </form>
-
-                <div className={styles.qrPanel}>
-                  <div className={styles.qrHeader}>
-                    <h3>Appointment QR Upload</h3>
-                    <button
-                      className={styles.buttonSecondary}
-                      type="button"
-                      onClick={handlePhotoQrGenerate}
-                      disabled={photoQrLoading || !photoUploadAppointmentId}
-                    >
-                      {photoQrLoading ? "Generating..." : "Generate QR"}
-                    </button>
-                  </div>
-                  {!photoUploadAppointmentId && (
-                    <p className={styles.notice}>
-                      Select an appointment to generate a QR code.
-                    </p>
-                  )}
-                  {photoQrDataUrl && (
-                    <div className={styles.qrContent}>
-                      <img
-                        className={styles.qrImage}
-                        src={photoQrDataUrl}
-                        alt="Appointment upload QR code"
-                      />
-                      <div className={styles.qrActions}>
-                        {photoQrUrl && (
-                          <>
-                            <a
-                              className={styles.buttonSecondary}
-                              href={photoQrUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Open Upload
-                            </a>
+                        <div
+                          className={styles.modal}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <div className={styles.modalHeader}>
+                            <div>
+                              <h3
+                                id="photo-upload-title"
+                                className={styles.modalTitle}
+                              >
+                                Upload Photos
+                              </h3>
+                              <p className={styles.notice}>
+                                {clientForm.full_name
+                                  ? `For ${clientForm.full_name}`
+                                  : "Select a client to upload."}
+                              </p>
+                            </div>
                             <button
-                              className={styles.buttonSecondary}
+                              className={styles.iconButton}
                               type="button"
-                              onClick={() => handleCopyQrLink(photoQrUrl)}
+                              onClick={closePhotoUploadModal}
+                              aria-label="Close"
+                              title="Close"
                             >
-                              Copy Link
+                              X
                             </button>
-                          </>
+                          </div>
+
+                          <div className={styles.modalSection}>
+                            <label className={styles.field}>
+                              <span className={styles.label}>Appointment</span>
+                              <select
+                                className={styles.select}
+                                value={photoUploadAppointmentId}
+                                onChange={(event) =>
+                                  setPhotoUploadAppointmentId(event.target.value)
+                                }
+                              >
+                                <option value="">Select appointment</option>
+                                {sortedAppointments.map((appt) => (
+                                  <option key={appt.id} value={String(appt.id)}>
+                                    {appt.date} - {appt.type}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+
+                          <div className={styles.overviewTabs}>
+                            <button
+                              className={`${styles.tabButton} ${
+                                photoUploadMode === "qr"
+                                  ? styles.tabButtonActive
+                                  : ""
+                              }`}
+                              type="button"
+                              onClick={() => handlePhotoModeChange("qr")}
+                            >
+                              QR
+                            </button>
+                            <button
+                              className={`${styles.tabButton} ${
+                                photoUploadMode === "local"
+                                  ? styles.tabButtonActive
+                                  : ""
+                              }`}
+                              type="button"
+                              onClick={() => handlePhotoModeChange("local")}
+                            >
+                              Local
+                            </button>
+                          </div>
+
+                          {photoUploadMode === "local" && (
+                            <div className={styles.modalSection}>
+                              <input
+                                ref={photoFileInputRef}
+                                key={photoUploadKey}
+                                className={styles.hiddenInput}
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={(event) =>
+                                  setPhotoUploadFiles(event.target.files)
+                                }
+                              />
+                              <div className={styles.uploadPanel}>
+                                <div className={styles.modalRow}>
+                                  <button
+                                    className={styles.buttonSecondary}
+                                    type="button"
+                                    onClick={openPhotoLocalPicker}
+                                  >
+                                    Choose Files
+                                  </button>
+                                  <span className={styles.notice}>
+                                    {photoUploadFiles?.length
+                                      ? `${photoUploadFiles.length} file${
+                                          photoUploadFiles.length === 1 ? "" : "s"
+                                        } selected`
+                                      : "No files selected."}
+                                  </span>
+                                </div>
+                                <div className={styles.buttonRow}>
+                                  <button
+                                    className={styles.button}
+                                    type="button"
+                                    onClick={() => void handlePhotoUpload()}
+                                    disabled={
+                                      !photoUploadFiles?.length ||
+                                      !photoUploadAppointmentId
+                                    }
+                                  >
+                                    Upload Photos
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {photoUploadMode === "qr" && (
+                            <div className={styles.modalSection}>
+                              <div className={styles.qrPanel}>
+                                <div className={styles.qrHeader}>
+                                  <h3>Photo QR Upload</h3>
+                                  {photoQrLoading && (
+                                    <span className={styles.notice}>
+                                      Generating...
+                                    </span>
+                                  )}
+                                </div>
+                                {!photoUploadAppointmentId && (
+                                  <p className={styles.notice}>
+                                    Select an appointment to generate a QR code.
+                                  </p>
+                                )}
+                                {photoQrDataUrl && (
+                                  <div className={styles.qrContent}>
+                                    <img
+                                      className={styles.qrImage}
+                                      src={photoQrDataUrl}
+                                      alt="Photo upload QR code"
+                                    />
+                                    {photoQrUrl && (
+                                      <div className={styles.qrUrl}>
+                                        {photoQrUrl}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>,
+                      portalTarget
+                    )
+                  : null}
+
+                <div className={styles.photoCompareArea}>
+                  <div className={styles.photoCompareGrid}>
+                    <div
+                      ref={photoBeforeSlotRef}
+                      className={`${styles.photoCompareSlot} ${
+                        compareBeforePhoto ? styles.photoCompareSlotFilled : ""
+                      } ${
+                        photoDragTarget === "before"
+                          ? styles.photoCompareSlotDrag
+                          : ""
+                      }`}
+                    >
+                      <div className={styles.photoCompareLabelRow}>
+                        <span className={styles.photoCompareLabel}>Before</span>
+                        {compareBeforePhoto && (
+                          <span className={styles.photoCompareMeta}>
+                            {compareBeforePhoto.appt_date ?? "Unknown date"}
+                            {compareBeforePhoto.type
+                              ? ` · ${compareBeforePhoto.type}`
+                              : ""}
+                          </span>
                         )}
                       </div>
-                      {photoQrUrl && <div className={styles.qrUrl}>{photoQrUrl}</div>}
+                      {compareBeforePhoto ? (
+                        <img
+                          className={styles.photoCompareImage}
+                          src={
+                            compareBeforePhoto.file_url ??
+                            `/api/photos/${compareBeforePhoto.id}/file`
+                          }
+                          alt="Before comparison"
+                        />
+                      ) : (
+                        <div className={styles.photoCompareEmpty}>
+                          Select a photo for Before.
+                        </div>
+                      )}
+                      {compareBeforePhoto && (
+                        <div className={styles.photoCompareComment}>
+                          <div className={styles.photoCompareCommentHeader}>
+                            <span className={styles.photoCompareCommentLabel}>
+                              Comments
+                            </span>
+                            {!isBeforeCommentEditing && (
+                              <button
+                                className={styles.buttonSecondary}
+                                type="button"
+                                onClick={() => handlePhotoCommentEdit("before")}
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </div>
+                          {!isBeforeCommentEditing && (
+                            <div className={styles.photoCompareCommentText}>
+                              {compareBeforePhoto.description?.trim() ||
+                                "No comments yet."}
+                            </div>
+                          )}
+                          {isBeforeCommentEditing && (
+                            <>
+                              <textarea
+                                className={styles.textarea}
+                                value={beforeCommentDraft}
+                                onChange={(event) =>
+                                  setBeforeCommentDraft(event.target.value)
+                                }
+                              />
+                              <div className={styles.buttonRow}>
+                                <button
+                                  className={styles.button}
+                                  type="button"
+                                  onClick={() =>
+                                    void handlePhotoCommentSave(
+                                      compareBeforePhoto.id,
+                                      beforeCommentDraft,
+                                      "before"
+                                    )
+                                  }
+                                >
+                                  Save Comment
+                                </button>
+                                <button
+                                  className={styles.buttonSecondary}
+                                  type="button"
+                                  onClick={() => handlePhotoCommentCancel("before")}
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                                  type="button"
+                                  onClick={() =>
+                                    handlePhotoDelete(compareBeforePhoto)
+                                  }
+                                >
+                                  Delete Photo
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
+
+                    <div
+                      ref={photoAfterSlotRef}
+                      className={`${styles.photoCompareSlot} ${
+                        compareAfterPhoto ? styles.photoCompareSlotFilled : ""
+                      } ${
+                        photoDragTarget === "after"
+                          ? styles.photoCompareSlotDrag
+                          : ""
+                      }`}
+                    >
+                      <div className={styles.photoCompareLabelRow}>
+                        <span className={styles.photoCompareLabel}>After</span>
+                        {compareAfterPhoto && (
+                          <span className={styles.photoCompareMeta}>
+                            {compareAfterPhoto.appt_date ?? "Unknown date"}
+                            {compareAfterPhoto.type
+                              ? ` · ${compareAfterPhoto.type}`
+                              : ""}
+                          </span>
+                        )}
+                      </div>
+                      {compareAfterPhoto ? (
+                        <img
+                          className={styles.photoCompareImage}
+                          src={
+                            compareAfterPhoto.file_url ??
+                            `/api/photos/${compareAfterPhoto.id}/file`
+                          }
+                          alt="After comparison"
+                        />
+                      ) : (
+                        <div className={styles.photoCompareEmpty}>
+                          Select a photo for After.
+                        </div>
+                      )}
+                      {compareAfterPhoto && (
+                        <div className={styles.photoCompareComment}>
+                          <div className={styles.photoCompareCommentHeader}>
+                            <span className={styles.photoCompareCommentLabel}>
+                              Comments
+                            </span>
+                            {!isAfterCommentEditing && (
+                              <button
+                                className={styles.buttonSecondary}
+                                type="button"
+                                onClick={() => handlePhotoCommentEdit("after")}
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </div>
+                          {!isAfterCommentEditing && (
+                            <div className={styles.photoCompareCommentText}>
+                              {compareAfterPhoto.description?.trim() ||
+                                "No comments yet."}
+                            </div>
+                          )}
+                          {isAfterCommentEditing && (
+                            <>
+                              <textarea
+                                className={styles.textarea}
+                                value={afterCommentDraft}
+                                onChange={(event) =>
+                                  setAfterCommentDraft(event.target.value)
+                                }
+                              />
+                              <div className={styles.buttonRow}>
+                                <button
+                                  className={styles.button}
+                                  type="button"
+                                  onClick={() =>
+                                    void handlePhotoCommentSave(
+                                      compareAfterPhoto.id,
+                                      afterCommentDraft,
+                                      "after"
+                                    )
+                                  }
+                                >
+                                  Save Comment
+                                </button>
+                                <button
+                                  className={styles.buttonSecondary}
+                                  type="button"
+                                  onClick={() => handlePhotoCommentCancel("after")}
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                                  type="button"
+                                  onClick={() => handlePhotoDelete(compareAfterPhoto)}
+                                >
+                                  Delete Photo
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {loadingPhotos && (
@@ -3438,61 +4516,72 @@ export default function ClientsDashboard() {
 
                 {photos.length > 0 && (
                   <div className={styles.photosGrid}>
-                    {photos.map((photo) => (
-                      <button
-                        key={photo.id}
-                        type="button"
-                        className={`${styles.photoCard} ${
-                          selectedPhotoId === photo.id ? styles.photoCardSelected : ""
-                        }`}
-                        onClick={() => handlePhotoSelect(photo)}
-                      >
-                        <img
-                          className={styles.photoThumb}
-                          src={photo.file_url ?? `/api/photos/${photo.id}/file`}
-                          alt={`Photo ${photo.id}`}
-                        />
-                        <div className={styles.photoMeta}>
-                          {photo.appt_date ?? "Unknown date"}
-                        </div>
-                      </button>
-                    ))}
+                    {photos.map((photo) => {
+                      const isBefore = compareBeforeId === photo.id;
+                      const isAfter = compareAfterId === photo.id;
+                      return (
+                        <button
+                          key={photo.id}
+                          type="button"
+                          className={`${styles.photoCard} ${
+                            selectedPhotoId === photo.id
+                              ? styles.photoCardSelected
+                              : ""
+                          } ${isBefore ? styles.photoCardBefore : ""} ${
+                            isAfter ? styles.photoCardAfter : ""
+                          }`}
+                          onClick={() => handlePhotoSelect(photo)}
+                          onPointerDown={(event) =>
+                            handlePhotoPointerDown(event, photo)
+                          }
+                        >
+                          {(isBefore || isAfter) && (
+                            <div className={styles.photoBadgeRow}>
+                              {isBefore && (
+                                <span
+                                  className={`${styles.photoBadge} ${styles.photoBadgeBefore}`}
+                                >
+                                  Before
+                                </span>
+                              )}
+                              {isAfter && (
+                                <span
+                                  className={`${styles.photoBadge} ${styles.photoBadgeAfter}`}
+                                >
+                                  After
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          <img
+                            className={styles.photoThumb}
+                            src={photo.file_url ?? `/api/photos/${photo.id}/file`}
+                            alt={`Photo ${photo.id}`}
+                            draggable={false}
+                          />
+                          <div className={styles.photoMeta}>
+                            <div>{photo.appt_date ?? "Unknown date"}</div>
+                            <div className={styles.photoMetaType}>
+                              {photo.type ?? "Unknown type"}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 
-                {selectedPhoto && (
-                  <div className={styles.photoDetail}>
-                    <h3>Photo Details</h3>
-                    <p className={styles.notice}>
-                      Appointment: {selectedPhoto.appt_date ?? "Unknown"}{" "}
-                      {selectedPhoto.type ? `· ${selectedPhoto.type}` : ""}
-                    </p>
-                    <form onSubmit={handlePhotoDescriptionSave}>
-                      <label className={styles.field}>
-                        <span className={styles.label}>Description</span>
-                        <textarea
-                          className={styles.textarea}
-                          value={photoDescription}
-                          onChange={(event) =>
-                            setPhotoDescription(event.target.value)
-                          }
-                        />
-                      </label>
-                      <div className={styles.buttonRow}>
-                        <button className={styles.button} type="submit">
-                          Save Description
-                        </button>
-                        <button
-                          className={`${styles.button} ${styles.buttonDanger}`}
-                          type="button"
-                          onClick={() => handlePhotoDelete(selectedPhoto)}
-                        >
-                          Delete Photo
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                )}
+                <div className={styles.photoUploadFooter}>
+                  <button
+                    className={styles.button}
+                    type="button"
+                    onClick={openPhotoUploadModal}
+                    disabled={!selectedClientId}
+                  >
+                    Upload Photos
+                  </button>
+                </div>
+
               </>
             )}
           </div>
@@ -3535,6 +4624,7 @@ export default function ClientsDashboard() {
                             : ""
                         }`}
                         onClick={() => handlePrescriptionSelect(prescription)}
+                        onDoubleClick={() => setIsPrescriptionEditing(true)}
                       >
                         <div className={styles.clientItemName}>
                           {prescription.start_date ?? "Unknown"}
@@ -3554,47 +4644,59 @@ export default function ClientsDashboard() {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Open PDF
+                          Open
                         </a>
                         <button
                           className={styles.buttonSecondary}
                           type="button"
-                          onClick={handlePrescriptionPrint}
+                          onClick={() => setIsPrescriptionEditing(true)}
                         >
-                          Print
+                          Edit
+                        </button>
+                        <button
+                          className={`${styles.buttonSecondary} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                          type="button"
+                          onClick={handlePrescriptionDelete}
+                        >
+                          Delete
                         </button>
                       </div>
                       <div className={styles.copyPanel}>
                         <span className={styles.label}>Copy To Client</span>
-                        <div className={styles.copyRow}>
-                          <select
-                            className={styles.select}
-                            value={copyTargetClientId}
-                            onChange={(event) =>
-                              setCopyTargetClientId(event.target.value)
-                            }
-                          >
-                            <option value="">Select client</option>
-                            {clientOptions.map((client) => (
-                              <option key={client.id} value={String(client.id)}>
-                                {client.full_name}
-                              </option>
-                            ))}
-                          </select>
+                      <div className={styles.copyRow}>
+                          <div className={styles.copyColumn}>
+                            <select
+                              className={styles.select}
+                              value={copyTargetClientId}
+                              onChange={(event) =>
+                                setCopyTargetClientId(event.target.value)
+                              }
+                            >
+                              <option value="">Select client</option>
+                              {clientOptions.map((client) => (
+                                <option
+                                  key={client.id}
+                                  value={String(client.id)}
+                                >
+                                  {client.full_name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              className={styles.buttonSecondary}
+                              type="button"
+                              onClick={handlePrescriptionCopy}
+                            >
+                              Copy
+                            </button>
+                          </div>
                           <input
                             className={styles.input}
                             placeholder="MM/DD/YYYY"
                             value={copyStartDate}
                             onChange={(event) => setCopyStartDate(event.target.value)}
                           />
-                          <button
-                            className={styles.buttonSecondary}
-                            type="button"
-                            onClick={handlePrescriptionCopy}
-                          >
-                            Copy
-                          </button>
-                        </div>
+                      </div>
                       </div>
                     </>
                   )}
@@ -3650,35 +4752,36 @@ export default function ClientsDashboard() {
                 </div>
 
                 <div className={styles.prescriptionsEditor}>
-                  <form onSubmit={handlePrescriptionSave}>
-                    <div className={styles.formGrid}>
-                      <label className={styles.field}>
-                        <span className={styles.label}>Start Date</span>
-                        <input
-                          className={styles.input}
-                          name="start_date"
-                          placeholder="MM/DD/YYYY"
-                          value={prescriptionDraft.start_date}
-                          onChange={handlePrescriptionStartDateChange}
-                        />
-                      </label>
-                      <label className={styles.field}>
-                        <span className={styles.label}>Columns</span>
-                        <select
-                          className={styles.select}
-                          value={prescriptionColumnCount}
-                          onChange={(event) =>
-                            handlePrescriptionColumnCountChange(
-                              Number(event.target.value)
-                            )
-                          }
-                        >
-                          <option value={2}>2 Columns</option>
-                          <option value={3}>3 Columns</option>
-                          <option value={4}>4 Columns</option>
-                        </select>
-                      </label>
-                    </div>
+                  {isPrescriptionEditing ? (
+                    <form onSubmit={handlePrescriptionSave}>
+                      <div className={styles.formGrid}>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Start Date</span>
+                          <input
+                            className={styles.input}
+                            name="start_date"
+                            placeholder="MM/DD/YYYY"
+                            value={prescriptionDraft.start_date}
+                            onChange={handlePrescriptionStartDateChange}
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span className={styles.label}>Columns</span>
+                          <select
+                            className={styles.select}
+                            value={prescriptionColumnCount}
+                            onChange={(event) =>
+                              handlePrescriptionColumnCountChange(
+                                Number(event.target.value)
+                              )
+                            }
+                          >
+                            <option value={2}>2 Columns</option>
+                            <option value={3}>3 Columns</option>
+                            <option value={4}>4 Columns</option>
+                          </select>
+                        </label>
+                      </div>
 
                     <div className={styles.buttonRow}>
                       <button
@@ -3695,50 +4798,57 @@ export default function ClientsDashboard() {
                       >
                         Remove Row
                       </button>
+                      <button
+                        className={styles.buttonSecondary}
+                        type="button"
+                        onClick={handlePrescriptionHighlight}
+                      >
+                        Highlight
+                      </button>
                     </div>
 
-                    <div
-                      className={styles.prescriptionGrid}
-                      style={{
-                        gridTemplateColumns: `repeat(${prescriptionColumnCount}, minmax(0, 1fr))`
-                      }}
-                    >
-                      {prescriptionDraft.columns.map((column, colIndex) => (
-                        <div
-                          className={styles.prescriptionColumn}
-                          key={`col-${colIndex}`}
-                        >
-                          <label className={styles.field}>
-                            <span className={styles.label}>Header</span>
-                            <input
-                              className={styles.input}
-                              value={column.header}
-                              onChange={(event) =>
-                                handlePrescriptionHeaderChange(
-                                  colIndex,
-                                  event.target.value
-                                )
-                              }
-                            />
-                          </label>
-                          {column.rows.map((row, rowIndex) => (
-                            <div
-                              className={styles.prescriptionRow}
-                              key={`row-${rowIndex}`}
-                            >
+                      <div
+                        className={styles.prescriptionGrid}
+                        style={{
+                          gridTemplateColumns: `repeat(${prescriptionColumnCount}, minmax(0, 1fr))`
+                        }}
+                      >
+                        {prescriptionDraft.columns.map((column, colIndex) => (
+                          <div
+                            className={styles.prescriptionColumn}
+                            key={`col-${colIndex}`}
+                          >
+                            <label className={styles.field}>
+                              <span className={styles.label}>Header</span>
                               <input
                                 className={styles.input}
-                                placeholder={`Step ${rowIndex + 1} Product`}
-                                value={row.product}
+                                value={column.header}
                                 onChange={(event) =>
-                                  handlePrescriptionRowChange(
+                                  handlePrescriptionHeaderChange(
                                     colIndex,
-                                    rowIndex,
-                                    "product",
                                     event.target.value
                                   )
                                 }
                               />
+                            </label>
+                            {column.rows.map((row, rowIndex) => (
+                              <div
+                                className={styles.prescriptionRow}
+                                key={`row-${rowIndex}`}
+                              >
+                                <input
+                                  className={styles.input}
+                                  placeholder={`Step ${rowIndex + 1} Product`}
+                                  value={row.product}
+                                  onChange={(event) =>
+                                    handlePrescriptionRowChange(
+                                      colIndex,
+                                      rowIndex,
+                                      "product",
+                                      event.target.value
+                                    )
+                                  }
+                                />
                               <textarea
                                 id={`dir-${colIndex}-${rowIndex}`}
                                 className={styles.textarea}
@@ -3752,47 +4862,51 @@ export default function ClientsDashboard() {
                                     event.target.value
                                   )
                                 }
-                              />
-                              <button
-                                className={styles.buttonSecondary}
-                                type="button"
-                                onClick={() =>
-                                  handlePrescriptionHighlight(colIndex, rowIndex)
+                                onFocus={() =>
+                                  setHighlightTarget({ colIndex, rowIndex })
                                 }
-                              >
-                                Highlight
-                              </button>
+                              />
                             </div>
                           ))}
                         </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
 
-                    <div className={styles.buttonRow}>
-                      <button className={styles.button} type="submit">
-                        {selectedPrescriptionId
-                          ? "Save Prescription"
-                          : "Create Prescription"}
-                      </button>
-                      {selectedPrescriptionId && (
-                        <button
-                          className={`${styles.button} ${styles.buttonDanger}`}
-                          type="button"
-                          onClick={handlePrescriptionDelete}
-                        >
-                          Delete
+                      <div className={styles.buttonRow}>
+                        <button className={styles.button} type="submit">
+                          {selectedPrescriptionId
+                            ? "Save Prescription"
+                            : "Create Prescription"}
                         </button>
-                      )}
-                    </div>
-                  </form>
-
-                  {prescriptionPreviewUrl && (
+                        <button
+                          className={styles.buttonSecondary}
+                          type="button"
+                          onClick={handlePrescriptionCancel}
+                        >
+                          Cancel
+                        </button>
+                        {selectedPrescriptionId && (
+                          <button
+                            className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                            type="button"
+                            onClick={handlePrescriptionDelete}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  ) : prescriptionPreviewUrl ? (
                     <div className={styles.prescriptionPreview}>
                       <iframe
                         title="Prescription Preview"
                         src={prescriptionPreviewUrl}
                       />
                     </div>
+                  ) : (
+                    <p className={styles.notice}>
+                      Select a prescription to preview.
+                    </p>
                   )}
                 </div>
               </div>
@@ -3810,6 +4924,36 @@ export default function ClientsDashboard() {
           onLoad={handlePrintFrameLoad}
         />
       )}
+
+      {photoDragGhost && portalTarget
+        ? createPortal(
+            <div
+              className={styles.photoDragGhost}
+              style={{
+                transform: `translate(${photoDragGhost.x}px, ${photoDragGhost.y}px)`
+              }}
+            >
+              <div
+                className={`${styles.photoCard} ${styles.photoDragGhostCard}`}
+                style={{ width: `${photoDragGhost.width}px` }}
+              >
+                <img
+                  className={styles.photoThumb}
+                  src={
+                    photoDragGhost.photo.file_url ??
+                    `/api/photos/${photoDragGhost.photo.id}/file`
+                  }
+                  alt={`Dragging photo ${photoDragGhost.photo.id}`}
+                  draggable={false}
+                />
+                <div className={styles.photoMeta}>
+                  {photoDragGhost.photo.appt_date ?? "Unknown date"}
+                </div>
+              </div>
+            </div>,
+            portalTarget
+          )
+        : null}
 
       {status && <p className={styles.status}>{status}</p>}
       {error && <p className={styles.status}>Error: {error}</p>}

@@ -121,14 +121,32 @@ export async function PATCH(
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
+    const paths = loadSkinproPaths();
+    let duplicateCount = 0;
+    if (existing.file_path) {
+      const row = db
+        .prepare(
+          "SELECT COUNT(*) as count FROM prescriptions WHERE file_path = ? AND id != ?"
+        )
+        .get(existing.file_path, prescriptionId) as { count: number } | undefined;
+      duplicateCount = row?.count ?? 0;
+    }
+
+    const outputPath =
+      existing.file_path &&
+      duplicateCount === 0 &&
+      isPathWithin(paths.dataDir, existing.file_path)
+        ? existing.file_path
+        : undefined;
+
     const { filePath, formType, startDate } = await generatePrescriptionPdf({
       clientId: existing.client_id,
       clientName: client.full_name,
-      steps
+      steps,
+      outputPath
     });
 
-    if (existing.file_path && existing.file_path !== filePath) {
-      const paths = loadSkinproPaths();
+    if (existing.file_path && existing.file_path !== filePath && duplicateCount === 0) {
       if (isPathWithin(paths.dataDir, existing.file_path) && fs.existsSync(existing.file_path)) {
         fs.rmSync(existing.file_path, { force: true });
         const folder = path.dirname(existing.file_path);
@@ -183,12 +201,21 @@ export async function DELETE(
     }
 
     if (row.file_path) {
-      const paths = loadSkinproPaths();
-      if (isPathWithin(paths.dataDir, row.file_path) && fs.existsSync(row.file_path)) {
-        fs.rmSync(row.file_path, { force: true });
-        const folder = path.dirname(row.file_path);
-        if (fs.existsSync(folder) && fs.readdirSync(folder).length === 0) {
-          fs.rmdirSync(folder);
+      const duplicateRow = db
+        .prepare(
+          "SELECT COUNT(*) as count FROM prescriptions WHERE file_path = ? AND id != ?"
+        )
+        .get(row.file_path, prescriptionId) as { count: number } | undefined;
+      const duplicateCount = duplicateRow?.count ?? 0;
+
+      if (duplicateCount === 0) {
+        const paths = loadSkinproPaths();
+        if (isPathWithin(paths.dataDir, row.file_path) && fs.existsSync(row.file_path)) {
+          fs.rmSync(row.file_path, { force: true });
+          const folder = path.dirname(row.file_path);
+          if (fs.existsSync(folder) && fs.readdirSync(folder).length === 0) {
+            fs.rmdirSync(folder);
+          }
         }
       }
     }
