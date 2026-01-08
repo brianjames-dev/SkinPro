@@ -240,6 +240,11 @@ export default function ClientsList() {
     ));
   };
 
+  const addClientName = searchQuery.trim();
+  const addClientHref = addClientName
+    ? `/clients?newClient=1&newClientName=${encodeURIComponent(addClientName)}`
+    : "/clients?newClient=1";
+
   return (
     <section className={`${styles.panel} ${styles.clientsTablePanel}`}>
       <div className={styles.tableHeader}>
@@ -258,9 +263,6 @@ export default function ClientsList() {
           >
             Open Workspace
           </button>
-          <Link className={styles.buttonSecondary} href="/clients">
-            Add Client
-          </Link>
         </div>
       </div>
 
@@ -326,6 +328,9 @@ export default function ClientsList() {
         >
           Clear
         </button>
+        <Link className={styles.buttonSecondary} href={addClientHref}>
+          Add Client
+        </Link>
       </div>
 
       <div

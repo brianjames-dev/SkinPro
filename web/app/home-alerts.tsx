@@ -53,6 +53,17 @@ const normalizeDateInput = (value: string) => {
   return trimmed;
 };
 
+const formatDateInput = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) {
+    return digits;
+  }
+  if (digits.length <= 4) {
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  }
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
 const parseDateParts = (value: string) => {
   const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!match) {
@@ -92,7 +103,7 @@ const calculateAlertStatus = (deadline: string) => {
     return "2 days - Upcoming";
   }
   if (diffDays === 1) {
-    return "1 day - Due Tomorrow";
+    return "1 day - Tomorrow";
   }
   if (diffDays === 0) {
     return "Due Today";
@@ -107,11 +118,14 @@ export default function HomeAlerts() {
   const [loadingAlerts, setLoadingAlerts] = useState(false);
   const [loadingClients, setLoadingClients] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState("");
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [clientSearchActiveIndex, setClientSearchActiveIndex] = useState(-1);
   const [alertDeadline, setAlertDeadline] = useState("");
   const [alertNotes, setAlertNotes] = useState("");
   const [editingAlertId, setEditingAlertId] = useState<number | null>(null);
   const [editAlertDeadline, setEditAlertDeadline] = useState("");
   const [editAlertNotes, setEditAlertNotes] = useState("");
+  const [isAlertFormOpen, setIsAlertFormOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,6 +136,30 @@ export default function HomeAlerts() {
     }
     return clients.find((client) => client.id === id) ?? null;
   }, [clients, selectedClientId]);
+
+  const clientMatches = useMemo(() => {
+    const query = clientSearchQuery.trim().toLowerCase();
+    if (!query) {
+      return [];
+    }
+    return clients
+      .filter((client) => client.full_name.toLowerCase().includes(query))
+      .slice(0, 6);
+  }, [clients, clientSearchQuery]);
+
+  const hasClientSearchQuery = clientSearchQuery.trim().length > 0;
+  const canShowClientResults = hasClientSearchQuery && !selectedClientId;
+
+  const activeClientSearchId = useMemo(() => {
+    if (
+      !canShowClientResults ||
+      clientSearchActiveIndex < 0 ||
+      clientSearchActiveIndex >= clientMatches.length
+    ) {
+      return null;
+    }
+    return clientMatches[clientSearchActiveIndex].id;
+  }, [canShowClientResults, clientMatches, clientSearchActiveIndex]);
 
   const sortedAlerts = useMemo(() => {
     return [...alerts].sort((a, b) => parseMmddyyyy(a.deadline) - parseMmddyyyy(b.deadline));
@@ -134,7 +172,7 @@ export default function HomeAlerts() {
     if (statusText.includes("Due Today")) {
       return styles.alertStatusOrange;
     }
-    if (statusText.includes("Due Tomorrow") || statusText.includes("Upcoming")) {
+    if (statusText.includes("Tomorrow") || statusText.includes("Upcoming")) {
       return styles.alertStatusYellow;
     }
     if (statusText.includes("days")) {
@@ -191,12 +229,28 @@ export default function HomeAlerts() {
     void loadClients();
   }, []);
 
-  const handleAlertDeadlineBlur = () => {
-    setAlertDeadline((prev) => normalizeDateInput(prev));
-  };
+  useEffect(() => {
+    setClientSearchActiveIndex(-1);
+  }, [clientSearchQuery]);
 
-  const handleAlertEditDeadlineBlur = () => {
-    setEditAlertDeadline((prev) => normalizeDateInput(prev));
+  useEffect(() => {
+    if (!canShowClientResults || clientMatches.length === 0) {
+      if (clientSearchActiveIndex !== -1) {
+        setClientSearchActiveIndex(-1);
+      }
+      return;
+    }
+    if (clientSearchActiveIndex >= clientMatches.length) {
+      setClientSearchActiveIndex(clientMatches.length - 1);
+    }
+  }, [canShowClientResults, clientSearchActiveIndex, clientMatches.length]);
+
+  const resetAlertForm = () => {
+    setSelectedClientId("");
+    setClientSearchQuery("");
+    setClientSearchActiveIndex(-1);
+    setAlertDeadline("");
+    setAlertNotes("");
   };
 
   const handleAlertCreate = async (event: React.FormEvent) => {
@@ -229,8 +283,8 @@ export default function HomeAlerts() {
       if (!response.ok) {
         throw new Error(data.error ?? "Failed to create alert");
       }
-      setAlertDeadline("");
-      setAlertNotes("");
+      resetAlertForm();
+      setIsAlertFormOpen(false);
       await loadAlerts();
       setNotice("Alert created.");
     } catch (err) {
@@ -309,65 +363,178 @@ export default function HomeAlerts() {
   return (
     <section className={`${styles.panel} ${styles.workspacePanel}`}>
       <div className={styles.section}>
-        <h2 className={styles.sectionTitle}>Alerts</h2>
-        <form onSubmit={handleAlertCreate} className={styles.alertForm}>
-          <label className={styles.field}>
-            <span className={styles.label}>Client</span>
-            <select
-              className={styles.select}
-              value={selectedClientId}
-              onChange={(event) => setSelectedClientId(event.target.value)}
-              disabled={loadingClients}
-            >
-              <option value="">
-                {loadingClients ? "Loading clients..." : "Select a client"}
-              </option>
-              {clients.map((client) => (
-                <option key={client.id} value={String(client.id)}>
-                  {client.full_name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={styles.field}>
-            <span className={styles.label}>Deadline</span>
-            <input
-              className={styles.input}
-              placeholder="MM/DD/YYYY"
-              value={alertDeadline}
-              onChange={(event) => setAlertDeadline(event.target.value)}
-              onBlur={handleAlertDeadlineBlur}
-              disabled={!selectedClient}
-            />
-          </label>
-          <label className={styles.field}>
-            <span className={styles.label}>Notes</span>
-            <textarea
-              className={styles.textarea}
-              value={alertNotes}
-              onChange={(event) => setAlertNotes(event.target.value)}
-              disabled={!selectedClient}
-            />
-          </label>
-          <div className={styles.buttonRow}>
+        <div className={styles.sectionHeaderRow}>
+          <h2 className={styles.sectionTitle}>Alerts</h2>
+          {!isAlertFormOpen && (
             <button
               className={styles.button}
-              type="submit"
-              disabled={!selectedClient}
+              type="button"
+              onClick={() => setIsAlertFormOpen(true)}
             >
-              Set Alert
+              New Alert
             </button>
-            {selectedClient ? (
-              <span className={styles.notice}>
-                Setting alert for {selectedClient.full_name}.
-              </span>
-            ) : (
-              <span className={styles.notice}>
-                Select a client to set a new alert.
-              </span>
-            )}
-          </div>
-        </form>
+          )}
+        </div>
+        {isAlertFormOpen && (
+          <form onSubmit={handleAlertCreate} className={styles.alertForm}>
+            <label className={styles.field}>
+              <span className={styles.label}>Client</span>
+              <div className={styles.referredByField}>
+                <input
+                  className={styles.input}
+                  name="client-search"
+                  placeholder="Search client name"
+                  value={clientSearchQuery}
+                  aria-label="Search client name"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  onChange={(event) => {
+                    setClientSearchQuery(event.target.value);
+                    if (selectedClientId) {
+                      setSelectedClientId("");
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown" && canShowClientResults) {
+                      event.preventDefault();
+                      if (clientMatches.length > 0) {
+                        setClientSearchActiveIndex((prev) =>
+                          Math.min(prev + 1, clientMatches.length - 1)
+                        );
+                      }
+                      return;
+                    }
+                    if (event.key === "ArrowUp" && canShowClientResults) {
+                      event.preventDefault();
+                      if (clientMatches.length > 0) {
+                        setClientSearchActiveIndex((prev) =>
+                          prev <= 0 ? 0 : prev - 1
+                        );
+                      }
+                      return;
+                    }
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      if (canShowClientResults && clientMatches.length > 0) {
+                        const nextIndex =
+                          clientSearchActiveIndex >= 0
+                            ? clientSearchActiveIndex
+                            : 0;
+                        const nextClient = clientMatches[nextIndex];
+                        setSelectedClientId(String(nextClient.id));
+                        setClientSearchQuery(nextClient.full_name);
+                        setClientSearchActiveIndex(-1);
+                      }
+                    }
+                  }}
+                  disabled={loadingClients}
+                />
+                {canShowClientResults && (
+                  <div className={styles.referredByResults}>
+                    {loadingClients && (
+                      <div className={styles.notice}>Loading clients...</div>
+                    )}
+                    {!loadingClients && clientMatches.length === 0 && (
+                      <div className={styles.referredByEmpty}>No results</div>
+                    )}
+                    {!loadingClients && clientMatches.length > 0 && (
+                      <ul className={styles.referredByList}>
+                        {clientMatches.map((client) => (
+                          <li key={client.id}>
+                            <button
+                              className={`${styles.referredByItem} ${
+                                activeClientSearchId === client.id
+                                  ? styles.referredByItemSelected
+                                  : ""
+                              }`}
+                              type="button"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                setSelectedClientId(String(client.id));
+                                setClientSearchQuery(client.full_name);
+                                setClientSearchActiveIndex(-1);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  setSelectedClientId(String(client.id));
+                                  setClientSearchQuery(client.full_name);
+                                  setClientSearchActiveIndex(-1);
+                                }
+                              }}
+                              aria-selected={activeClientSearchId === client.id}
+                            >
+                              <span className={styles.referredByName}>
+                                {client.full_name}
+                              </span>
+                              {client.primary_phone && (
+                                <span className={styles.referredByMeta}>
+                                  {client.primary_phone}
+                                </span>
+                              )}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>Deadline</span>
+              <input
+                className={styles.input}
+                placeholder="MM/DD/YYYY"
+                inputMode="numeric"
+                value={alertDeadline}
+                onChange={(event) =>
+                  setAlertDeadline(formatDateInput(event.target.value))
+                }
+                disabled={!selectedClient}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>Notes</span>
+              <textarea
+                className={styles.textarea}
+                value={alertNotes}
+                onChange={(event) => setAlertNotes(event.target.value)}
+                disabled={!selectedClient}
+              />
+            </label>
+            <div className={`${styles.buttonRow} ${styles.alertFormActions}`}>
+              <button
+                className={styles.button}
+                type="submit"
+                disabled={!selectedClient}
+              >
+                Set Alert
+              </button>
+              <button
+                className={styles.buttonSecondary}
+                type="button"
+                onClick={() => {
+                  resetAlertForm();
+                  setIsAlertFormOpen(false);
+                }}
+              >
+                Cancel
+              </button>
+              {selectedClient ? (
+                <span className={styles.notice}>
+                  Setting alert for {selectedClient.full_name}.
+                </span>
+              ) : (
+                <span className={styles.notice}>
+                  Select a client to set a new alert.
+                </span>
+              )}
+            </div>
+          </form>
+        )}
 
         {loadingAlerts && <p className={styles.notice}>Loading alerts...</p>}
         {!loadingAlerts && sortedAlerts.length === 0 && (
@@ -439,9 +606,11 @@ export default function HomeAlerts() {
                 <input
                   className={styles.input}
                   placeholder="MM/DD/YYYY"
+                  inputMode="numeric"
                   value={editAlertDeadline}
-                  onChange={(event) => setEditAlertDeadline(event.target.value)}
-                  onBlur={handleAlertEditDeadlineBlur}
+                  onChange={(event) =>
+                    setEditAlertDeadline(formatDateInput(event.target.value))
+                  }
                 />
               </label>
               <label className={styles.field}>

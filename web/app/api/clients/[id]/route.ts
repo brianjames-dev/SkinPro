@@ -122,6 +122,17 @@ export async function DELETE(
 
   try {
     const db = getDb();
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS client_products (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+        "client_id INTEGER NOT NULL, " +
+        "date TEXT NOT NULL, " +
+        "product TEXT NOT NULL, " +
+        "size TEXT, " +
+        "cost TEXT, " +
+        "brand TEXT" +
+        ")"
+    ).run();
     const client = db
       .prepare("SELECT full_name, profile_picture FROM clients WHERE id = ?")
       .get(clientId) as { full_name?: string; profile_picture?: string | null } | undefined;
@@ -134,6 +145,7 @@ export async function DELETE(
       db.prepare("DELETE FROM photos WHERE client_id = ?").run(clientId);
       db.prepare("DELETE FROM prescriptions WHERE client_id = ?").run(clientId);
       db.prepare("DELETE FROM appointments WHERE client_id = ?").run(clientId);
+      db.prepare("DELETE FROM client_products WHERE client_id = ?").run(clientId);
       db.prepare("DELETE FROM alerts WHERE client_id = ?").run(clientId);
       db.prepare("DELETE FROM client_health_info WHERE client_id = ?").run(clientId);
       db.prepare("DELETE FROM client_images WHERE client_id = ?").run(clientId);

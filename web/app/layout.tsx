@@ -1,4 +1,5 @@
 import "./globals.css";
+import DisableAutocomplete from "./disable-autocomplete";
 
 export const metadata = {
   title: "SkinPro Web (Local)",
@@ -12,7 +13,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <DisableAutocomplete />
+      </body>
     </html>
   );
 }

@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import styles from "./clients.module.css";
+import { PRODUCT_CATALOG } from "@/lib/productCatalog";
 
 type Client = {
   id: number;
@@ -50,6 +51,16 @@ type Appointment = {
   price?: string | null;
   photos_taken?: string | null;
   treatment_notes?: string | null;
+};
+
+type ClientProduct = {
+  id: number;
+  client_id: number;
+  date: string;
+  product: string;
+  size?: string | null;
+  cost?: string | null;
+  brand?: string | null;
 };
 
 type Photo = {
@@ -98,7 +109,7 @@ type Alert = {
   notes?: string | null;
 };
 
-type WorkspaceTab = "appointments" | "photos" | "prescriptions";
+type WorkspaceTab = "appointments" | "products" | "photos" | "prescriptions";
 type OverviewTab = "info" | "health";
 type OverviewMode = "compact" | "edit";
 
@@ -113,6 +124,7 @@ type PrescriptionTemplate = {
 
 type PrescriptionStep = {
   product: string;
+  product2: string;
   directions: string;
 };
 
@@ -124,6 +136,11 @@ type PrescriptionColumn = {
 type PrescriptionDraft = {
   start_date: string;
   columns: PrescriptionColumn[];
+};
+
+type UploadSuccessState = {
+  kind: "photo" | "profile";
+  count: number;
 };
 
 type ClientForm = {
@@ -164,8 +181,18 @@ type AppointmentForm = {
   treatment_notes: string;
 };
 
+type ProductForm = {
+  id?: number;
+  date: string;
+  product: string;
+  size: string;
+  cost: string;
+  brand: string;
+};
+
 const WORKSPACE_TABS: { id: WorkspaceTab; label: string }[] = [
   { id: "appointments", label: "Appointments" },
+  { id: "products", label: "Products" },
   { id: "photos", label: "Photos" },
   { id: "prescriptions", label: "Prescriptions" }
 ];
@@ -206,7 +233,17 @@ const EMPTY_APPOINTMENT: AppointmentForm = {
   treatment_notes: ""
 };
 
+const EMPTY_PRODUCT: ProductForm = {
+  date: "",
+  product: "",
+  size: "",
+  cost: "",
+  brand: ""
+};
+
 const MAX_PRESCRIPTION_ROWS = 10;
+const PRESCRIPTION_PRODUCT_MAX_LENGTH = 23;
+const PHOTO_PAGE_SIZE = 14;
 const BIRTHDAY_WINDOW_BEFORE_DAYS = 14;
 const BIRTHDAY_WINDOW_AFTER_DAYS = 7;
 const CELEBRATION_DURATION_MS = 5600;
@@ -218,7 +255,7 @@ const BALLOON_COLORS = ["#f7a2b6", "#f9d270", "#8fd2ff", "#b4ef9a", "#f2a2f5"];
 const createPrescriptionDraft = (columnCount: number): PrescriptionDraft => {
   const columns: PrescriptionColumn[] = Array.from({ length: columnCount }, (_, index) => ({
     header: `Column ${index + 1}`,
-    rows: [{ product: "", directions: "" }]
+    rows: [{ product: "", product2: "", directions: "" }]
   }));
   return {
     start_date: "",
@@ -240,6 +277,7 @@ const normalizePrescriptionDraft = (
       const row = existing?.rows[rowIndex];
       return {
         product: row?.product ?? "",
+        product2: row?.product2 ?? "",
         directions: row?.directions ?? ""
       };
     });
@@ -261,6 +299,7 @@ const draftToStepsDict = (draft: PrescriptionDraft) => {
     steps[`Col${index + 1}_Header`] = column.header.trim() || `Column ${index + 1}`;
     steps[`Col${index + 1}`] = column.rows.map((row) => ({
       product: row.product,
+      product2: row.product2,
       directions: row.directions
     }));
   });
@@ -293,6 +332,7 @@ const stepsDictToDraft = (steps: Record<string, unknown>): PrescriptionDraft => 
       header,
       rows: rowsRaw.map((row) => ({
         product: row.product ?? "",
+        product2: row.product2 ?? "",
         directions: row.directions ?? ""
       }))
     });
@@ -351,6 +391,24 @@ const formatDateInput = (value: string) => {
     return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   }
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
+const formatCurrencyInput = (value: string) => {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  if (!cleaned) {
+    return "";
+  }
+  const [whole = "", ...decimalParts] = cleaned.split(".");
+  const decimals = decimalParts.join("");
+  const normalized = decimals ? `${whole}.${decimals}` : whole;
+  const safeNormalized = normalized.startsWith(".") ? `0${normalized}` : normalized;
+  return `$${safeNormalized}`;
+};
+
+const APPOINTMENT_TYPES = ["Facial", "Electrolysis"] as const;
+const APPOINTMENT_TREATMENTS: Record<string, string[]> = {
+  Facial: ["Signature Facial", "Hydrating Facial", "Brightening Facial"],
+  Electrolysis: ["15 min Electrolysis", "30 min Electrolysis", "60 min Electrolysis"]
 };
 
 const parseMonthDay = (value: string): { month: number; day: number } | null => {
@@ -563,80 +621,58 @@ const CompactValue = ({
   );
 };
 
-const ExpandableValue = ({
-  value,
-  previewLines = 2
-}: {
-  value: string;
-  previewLines?: number;
-}) => {
-  const textRef = useRef<HTMLDivElement | null>(null);
-  const [expanded, setExpanded] = useState(false);
-  const [hasOverflow, setHasOverflow] = useState(false);
+const ExpandableValue = ({ value }: { value: string }) => {
   const displayValue = formatCompactValue(value);
-
-  useEffect(() => {
-    setExpanded(false);
-  }, [displayValue]);
-
-  useEffect(() => {
-    const element = textRef.current;
-    if (!element || expanded) {
-      return;
-    }
-
-    const checkOverflow = () => {
-      setHasOverflow(element.scrollHeight > element.clientHeight + 1);
-    };
-
-    checkOverflow();
-
-    let observer: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== "undefined") {
-      observer = new ResizeObserver(checkOverflow);
-      observer.observe(element);
-    } else {
-      window.addEventListener("resize", checkOverflow);
-    }
-
-    return () => {
-      if (observer) {
-        observer.disconnect();
-      } else {
-        window.removeEventListener("resize", checkOverflow);
-      }
-    };
-  }, [displayValue, expanded, previewLines]);
-
-  const showToggle = hasOverflow || expanded;
 
   return (
     <div className={styles.expandableValue}>
-      <div
-        ref={textRef}
-        className={`${styles.expandableText} ${
-          expanded ? "" : styles.expandableTextClamped
-        }`}
-        style={
-          expanded
-            ? undefined
-            : ({ "--clamp-lines": String(previewLines) } as CSSProperties)
-        }
-      >
-        {displayValue}
-      </div>
-      {showToggle && (
-        <button
-          className={`${styles.expandableToggle} ${
-            expanded ? styles.expandableToggleExpanded : ""
-          }`}
-          type="button"
-          onClick={() => setExpanded((prev) => !prev)}
-        >
-          {expanded ? "Less" : "More"}
-        </button>
-      )}
+      <div className={styles.expandableText}>{displayValue}</div>
     </div>
+  );
+};
+
+const UploadSuccessModal = ({
+  portalTarget,
+  open,
+  title,
+  message,
+  onConfirm
+}: {
+  portalTarget: HTMLElement | null;
+  open: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+}) => {
+  if (!open || !portalTarget) {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      className={styles.modalBackdrop}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="upload-success-title"
+      onClick={onConfirm}
+    >
+      <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <div>
+            <h3 id="upload-success-title" className={styles.modalTitle}>
+              {title}
+            </h3>
+            <p className={styles.notice}>{message}</p>
+          </div>
+        </div>
+        <div className={styles.buttonRow}>
+          <button className={styles.button} type="button" onClick={onConfirm}>
+            OK
+          </button>
+        </div>
+      </div>
+    </div>,
+    portalTarget
   );
 };
 
@@ -693,6 +729,7 @@ export default function ClientsDashboard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const initialClientIdRef = useRef<number | null>(null);
+  const initialNewClientRef = useRef<string | null>(null);
   const selectedClientIdRef = useRef<number | null>(null);
   const clientDetailsRequestIdRef = useRef(0);
   const clientDetailsAbortRef = useRef<AbortController | null>(null);
@@ -713,7 +750,12 @@ export default function ClientsDashboard() {
   const [isAppointmentFormOpen, setIsAppointmentFormOpen] = useState(false);
   const [appointmentNotesMode, setAppointmentNotesMode] = useState<
     "selected" | "all"
-  >("selected");
+  >("all");
+  const [products, setProducts] = useState<ClientProduct[]>([]);
+  const [productForm, setProductForm] = useState<ProductForm>(EMPTY_PRODUCT);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [isProductFormOpen, setIsProductFormOpen] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
   const [comparePickMode, setComparePickMode] = useState<"before" | "after">(
@@ -753,11 +795,24 @@ export default function ClientsDashboard() {
   const [photoUploadKey, setPhotoUploadKey] = useState(0);
   const [isPhotoUploadOpen, setIsPhotoUploadOpen] = useState(false);
   const [photoUploadMode, setPhotoUploadMode] = useState<"local" | "qr">("qr");
+  const [uploadSuccess, setUploadSuccess] = useState<UploadSuccessState | null>(
+    null
+  );
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [photoVisibleCount, setPhotoVisibleCount] = useState(PHOTO_PAGE_SIZE);
+  const lastPhotosClientIdRef = useRef<number | null>(null);
   const [photoQrDataUrl, setPhotoQrDataUrl] = useState<string | null>(null);
   const [photoQrUrl, setPhotoQrUrl] = useState<string | null>(null);
   const [photoQrLoading, setPhotoQrLoading] = useState(false);
+  const qrPhotoPollTimerRef = useRef<number | null>(null);
+  const qrPhotoBaselineRef = useRef<number | null>(null);
+  const qrPhotoLastCountRef = useRef<number | null>(null);
+  const qrPhotoStableCountRef = useRef(0);
+  const qrProfilePollTimerRef = useRef<number | null>(null);
+  const qrProfileBaselineRef = useRef<number | null>(null);
+  const qrProfileLastStampRef = useRef<number | null>(null);
+  const qrProfileStableCountRef = useRef(0);
   const [profileQrDataUrl, setProfileQrDataUrl] = useState<string | null>(null);
   const [profileQrUrl, setProfileQrUrl] = useState<string | null>(null);
   const [profileQrLoading, setProfileQrLoading] = useState(false);
@@ -809,6 +864,7 @@ export default function ClientsDashboard() {
   const [overviewTab, setOverviewTab] = useState<OverviewTab>("info");
   const [overviewMode, setOverviewMode] = useState<OverviewMode>("compact");
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("appointments");
+  const primaryPhoneInputRef = useRef<HTMLInputElement | null>(null);
 
   const confettiPieces = useMemo(
     () =>
@@ -863,11 +919,45 @@ export default function ClientsDashboard() {
     };
   }, [showBirthdayCelebration, celebrationKey]);
 
+  const photosByAppointment = useMemo(() => {
+    const map = new Set<number>();
+    for (const photo of photos) {
+      if (Number.isFinite(photo.appointment_id)) {
+        map.add(photo.appointment_id);
+      }
+    }
+    return map;
+  }, [photos]);
+
+  const appointmentsWithPhotoStatus = useMemo(() => {
+    return appointments.map((appointment) => {
+      const hasPhotos = photosByAppointment.has(appointment.id);
+      const nextStatus = hasPhotos ? "Yes" : "No";
+      if ((appointment.photos_taken ?? "No") === nextStatus) {
+        return appointment;
+      }
+      return { ...appointment, photos_taken: nextStatus };
+    });
+  }, [appointments, photosByAppointment]);
+
   const sortedAppointments = useMemo(() => {
-    return [...appointments].sort((a, b) => {
+    return [...appointmentsWithPhotoStatus].sort((a, b) => {
       return parseMmddyyyy(b.date) - parseMmddyyyy(a.date);
     });
-  }, [appointments]);
+  }, [appointmentsWithPhotoStatus]);
+
+  const sortedProducts = useMemo(() => {
+    return [...products].sort((a, b) => {
+      return parseMmddyyyy(b.date) - parseMmddyyyy(a.date);
+    });
+  }, [products]);
+
+  const selectedProduct = useMemo(() => {
+    if (!selectedProductId) {
+      return null;
+    }
+    return sortedProducts.find((item) => item.id === selectedProductId) ?? null;
+  }, [selectedProductId, sortedProducts]);
 
   const selectedAppointment = useMemo(() => {
     if (!selectedAppointmentId) {
@@ -890,6 +980,16 @@ export default function ClientsDashboard() {
     () => isWithinBirthdayWindow(clientForm.birthdate),
     [clientForm.birthdate]
   );
+
+  const uploadSuccessMessage = useMemo(() => {
+    if (!uploadSuccess) {
+      return "";
+    }
+    if (uploadSuccess.kind === "profile") {
+      return "Profile picture uploaded successfully.";
+    }
+    return `${uploadSuccess.count} photo(s) uploaded successfully.`;
+  }, [uploadSuccess]);
 
   const appointmentNotesMeta = useMemo(() => {
     if (appointmentNotesMode === "all") {
@@ -918,6 +1018,10 @@ export default function ClientsDashboard() {
       client.full_name.toLowerCase().includes(normalizedQuery)
     );
   }, [allClients, searchQuery]);
+
+  const visiblePhotos = useMemo(() => {
+    return photos.slice(0, photoVisibleCount);
+  }, [photos, photoVisibleCount]);
 
   const hasSearchQuery = searchQuery.trim().length > 0;
 
@@ -1058,6 +1162,38 @@ export default function ClientsDashboard() {
   }, [searchParams]);
 
   useEffect(() => {
+    const newClientFlag = searchParams.get("newClient");
+    if (!newClientFlag) {
+      initialNewClientRef.current = null;
+      return;
+    }
+    const rawName = searchParams.get("newClientName") ?? "";
+    const trimmedName = rawName.trim();
+    const key = `${newClientFlag}:${trimmedName}`;
+    if (initialNewClientRef.current === key) {
+      return;
+    }
+    initialNewClientRef.current = key;
+
+    handleNewClient();
+    setOverviewTab("info");
+    setOverviewMode("edit");
+
+    if (trimmedName) {
+      const nextForm = { ...EMPTY_CLIENT, full_name: trimmedName };
+      lastSavedClientFormRef.current = nextForm;
+      setClientForm(nextForm);
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("newClient");
+    params.delete("newClientName");
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    router.replace(nextUrl);
+  }, [pathname, router, searchParams]);
+
+  useEffect(() => {
     setPhotoQrDataUrl(null);
     setPhotoQrUrl(null);
   }, [selectedClientId, photoUploadAppointmentId]);
@@ -1088,7 +1224,8 @@ export default function ClientsDashboard() {
 
   useEffect(() => {
     setIsAppointmentFormOpen(false);
-    setAppointmentNotesMode("selected");
+    setAppointmentNotesMode("all");
+    setIsProductFormOpen(false);
   }, [selectedClientId]);
 
   useEffect(() => {
@@ -1115,10 +1252,33 @@ export default function ClientsDashboard() {
   }, [selectedClientId, overviewMode, referredBySelected, allClients]);
 
   useEffect(() => {
+    if (overviewMode !== "edit" || overviewTab !== "info") {
+      return;
+    }
+    const focusTimer = window.requestAnimationFrame(() => {
+      primaryPhoneInputRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(focusTimer);
+  }, [overviewMode, overviewTab]);
+
+  useEffect(() => {
     if (overviewMode === "edit") {
       setReferredByQuery("");
     }
   }, [overviewMode, selectedClientId]);
+
+  useEffect(() => {
+    if (!appointmentForm.id) {
+      return;
+    }
+    const nextStatus = photosByAppointment.has(appointmentForm.id) ? "Yes" : "No";
+    setAppointmentForm((prev) => {
+      if (prev.photos_taken === nextStatus) {
+        return prev;
+      }
+      return { ...prev, photos_taken: nextStatus };
+    });
+  }, [appointmentForm.id, photosByAppointment]);
 
   const setNotice = (message: string | null, isError = false) => {
     if (isError) {
@@ -1339,9 +1499,38 @@ export default function ClientsDashboard() {
     }
   };
 
+  const loadProducts = async (clientId: number) => {
+    setLoadingProducts(true);
+    try {
+      const response = await fetch(`/api/products?client_id=${clientId}`);
+      const data = (await response.json()) as {
+        products?: ClientProduct[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to load products");
+      }
+
+      const rows = data.products ?? [];
+      setProducts(rows);
+      setSelectedProductId(null);
+      setProductForm(EMPTY_PRODUCT);
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : "Failed to load products",
+        true
+      );
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
   const loadPhotos = async (clientId: number) => {
     setLoadingPhotos(true);
     try {
+      const isNewClient = lastPhotosClientIdRef.current !== clientId;
+      lastPhotosClientIdRef.current = clientId;
       const response = await fetch(`/api/photos?client_id=${clientId}`);
       const data = (await response.json()) as {
         photos?: Photo[];
@@ -1354,6 +1543,13 @@ export default function ClientsDashboard() {
 
       const nextPhotos = data.photos ?? [];
       setPhotos(nextPhotos);
+      setPhotoVisibleCount((prev) => {
+        if (isNewClient) {
+          return Math.min(PHOTO_PAGE_SIZE, nextPhotos.length);
+        }
+        const nextBase = Math.max(prev, PHOTO_PAGE_SIZE);
+        return Math.min(nextBase, nextPhotos.length || PHOTO_PAGE_SIZE);
+      });
 
       const nextSelected = selectedPhotoId
         ? nextPhotos.find((photo) => photo.id === selectedPhotoId)
@@ -1431,6 +1627,7 @@ export default function ClientsDashboard() {
     handleAlertEditCancel();
     await loadClientDetails(clientId);
     await loadAppointments(clientId);
+    await loadProducts(clientId);
     await loadPhotos(clientId);
     await loadPrescriptions(clientId);
   };
@@ -1444,6 +1641,7 @@ export default function ClientsDashboard() {
     setSelectedClientId(null);
     syncClientRoute(null);
     setOverviewMode("edit");
+    setOverviewTab("info");
     setClientForm(EMPTY_CLIENT);
     setReferredByQuery("");
     setReferredByValue("");
@@ -1454,6 +1652,10 @@ export default function ClientsDashboard() {
     setAppointments([]);
     setAppointmentForm(EMPTY_APPOINTMENT);
     setSelectedAppointmentId(null);
+    setProducts([]);
+    setProductForm(EMPTY_PRODUCT);
+    setSelectedProductId(null);
+    setIsProductFormOpen(false);
     setPhotos([]);
     setSelectedPhotoId(null);
     setProfilePictureUrl(null);
@@ -1561,7 +1763,28 @@ export default function ClientsDashboard() {
   ) => {
     const { name, value } = event.target;
     const field = name as keyof AppointmentForm;
-    setAppointmentForm((prev) => ({ ...prev, [field]: value }));
+    let nextValue = value;
+    if (field === "date") {
+      nextValue = formatDateInput(value);
+    }
+    if (field === "price") {
+      nextValue = formatCurrencyInput(value);
+    }
+    setAppointmentForm((prev) => ({ ...prev, [field]: nextValue }));
+  };
+
+  const handleAppointmentTypeChange = (
+    event: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    const value = event.target.value;
+    setAppointmentForm((prev) => {
+      const next = { ...prev, type: value };
+      const options = APPOINTMENT_TREATMENTS[value] ?? [];
+      if (next.treatment && !options.includes(next.treatment)) {
+        next.treatment = "";
+      }
+      return next;
+    });
   };
 
   const handleClientSave = async (event: React.FormEvent) => {
@@ -1570,6 +1793,10 @@ export default function ClientsDashboard() {
 
     if (!clientForm.full_name.trim()) {
       setNotice("Client name is required.", true);
+      return;
+    }
+    if (!selectedClientId && !clientForm.primary_phone.trim()) {
+      setNotice("Primary phone is required for new clients.", true);
       return;
     }
 
@@ -1722,7 +1949,6 @@ export default function ClientsDashboard() {
       );
       setProfileUploadFile(null);
       setProfileUploadKey((prev) => prev + 1);
-      setNotice("Profile picture updated.");
       return true;
     } catch (err) {
       setNotice(
@@ -1740,7 +1966,7 @@ export default function ClientsDashboard() {
     }
     const success = await uploadProfileFile(profileUploadFile);
     if (success) {
-      setIsProfileUploadOpen(false);
+      setUploadSuccess({ kind: "profile", count: 1 });
     }
   };
 
@@ -1895,18 +2121,16 @@ export default function ClientsDashboard() {
         method: "POST",
         body: formData
       });
-      const data = (await response.json()) as { error?: string };
+      const data = (await response.json()) as { error?: string; uploaded?: number };
 
       if (!response.ok) {
         throw new Error(data.error ?? "Photo upload failed");
       }
 
+      const uploadedCount = data.uploaded ?? photoUploadFiles.length;
       setPhotoUploadFiles(null);
       setPhotoUploadKey((prev) => prev + 1);
-      await loadPhotos(selectedClientId);
-      await loadAppointments(selectedClientId);
-      setNotice("Photos uploaded.");
-      setIsPhotoUploadOpen(false);
+      setUploadSuccess({ kind: "photo", count: uploadedCount });
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Photo upload failed", true);
     }
@@ -2349,9 +2573,13 @@ export default function ClientsDashboard() {
   const handlePrescriptionRowChange = (
     colIndex: number,
     rowIndex: number,
-    field: "product" | "directions",
+    field: "product" | "product2" | "directions",
     value: string
   ) => {
+    const nextValue =
+      field === "product" || field === "product2"
+        ? value.slice(0, PRESCRIPTION_PRODUCT_MAX_LENGTH)
+        : value;
     setPrescriptionDraft((prev) => {
       const next = normalizePrescriptionDraft(prev, prescriptionColumnCount);
       const columns = next.columns.map((column, columnIndex) => {
@@ -2359,7 +2587,7 @@ export default function ClientsDashboard() {
           return column;
         }
         const rows = column.rows.map((row, index) =>
-          index === rowIndex ? { ...row, [field]: value } : row
+          index === rowIndex ? { ...row, [field]: nextValue } : row
         );
         return { ...column, rows };
       });
@@ -2376,7 +2604,7 @@ export default function ClientsDashboard() {
       }
       const columns = next.columns.map((column) => ({
         ...column,
-        rows: [...column.rows, { product: "", directions: "" }]
+        rows: [...column.rows, { product: "", product2: "", directions: "" }]
       }));
       return { ...next, columns };
     });
@@ -2430,7 +2658,13 @@ export default function ClientsDashboard() {
     }, 0);
   };
 
-  const handlePrescriptionSelect = async (prescription: Prescription) => {
+  const handlePrescriptionSelect = async (
+    prescription: Prescription,
+    forceReload = false
+  ) => {
+    if (selectedPrescriptionId === prescription.id && !forceReload) {
+      return;
+    }
     setSelectedPrescriptionId(prescription.id);
     setPrescriptionPreviewUrl(
       `/api/prescriptions/${prescription.id}/file?ts=${Date.now()}`
@@ -2472,7 +2706,7 @@ export default function ClientsDashboard() {
         (prescription) => prescription.id === selectedPrescriptionId
       );
       if (selected) {
-        void handlePrescriptionSelect(selected);
+        void handlePrescriptionSelect(selected, true);
         return;
       }
     }
@@ -2767,17 +3001,17 @@ export default function ClientsDashboard() {
   };
 
   const handleAppointmentSelect = (appointment: Appointment) => {
+    const hasPhotos = photosByAppointment.has(appointment.id);
     setSelectedAppointmentId(appointment.id);
     setAppointmentForm({
       id: appointment.id,
       date: appointment.date ?? "",
       type: appointment.type ?? "",
       treatment: appointment.treatment ?? "",
-      price: appointment.price ?? "",
-      photos_taken: appointment.photos_taken ?? "No",
+      price: formatCurrencyInput(appointment.price ?? ""),
+      photos_taken: hasPhotos ? "Yes" : "No",
       treatment_notes: appointment.treatment_notes ?? ""
     });
-    setAppointmentNotesMode("selected");
     setPhotoUploadAppointmentId(String(appointment.id));
   };
 
@@ -2815,7 +3049,10 @@ export default function ClientsDashboard() {
         type: appointmentForm.type.trim(),
         treatment: appointmentForm.treatment,
         price: appointmentForm.price,
-        photos_taken: appointmentForm.photos_taken || "No",
+        photos_taken:
+          appointmentForm.id && photosByAppointment.has(appointmentForm.id)
+            ? "Yes"
+            : "No",
         treatment_notes: appointmentForm.treatment_notes
       };
 
@@ -2890,6 +3127,165 @@ export default function ClientsDashboard() {
     }
   };
 
+  const handleProductChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const { name, value } = event.target;
+    const field = name as keyof ProductForm;
+    let nextValue = value;
+    if (field === "date") {
+      nextValue = formatDateInput(value);
+    }
+    if (field === "cost") {
+      nextValue = formatCurrencyInput(value);
+    }
+    setProductForm((prev) => ({ ...prev, [field]: nextValue }));
+  };
+
+  const handleProductSelectChange = (
+    event: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    const value = event.target.value;
+    if (!value) {
+      setProductForm((prev) => ({
+        ...prev,
+        product: "",
+        size: "",
+        cost: "",
+        brand: ""
+      }));
+      return;
+    }
+    const selected = PRODUCT_CATALOG.find((item) => item.name === value);
+    if (!selected) {
+      setProductForm((prev) => ({ ...prev, product: value }));
+      return;
+    }
+    setProductForm((prev) => ({
+      ...prev,
+      product: selected.name,
+      size: selected.size,
+      cost: formatCurrencyInput(String(selected.price)),
+      brand: selected.brand
+    }));
+  };
+
+  const handleProductSelect = (entry: ClientProduct) => {
+    setSelectedProductId(entry.id);
+    setProductForm({
+      id: entry.id,
+      date: entry.date ?? "",
+      product: entry.product ?? "",
+      size: entry.size ?? "",
+      cost: formatCurrencyInput(entry.cost ?? ""),
+      brand: entry.brand ?? ""
+    });
+  };
+
+  const handleProductEdit = (entry: ClientProduct) => {
+    handleProductSelect(entry);
+    setIsProductFormOpen(true);
+  };
+
+  const handleProductNew = () => {
+    setSelectedProductId(null);
+    setProductForm(EMPTY_PRODUCT);
+    setIsProductFormOpen(true);
+  };
+
+  const handleProductFormClose = () => {
+    setIsProductFormOpen(false);
+  };
+
+  const handleProductSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!selectedClientId) {
+      setNotice("Select a client before saving a product.", true);
+      return;
+    }
+
+    if (!productForm.date.trim() || !productForm.product.trim()) {
+      setNotice("Date and product are required.", true);
+      return;
+    }
+
+    try {
+      const payload = {
+        date: productForm.date.trim(),
+        product: productForm.product.trim(),
+        size: productForm.size,
+        cost: productForm.cost,
+        brand: productForm.brand
+      };
+
+      if (selectedProductId) {
+        const response = await fetch(`/api/products/${selectedProductId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = (await response.json()) as { error?: string };
+        if (!response.ok) {
+          throw new Error(data.error ?? "Failed to update product");
+        }
+        await loadProducts(selectedClientId);
+        setNotice("Product updated.");
+        setIsProductFormOpen(false);
+      } else {
+        const response = await fetch("/api/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            client_id: selectedClientId,
+            ...payload
+          })
+        });
+        const data = (await response.json()) as { error?: string };
+        if (!response.ok) {
+          throw new Error(data.error ?? "Failed to create product");
+        }
+        await loadProducts(selectedClientId);
+        setNotice("Product saved.");
+        setIsProductFormOpen(false);
+      }
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : "Failed to save product",
+        true
+      );
+    }
+  };
+
+  const handleProductDelete = async () => {
+    if (!selectedProductId || !selectedClientId) {
+      return;
+    }
+
+    const confirmDelete = window.confirm("Delete this product entry?");
+    if (!confirmDelete) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/products/${selectedProductId}`, {
+        method: "DELETE"
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to delete product");
+      }
+      await loadProducts(selectedClientId);
+      setNotice("Product deleted.");
+      setIsProductFormOpen(false);
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : "Failed to delete product",
+        true
+      );
+    }
+  };
+
   const handleSearchClear = () => {
     setSearchQuery("");
     setSearchActiveIndex(-1);
@@ -2899,11 +3295,237 @@ export default function ClientsDashboard() {
     setSearchQuery((prev) => prev.trim());
   };
 
+  const handleAddClientFromSearch = () => {
+    const trimmedName = searchQuery.trim();
+    handleNewClient();
+    if (trimmedName) {
+      const nextForm = { ...EMPTY_CLIENT, full_name: trimmedName };
+      lastSavedClientFormRef.current = nextForm;
+      setClientForm(nextForm);
+    }
+    setSearchQuery("");
+    setSearchActiveIndex(-1);
+    window.requestAnimationFrame(() => {
+      primaryPhoneInputRef.current?.focus();
+    });
+  };
+
+  const handleLoadMorePhotos = () => {
+    setPhotoVisibleCount((prev) => Math.min(prev + PHOTO_PAGE_SIZE, photos.length));
+  };
+
+  const clearQrPhotoPolling = useCallback(() => {
+    if (qrPhotoPollTimerRef.current) {
+      window.clearTimeout(qrPhotoPollTimerRef.current);
+      qrPhotoPollTimerRef.current = null;
+    }
+    qrPhotoBaselineRef.current = null;
+    qrPhotoLastCountRef.current = null;
+    qrPhotoStableCountRef.current = 0;
+  }, []);
+
+  const clearQrProfilePolling = useCallback(() => {
+    if (qrProfilePollTimerRef.current) {
+      window.clearTimeout(qrProfilePollTimerRef.current);
+      qrProfilePollTimerRef.current = null;
+    }
+    qrProfileBaselineRef.current = null;
+    qrProfileLastStampRef.current = null;
+    qrProfileStableCountRef.current = 0;
+  }, []);
+
+  const handleUploadSuccessAcknowledge = async () => {
+    const success = uploadSuccess;
+    if (!success) {
+      return;
+    }
+
+    setUploadSuccess(null);
+
+    if (success.kind === "photo") {
+      clearQrPhotoPolling();
+      setIsPhotoUploadOpen(false);
+      if (selectedClientId) {
+        await loadPhotos(selectedClientId);
+        await loadAppointments(selectedClientId);
+      }
+    } else {
+      clearQrProfilePolling();
+      setIsProfileUploadOpen(false);
+    }
+  };
+
   const handleSelectClientFromSearch = async (clientId: number) => {
     setSearchQuery("");
     setSearchActiveIndex(-1);
     await handleSelectClient(clientId);
   };
+
+  useEffect(() => {
+    if (
+      !isPhotoUploadOpen ||
+      photoUploadMode !== "qr" ||
+      !selectedClientId ||
+      !photoUploadAppointmentId
+    ) {
+      clearQrPhotoPolling();
+      return;
+    }
+
+    const appointmentId = Number(photoUploadAppointmentId);
+    if (!Number.isFinite(appointmentId)) {
+      clearQrPhotoPolling();
+      return;
+    }
+
+    let cancelled = false;
+
+    const poll = async () => {
+      if (cancelled) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/photos?client_id=${selectedClientId}&appointment_id=${appointmentId}`
+        );
+        const data = (await response.json()) as {
+          photos?: unknown[];
+          error?: string;
+        };
+        if (!response.ok) {
+          throw new Error(data.error ?? "Failed to check uploaded photos");
+        }
+
+        const count = data.photos?.length ?? 0;
+        if (qrPhotoBaselineRef.current === null) {
+          qrPhotoBaselineRef.current = count;
+          qrPhotoLastCountRef.current = count;
+          qrPhotoStableCountRef.current = 0;
+        } else if (count > qrPhotoBaselineRef.current) {
+          if (count === qrPhotoLastCountRef.current) {
+            qrPhotoStableCountRef.current += 1;
+          } else {
+            qrPhotoStableCountRef.current = 1;
+          }
+          qrPhotoLastCountRef.current = count;
+
+          if (qrPhotoStableCountRef.current >= 2) {
+            setUploadSuccess({
+              kind: "photo",
+              count: count - qrPhotoBaselineRef.current
+            });
+            clearQrPhotoPolling();
+            return;
+          }
+        } else {
+          qrPhotoLastCountRef.current = count;
+          qrPhotoStableCountRef.current = 0;
+        }
+      } catch {
+        // Ignore polling errors and retry.
+      }
+
+      qrPhotoPollTimerRef.current = window.setTimeout(poll, 2000);
+    };
+
+    qrPhotoPollTimerRef.current = window.setTimeout(poll, 1200);
+
+    return () => {
+      cancelled = true;
+      clearQrPhotoPolling();
+    };
+  }, [
+    clearQrPhotoPolling,
+    isPhotoUploadOpen,
+    photoUploadAppointmentId,
+    photoUploadMode,
+    selectedClientId
+  ]);
+
+  useEffect(() => {
+    if (!isProfileUploadOpen || profileUploadMode !== "qr" || !selectedClientId) {
+      clearQrProfilePolling();
+      return;
+    }
+
+    let cancelled = false;
+
+    const poll = async () => {
+      if (cancelled) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/clients/${selectedClientId}/profile-picture?ts=${Date.now()}`,
+          { method: "HEAD", cache: "no-store" }
+        );
+
+        let stamp = 0;
+        if (response.ok) {
+          const mtimeHeader = response.headers.get("x-file-mtime");
+          const lastModified = response.headers.get("last-modified");
+          if (mtimeHeader) {
+            const parsed = Number(mtimeHeader);
+            stamp = Number.isFinite(parsed) ? parsed : 0;
+          } else if (lastModified) {
+            const parsed = Date.parse(lastModified);
+            stamp = Number.isFinite(parsed) ? parsed : 0;
+          }
+        }
+
+        if (qrProfileBaselineRef.current === null) {
+          qrProfileBaselineRef.current = stamp;
+          qrProfileLastStampRef.current = stamp;
+          qrProfileStableCountRef.current = 0;
+        } else if (stamp > qrProfileBaselineRef.current) {
+          if (stamp === qrProfileLastStampRef.current) {
+            qrProfileStableCountRef.current += 1;
+          } else {
+            qrProfileStableCountRef.current = 1;
+          }
+          qrProfileLastStampRef.current = stamp;
+
+          if (qrProfileStableCountRef.current >= 2) {
+            setProfilePictureUrl(
+              `/api/clients/${selectedClientId}/profile-picture?ts=${Date.now()}`
+            );
+            setUploadSuccess({ kind: "profile", count: 1 });
+            clearQrProfilePolling();
+            return;
+          }
+        } else {
+          qrProfileLastStampRef.current = stamp;
+          qrProfileStableCountRef.current = 0;
+        }
+      } catch {
+        // Ignore polling errors and retry.
+      }
+
+      qrProfilePollTimerRef.current = window.setTimeout(poll, 2000);
+    };
+
+    qrProfilePollTimerRef.current = window.setTimeout(poll, 1200);
+
+    return () => {
+      cancelled = true;
+      clearQrProfilePolling();
+    };
+  }, [
+    clearQrProfilePolling,
+    isProfileUploadOpen,
+    profileUploadMode,
+    selectedClientId
+  ]);
+
+  const treatmentOptions = APPOINTMENT_TREATMENTS[appointmentForm.type] ?? [];
+  const hasCustomTreatment =
+    appointmentForm.treatment &&
+    !treatmentOptions.includes(appointmentForm.treatment);
+  const selectedCatalogProduct =
+    PRODUCT_CATALOG.find((item) => item.name === productForm.product) ?? null;
+  const hasCustomProduct = productForm.product && !selectedCatalogProduct;
 
   return (
     <div
@@ -3017,9 +3639,9 @@ export default function ClientsDashboard() {
                 <button
                   className={styles.button}
                   type="button"
-                  onClick={handleNewClient}
+                  onClick={handleAddClientFromSearch}
                 >
-                  New
+                  Add Client
                 </button>
               </div>
             </div>
@@ -3152,10 +3774,13 @@ export default function ClientsDashboard() {
                         <div
                           className={styles.modalBackdrop}
                           role="dialog"
-                          aria-modal="true"
-                          aria-labelledby="profile-upload-title"
-                          onClick={closeProfileUploadModal}
-                        >
+                        aria-modal="true"
+                        aria-labelledby="profile-upload-title"
+                        onClick={() => {
+                          clearQrProfilePolling();
+                          closeProfileUploadModal();
+                        }}
+                      >
                           <div
                             className={styles.modal}
                             onClick={(event) => event.stopPropagation()}
@@ -3174,15 +3799,18 @@ export default function ClientsDashboard() {
                                     : "Select a client to upload."}
                                 </p>
                               </div>
-                              <button
-                                className={styles.iconButton}
-                                type="button"
-                                onClick={closeProfileUploadModal}
-                                aria-label="Close"
-                                title="Close"
-                              >
-                                X
-                              </button>
+                            <button
+                              className={styles.iconButton}
+                              type="button"
+                              onClick={() => {
+                                clearQrProfilePolling();
+                                closeProfileUploadModal();
+                              }}
+                              aria-label="Close"
+                              title="Close"
+                            >
+                              X
+                            </button>
                             </div>
 
                             <div className={styles.overviewTabs}>
@@ -3429,6 +4057,7 @@ export default function ClientsDashboard() {
                           <input
                             className={styles.input}
                             name="primary_phone"
+                            ref={primaryPhoneInputRef}
                             placeholder="(###) ###-####"
                             inputMode="numeric"
                             value={clientForm.primary_phone}
@@ -3825,23 +4454,28 @@ export default function ClientsDashboard() {
       <section className={`${styles.panel} ${styles.workspacePanel}`}>
         {activeTab === "appointments" && (
           <div className={styles.section}>
-            <div className={styles.sectionHeaderRow}>
-              <h2 className={styles.sectionTitle}>Appointments</h2>
-              <button
-                className={styles.button}
-                type="button"
-                onClick={handleAppointmentNew}
-                disabled={!selectedClientId}
-              >
-                Add Appointment
-              </button>
-            </div>
+            {!selectedClientId && (
+              <div className={styles.sectionHeaderRow}>
+                <h2 className={styles.sectionTitle}>Appointments</h2>
+              </div>
+            )}
             {!selectedClientId && (
               <p className={styles.notice}>Select a client to manage appointments.</p>
             )}
             {selectedClientId && (
               <div className={styles.appointmentsLayout}>
                 <div className={styles.appointmentsMain}>
+                  <div className={styles.sectionHeaderRow}>
+                    <h2 className={styles.sectionTitle}>Appointments</h2>
+                    <button
+                      className={styles.button}
+                      type="button"
+                      onClick={handleAppointmentNew}
+                      disabled={!selectedClientId}
+                    >
+                      Add Appointment
+                    </button>
+                  </div>
                   {sortedAppointments.length === 0 && (
                     <p className={styles.notice}>No appointments yet.</p>
                   )}
@@ -3888,7 +4522,10 @@ export default function ClientsDashboard() {
                   )}
                   {isAppointmentFormOpen && (
                     <div className={styles.appointmentFormCard}>
-                      <form onSubmit={handleAppointmentSave}>
+                      <form
+                        className={styles.appointmentForm}
+                        onSubmit={handleAppointmentSave}
+                      >
                       <button
                         className={`${styles.iconButton} ${styles.appointmentFormClose}`}
                         type="button"
@@ -3904,27 +4541,48 @@ export default function ClientsDashboard() {
                           className={styles.input}
                           name="date"
                           placeholder="MM/DD/YYYY"
+                          inputMode="numeric"
                           value={appointmentForm.date}
                           onChange={handleAppointmentChange}
                         />
                       </div>
                       <div className={styles.field}>
                         <span className={styles.label}>Type</span>
-                        <input
-                          className={styles.input}
+                        <select
+                          className={styles.select}
                           name="type"
                           value={appointmentForm.type}
-                          onChange={handleAppointmentChange}
-                        />
+                          onChange={handleAppointmentTypeChange}
+                        >
+                          <option value="">Select type</option>
+                          {APPOINTMENT_TYPES.map((typeOption) => (
+                            <option key={typeOption} value={typeOption}>
+                              {typeOption}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div className={styles.field}>
                         <span className={styles.label}>Treatment</span>
-                        <input
-                          className={styles.input}
+                        <select
+                          className={styles.select}
                           name="treatment"
                           value={appointmentForm.treatment}
                           onChange={handleAppointmentChange}
-                        />
+                          disabled={!appointmentForm.type}
+                        >
+                          <option value="">Select treatment</option>
+                          {hasCustomTreatment && (
+                            <option value={appointmentForm.treatment}>
+                              {appointmentForm.treatment}
+                            </option>
+                          )}
+                          {treatmentOptions.map((treatmentOption) => (
+                            <option key={treatmentOption} value={treatmentOption}>
+                              {treatmentOption}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div className={styles.field}>
                         <span className={styles.label}>Price</span>
@@ -3934,18 +4592,6 @@ export default function ClientsDashboard() {
                           value={appointmentForm.price}
                           onChange={handleAppointmentChange}
                         />
-                      </div>
-                      <div className={styles.field}>
-                        <span className={styles.label}>Photos Taken</span>
-                        <select
-                          className={styles.select}
-                          name="photos_taken"
-                          value={appointmentForm.photos_taken}
-                          onChange={handleAppointmentChange}
-                        >
-                          <option value="No">No</option>
-                          <option value="Yes">Yes</option>
-                        </select>
                       </div>
                       <div className={styles.field}>
                         <span className={styles.label}>Treatment Notes</span>
@@ -3989,18 +4635,6 @@ export default function ClientsDashboard() {
                     <div className={styles.notesToggle}>
                       <button
                         className={`${styles.notesToggleButton} ${
-                          appointmentNotesMode === "selected"
-                            ? styles.notesToggleButtonActive
-                            : ""
-                        }`}
-                        type="button"
-                        onClick={() => setAppointmentNotesMode("selected")}
-                        aria-pressed={appointmentNotesMode === "selected"}
-                      >
-                        Selected
-                      </button>
-                      <button
-                        className={`${styles.notesToggleButton} ${
                           appointmentNotesMode === "all"
                             ? styles.notesToggleButtonActive
                             : ""
@@ -4010,6 +4644,18 @@ export default function ClientsDashboard() {
                         aria-pressed={appointmentNotesMode === "all"}
                       >
                         All
+                      </button>
+                      <button
+                        className={`${styles.notesToggleButton} ${
+                          appointmentNotesMode === "selected"
+                            ? styles.notesToggleButtonActive
+                            : ""
+                        }`}
+                        type="button"
+                        onClick={() => setAppointmentNotesMode("selected")}
+                        aria-pressed={appointmentNotesMode === "selected"}
+                      >
+                        Selected
                       </button>
                     </div>
                   </div>
@@ -4094,6 +4740,215 @@ export default function ClientsDashboard() {
           </div>
         )}
 
+        {activeTab === "products" && (
+          <div className={styles.section}>
+            {!selectedClientId && (
+              <div className={styles.sectionHeaderRow}>
+                <h2 className={styles.sectionTitle}>Products</h2>
+              </div>
+            )}
+            {!selectedClientId && (
+              <p className={styles.notice}>Select a client to manage products.</p>
+            )}
+            {selectedClientId && (
+              <div className={styles.appointmentsLayout}>
+                <div className={styles.appointmentsMain}>
+                  <div className={styles.sectionHeaderRow}>
+                    <h2 className={styles.sectionTitle}>Products</h2>
+                    <button
+                      className={styles.button}
+                      type="button"
+                      onClick={handleProductNew}
+                      disabled={!selectedClientId}
+                    >
+                      Add Product
+                    </button>
+                  </div>
+                  {loadingProducts && (
+                    <p className={styles.notice}>Loading products...</p>
+                  )}
+                  {!loadingProducts && sortedProducts.length === 0 && (
+                    <p className={styles.notice}>No products yet.</p>
+                  )}
+                  {!loadingProducts && sortedProducts.length > 0 && (
+                    <table className={styles.appointmentsTable}>
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Product</th>
+                          <th>Size</th>
+                          <th>Cost</th>
+                          <th>Brand</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedProducts.map((entry) => (
+                          <tr
+                            key={entry.id}
+                            className={
+                              selectedProductId === entry.id
+                                ? styles.appointmentRowSelected
+                                : undefined
+                            }
+                            onClick={() => handleProductSelect(entry)}
+                            onDoubleClick={() => handleProductEdit(entry)}
+                          >
+                            <td>{entry.date}</td>
+                            <td>{entry.product}</td>
+                            <td>{entry.size ?? ""}</td>
+                            <td>{entry.cost ?? ""}</td>
+                            <td>{entry.brand ?? ""}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  {!isProductFormOpen && (
+                    <div className={styles.appointmentFormPlaceholder}>
+                      <p className={styles.notice}>
+                        Double-click a product to edit or click Add Product to
+                        create a new one.
+                      </p>
+                    </div>
+                  )}
+                  {isProductFormOpen && (
+                    <div className={styles.appointmentFormCard}>
+                      <form
+                        className={styles.appointmentForm}
+                        onSubmit={handleProductSave}
+                      >
+                        <button
+                          className={`${styles.iconButton} ${styles.appointmentFormClose}`}
+                          type="button"
+                          onClick={handleProductFormClose}
+                          aria-label="Close product form"
+                          title="Close"
+                        >
+                          X
+                        </button>
+                        <div className={styles.field}>
+                          <span className={styles.label}>Date</span>
+                          <input
+                            className={styles.input}
+                            name="date"
+                            placeholder="MM/DD/YYYY"
+                            inputMode="numeric"
+                            value={productForm.date}
+                            onChange={handleProductChange}
+                          />
+                        </div>
+                        <div className={styles.field}>
+                          <span className={styles.label}>Product</span>
+                          <select
+                            className={styles.select}
+                            name="product"
+                            value={productForm.product}
+                            onChange={handleProductSelectChange}
+                          >
+                            <option value="">Select product</option>
+                            {hasCustomProduct && (
+                              <option value={productForm.product}>
+                                {productForm.product}
+                              </option>
+                            )}
+                            {PRODUCT_CATALOG.map((item) => (
+                              <option key={item.name} value={item.name}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className={styles.field}>
+                          <span className={styles.label}>Size</span>
+                          <input
+                            className={styles.input}
+                            name="size"
+                            value={productForm.size}
+                            onChange={handleProductChange}
+                          />
+                        </div>
+                        <div className={styles.field}>
+                          <span className={styles.label}>Cost</span>
+                          <input
+                            className={styles.input}
+                            name="cost"
+                            value={productForm.cost}
+                            onChange={handleProductChange}
+                          />
+                        </div>
+                        <div className={styles.field}>
+                          <span className={styles.label}>Brand</span>
+                          <input
+                            className={styles.input}
+                            name="brand"
+                            value={productForm.brand}
+                            onChange={handleProductChange}
+                          />
+                        </div>
+                        <div className={styles.buttonRow}>
+                          <button className={styles.button} type="submit">
+                            {selectedProductId ? "Save Product" : "Add Product"}
+                          </button>
+                          {selectedProductId && (
+                            <button
+                              className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                              type="button"
+                              onClick={handleProductDelete}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </form>
+                    </div>
+                  )}
+                </div>
+                <aside className={styles.appointmentNotesPanel}>
+                  <div className={styles.appointmentNotesHeader}>
+                    <div className={styles.appointmentNotesHeading}>
+                      <h3 className={styles.appointmentNotesTitle}>
+                        Product Details
+                      </h3>
+                    </div>
+                  </div>
+                  <div className={styles.appointmentNotesBody}>
+                    {!selectedProduct && (
+                      <p className={styles.appointmentNotesHint}>
+                        Select a product to view details.
+                      </p>
+                    )}
+                    {selectedProduct && (
+                      <div className={styles.appointmentNoteDetail}>
+                        <div className={styles.appointmentNoteHeader}>
+                          <span className={styles.appointmentNoteTitle}>
+                            {selectedProduct.product || "Product"}
+                          </span>
+                          <span className={styles.appointmentNoteMeta}>
+                            {selectedProduct.date || "Date"}
+                          </span>
+                        </div>
+                        {selectedProduct.brand && (
+                          <div className={styles.appointmentNoteSub}>
+                            {selectedProduct.brand}
+                          </div>
+                        )}
+                        <div className={styles.appointmentNoteBodyFull}>
+                          {selectedProduct.size
+                            ? `Size: ${selectedProduct.size}`
+                            : "Size: —"}
+                          {selectedProduct.cost
+                            ? `\nCost: ${selectedProduct.cost}`
+                            : "\nCost: —"}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </aside>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === "photos" && (
           <div className={styles.section}>
             <div className={styles.sectionHeaderRow}>
@@ -4137,7 +4992,10 @@ export default function ClientsDashboard() {
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="photo-upload-title"
-                        onClick={closePhotoUploadModal}
+                        onClick={() => {
+                          clearQrPhotoPolling();
+                          closePhotoUploadModal();
+                        }}
                       >
                         <div
                           className={styles.modal}
@@ -4160,7 +5018,10 @@ export default function ClientsDashboard() {
                             <button
                               className={styles.iconButton}
                               type="button"
-                              onClick={closePhotoUploadModal}
+                              onClick={() => {
+                                clearQrPhotoPolling();
+                                closePhotoUploadModal();
+                              }}
                               aria-label="Close"
                               title="Close"
                             >
@@ -4507,6 +5368,17 @@ export default function ClientsDashboard() {
                   </div>
                 </div>
 
+                <div className={styles.photoUploadFooter}>
+                  <button
+                    className={styles.button}
+                    type="button"
+                    onClick={openPhotoUploadModal}
+                    disabled={!selectedClientId}
+                  >
+                    Upload Photos
+                  </button>
+                </div>
+
                 {loadingPhotos && (
                   <p className={styles.notice}>Loading photos...</p>
                 )}
@@ -4516,7 +5388,7 @@ export default function ClientsDashboard() {
 
                 {photos.length > 0 && (
                   <div className={styles.photosGrid}>
-                    {photos.map((photo) => {
+                    {visiblePhotos.map((photo) => {
                       const isBefore = compareBeforeId === photo.id;
                       const isAfter = compareAfterId === photo.id;
                       return (
@@ -4571,16 +5443,19 @@ export default function ClientsDashboard() {
                   </div>
                 )}
 
-                <div className={styles.photoUploadFooter}>
-                  <button
-                    className={styles.button}
-                    type="button"
-                    onClick={openPhotoUploadModal}
-                    disabled={!selectedClientId}
+                {photos.length > photoVisibleCount && (
+                  <div
+                    className={`${styles.photoUploadFooter} ${styles.photoLoadMoreFooter}`}
                   >
-                    Upload Photos
-                  </button>
-                </div>
+                    <button
+                      className={styles.buttonSecondary}
+                      type="button"
+                      onClick={handleLoadMorePhotos}
+                    >
+                      Load More
+                    </button>
+                  </div>
+                )}
 
               </>
             )}
@@ -4739,7 +5614,7 @@ export default function ClientsDashboard() {
                       onSubmit={handleTemplateSave}
                     >
                       <input
-                        className={styles.input}
+                        className={`${styles.input} ${styles.templateNameInput}`}
                         placeholder="Template name"
                         value={templateName}
                         onChange={(event) => setTemplateName(event.target.value)}
@@ -4839,12 +5714,27 @@ export default function ClientsDashboard() {
                                 <input
                                   className={styles.input}
                                   placeholder={`Step ${rowIndex + 1} Product`}
+                                  maxLength={PRESCRIPTION_PRODUCT_MAX_LENGTH}
                                   value={row.product}
                                   onChange={(event) =>
                                     handlePrescriptionRowChange(
                                       colIndex,
                                       rowIndex,
                                       "product",
+                                      event.target.value
+                                    )
+                                  }
+                                />
+                                <input
+                                  className={styles.input}
+                                  placeholder={`Step ${rowIndex + 1} Product 2`}
+                                  maxLength={PRESCRIPTION_PRODUCT_MAX_LENGTH}
+                                  value={row.product2}
+                                  onChange={(event) =>
+                                    handlePrescriptionRowChange(
+                                      colIndex,
+                                      rowIndex,
+                                      "product2",
                                       event.target.value
                                     )
                                   }
@@ -4914,6 +5804,14 @@ export default function ClientsDashboard() {
           </div>
         )}
       </section>
+
+      <UploadSuccessModal
+        portalTarget={portalTarget}
+        open={Boolean(uploadSuccess)}
+        title="Upload Complete"
+        message={uploadSuccessMessage}
+        onConfirm={handleUploadSuccessAcknowledge}
+      />
 
       {printUrl && (
         <iframe

@@ -510,7 +510,7 @@
 
 .searchBar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 8px;
   align-items: center;
   margin-bottom: 12px;
@@ -680,6 +680,13 @@
   background: #fbe7e5;
   border-radius: 10px;
   padding: 8px;
+}
+
+@media (min-width: 901px) {
+  .compactGrid .healthRiskField {
+    margin-top: -11px;
+    padding-top: 10px;
+  }
 }
 
 .referredByField {
@@ -1204,9 +1211,18 @@
 .appointmentFormCard {
   border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 14px;
+  padding: 16px;
   background: #fffaf0;
   position: relative;
+}
+
+.appointmentForm {
+  display: grid;
+  gap: 16px;
+}
+
+.appointmentForm .field {
+  gap: 8px;
 }
 
 .appointmentFormPlaceholder {
@@ -1585,6 +1601,10 @@
   justify-content: flex-start;
 }
 
+.photoLoadMoreFooter {
+  justify-content: center;
+}
+
 .photosGrid {
   margin-top: 16px;
   display: grid;
@@ -1863,6 +1883,7 @@
 .copyColumn {
   display: grid;
   gap: 8px;
+  justify-items: start;
 }
 
 .templatePanel {
@@ -1881,6 +1902,10 @@
   align-items: center;
 }
 
+.templateNameInput {
+  width: 100%;
+}
+
 .printFrame {
   display: none;
 }
@@ -1895,6 +1920,20 @@
   gap: 12px;
 }
 
+.alertFormToggle {
+  margin-bottom: 16px;
+  display: flex;
+}
+
+.alertFormActions {
+  align-items: center;
+}
+
+.alertFormActions .notice {
+  display: inline-flex;
+  align-items: center;
+}
+
 .alertsTableWrap {
   overflow-x: auto;
 }
@@ -1904,6 +1943,7 @@
   border-collapse: collapse;
   font-size: 13px;
   min-width: 720px;
+  table-layout: fixed;
 }
 
 .alertsTable th,
@@ -1924,6 +1964,36 @@
 
 .alertsTable tr:hover {
   background: #f5f1e8;
+}
+
+.alertsTable th:nth-child(1),
+.alertsTable td:nth-child(1) {
+  width: 130px;
+}
+
+.alertsTable th:nth-child(2),
+.alertsTable td:nth-child(2) {
+  width: 130px;
+}
+
+.alertsTable th:nth-child(3),
+.alertsTable td:nth-child(3) {
+  width: 100px;
+}
+
+.alertsTable th:nth-child(4),
+.alertsTable td:nth-child(4) {
+  width: 120px;
+}
+
+.alertsTable th:nth-child(5),
+.alertsTable td:nth-child(5) {
+  width: 330px;
+}
+
+.alertsTable th:nth-child(6),
+.alertsTable td:nth-child(6) {
+  width: 160px;
 }
 
 .alertActions {
