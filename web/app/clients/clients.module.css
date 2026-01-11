@@ -10,7 +10,7 @@
   --shadow: 0 12px 28px rgba(32, 26, 18, 0.12);
 
   display: grid;
-  gap: 24px;
+  gap: 16px;
   position: relative;
   padding: 16px;
   border-radius: 20px;
@@ -599,7 +599,7 @@
 }
 
 .rootTabs {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .tabButton {
@@ -769,6 +769,11 @@
 
 .referredByItem:hover {
   border-color: rgba(45, 107, 93, 0.35);
+}
+
+.referredByItemActive {
+  border-color: rgba(45, 107, 93, 0.35);
+  background: #efe7d6;
 }
 
 .referredByItemSelected {
@@ -1438,6 +1443,140 @@
   background: #efe7d6;
 }
 
+.productGroupRow td {
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.productToggleHeader {
+  width: 18px;
+}
+
+.productToggleCell {
+  width: 18px;
+  padding-right: 2px;
+}
+
+.productGroupToggle {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #fffdf7;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.productGroupSummary {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+}
+
+.productTreeDateCell {
+  position: relative;
+  color: rgba(31, 27, 22, 0.35);
+}
+
+.productTreeDateCell::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 6px;
+  bottom: 6px;
+  width: 12px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  border-bottom-left-radius: 6px;
+}
+
+.productReceipt {
+  display: grid;
+  gap: 12px;
+  color: var(--ink);
+}
+
+.productReceiptHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.productReceiptTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.productReceiptDate {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.productReceiptGroup {
+  display: grid;
+  gap: 8px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+.productReceiptGroup:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.productReceiptBrand {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.productReceiptItems {
+  display: grid;
+  gap: 6px;
+}
+
+.productReceiptItem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.productReceiptName {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.productReceiptMeta {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.productReceiptCost {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.productReceiptTotal {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-weight: 700;
+}
+
 .photoComparePanel {
   margin-top: 16px;
   border: 1px solid var(--line);
@@ -1770,6 +1909,28 @@
   cursor: pointer;
 }
 
+.prescriptionItemHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prescriptionItemCurrent {
+  border-color: rgba(60, 84, 102, 0.35);
+}
+
+.prescriptionCurrentBadge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e7efe9;
+  color: #2f5141;
+  font-weight: 700;
+}
+
 .prescriptionItemSelected {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -1812,6 +1973,166 @@
   width: 100%;
   height: 100%;
   border: none;
+}
+
+.notesLayout {
+  display: grid;
+  gap: 16px;
+}
+
+.notesForm {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fffdf7;
+  display: grid;
+  gap: 12px;
+}
+
+.notesRow {
+  display: grid;
+  grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(130px, 160px);
+  gap: 12px;
+  align-items: start;
+}
+
+.notesTextarea {
+  min-height: 110px;
+}
+
+.notesDoneField {
+  display: grid;
+  gap: 6px;
+}
+
+.notesDoneToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.notesDoneToggle input {
+  accent-color: var(--accent);
+}
+
+.notesDoneLabel {
+  font-weight: 600;
+}
+
+.notesLockButton {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #fffdf7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.notesLockButtonUnlocked {
+  border-color: rgba(45, 107, 93, 0.5);
+}
+
+.notesLockIcon {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ink-muted);
+  border-radius: 3px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.notesLockIcon::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -7px;
+  width: 10px;
+  height: 8px;
+  border: 2px solid var(--ink-muted);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+}
+
+.notesLockButtonUnlocked .notesLockIcon::before {
+  transform: translateX(-50%) rotate(-25deg);
+  transform-origin: left center;
+}
+
+.notesList {
+  display: grid;
+  gap: 12px;
+}
+
+.notesItem {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fffdf7;
+  display: grid;
+  gap: 12px;
+}
+
+.notesView {
+  display: grid;
+  gap: 8px;
+}
+
+.notesViewRow {
+  display: grid;
+  grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(130px, 160px);
+  gap: 12px;
+  align-items: start;
+}
+
+.notesViewBlock {
+  display: grid;
+  gap: 4px;
+}
+
+.notesViewLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.notesViewValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 4px;
+}
+
+.notesViewText {
+  font-size: 14px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.notesActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .notesRow {
+    grid-template-columns: 1fr;
+  }
+
+  .notesViewRow {
+    grid-template-columns: 1fr;
+  }
 }
 
 .qrPanel,

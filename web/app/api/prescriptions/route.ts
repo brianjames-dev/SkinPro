@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { generatePrescriptionPdf } from "@/lib/prescriptions/generatePrescription";
+import { ensureCurrentPrescriptionColumn } from "./utils";
 
 export const runtime = "nodejs";
 
@@ -30,10 +31,11 @@ export async function GET(request: Request) {
     }
 
     const db = getDb();
+    ensureCurrentPrescriptionColumn(db);
     const rows = (
       db
         .prepare(
-          "SELECT id, client_id, appointment_id, start_date, form_type, file_path " +
+          "SELECT id, client_id, appointment_id, start_date, form_type, file_path, is_current " +
             "FROM prescriptions WHERE client_id = ? ORDER BY start_date DESC"
         )
         .all(clientId) as Record<string, unknown>[]

@@ -1,9 +1,9 @@
-import HomeDashboard from "./home-dashboard";
+import HomeView from "./home";
 
 export default function Home() {
   return (
     <main>
-      <HomeDashboard />
+      <HomeView />
     </main>
   );
 }

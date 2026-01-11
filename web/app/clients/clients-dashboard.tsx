@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -98,6 +99,16 @@ type Prescription = {
   start_date?: string | null;
   form_type?: string | null;
   file_path?: string | null;
+  is_current?: number | null;
+};
+
+type ClientNote = {
+  id: number;
+  client_id: number;
+  date_seen: string;
+  notes: string;
+  done_at?: string | null;
+  created_at?: string | null;
 };
 
 type Alert = {
@@ -109,7 +120,12 @@ type Alert = {
   notes?: string | null;
 };
 
-type WorkspaceTab = "appointments" | "products" | "photos" | "prescriptions";
+type WorkspaceTab =
+  | "appointments"
+  | "products"
+  | "photos"
+  | "prescriptions"
+  | "notes";
 type OverviewTab = "info" | "health";
 type OverviewMode = "compact" | "edit";
 
@@ -194,7 +210,8 @@ const WORKSPACE_TABS: { id: WorkspaceTab; label: string }[] = [
   { id: "appointments", label: "Appointments" },
   { id: "products", label: "Products" },
   { id: "photos", label: "Photos" },
-  { id: "prescriptions", label: "Prescriptions" }
+  { id: "prescriptions", label: "Prescriptions" },
+  { id: "notes", label: "Notes" }
 ];
 
 const EMPTY_CLIENT: ClientForm = {
@@ -403,6 +420,18 @@ const formatCurrencyInput = (value: string) => {
   const normalized = decimals ? `${whole}.${decimals}` : whole;
   const safeNormalized = normalized.startsWith(".") ? `0${normalized}` : normalized;
   return `$${safeNormalized}`;
+};
+
+const parseCurrencyValue = (value?: string | null) => {
+  if (!value) {
+    return 0;
+  }
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  if (!cleaned) {
+    return 0;
+  }
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 const APPOINTMENT_TYPES = ["Facial", "Electrolysis"] as const;
@@ -728,6 +757,21 @@ export default function ClientsDashboard() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const resolveWorkspaceTab = (value: string | null): WorkspaceTab | null => {
+    if (value === "appointments" || value === "products" || value === "photos") {
+      return value;
+    }
+    if (value === "prescriptions" || value === "notes") {
+      return value;
+    }
+    return null;
+  };
+  const resolveOverviewTab = (value: string | null): OverviewTab | null => {
+    if (value === "info" || value === "health") {
+      return value;
+    }
+    return null;
+  };
   const initialClientIdRef = useRef<number | null>(null);
   const initialNewClientRef = useRef<string | null>(null);
   const selectedClientIdRef = useRef<number | null>(null);
@@ -754,6 +798,12 @@ export default function ClientsDashboard() {
   const [products, setProducts] = useState<ClientProduct[]>([]);
   const [productForm, setProductForm] = useState<ProductForm>(EMPTY_PRODUCT);
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [selectedProductGroupDate, setSelectedProductGroupDate] = useState<string | null>(
+    null
+  );
+  const [collapsedProductDates, setCollapsedProductDates] = useState<
+    Record<string, boolean>
+  >({});
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -846,6 +896,14 @@ export default function ClientsDashboard() {
   const [prescriptionTemplates, setPrescriptionTemplates] = useState<
     PrescriptionTemplate[]
   >([]);
+  const [notes, setNotes] = useState<ClientNote[]>([]);
+  const [noteDraft, setNoteDraft] = useState({ date_seen: "", notes: "" });
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [isNoteFormOpen, setIsNoteFormOpen] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [unlockedNoteIds, setUnlockedNoteIds] = useState<
+    Record<number, boolean>
+  >({});
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [copyTargetClientId, setCopyTargetClientId] = useState("");
@@ -855,15 +913,30 @@ export default function ClientsDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
   const [referredByQuery, setReferredByQuery] = useState("");
+  const [referredByActiveIndex, setReferredByActiveIndex] = useState(-1);
   const [referredByValue, setReferredByValue] = useState("");
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingClients, setLoadingClients] = useState(false);
   const [loadingClientDetails, setLoadingClientDetails] = useState(false);
-  const [overviewTab, setOverviewTab] = useState<OverviewTab>("info");
+  const [overviewTab, setOverviewTab] = useState<OverviewTab>(() => {
+    return resolveOverviewTab(searchParams.get("overview")) ?? "info";
+  });
   const [overviewMode, setOverviewMode] = useState<OverviewMode>("compact");
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>("appointments");
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(() => {
+    return resolveWorkspaceTab(searchParams.get("tab")) ?? "appointments";
+  });
+  const overviewTabRef = useRef(overviewTab);
+  const activeTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    overviewTabRef.current = overviewTab;
+  }, [overviewTab]);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
   const primaryPhoneInputRef = useRef<HTMLInputElement | null>(null);
 
   const confettiPieces = useMemo(
@@ -952,12 +1025,61 @@ export default function ClientsDashboard() {
     });
   }, [products]);
 
-  const selectedProduct = useMemo(() => {
-    if (!selectedProductId) {
+  const productGroups = useMemo(() => {
+    const groups: { date: string; items: ClientProduct[] }[] = [];
+    const indexByDate = new Map<string, number>();
+
+    for (const entry of sortedProducts) {
+      const dateKey = entry.date?.trim() || "No date";
+      const existingIndex = indexByDate.get(dateKey);
+      if (existingIndex === undefined) {
+        indexByDate.set(dateKey, groups.length);
+        groups.push({ date: dateKey, items: [entry] });
+      } else {
+        groups[existingIndex]?.items.push(entry);
+      }
+    }
+
+    return groups;
+  }, [sortedProducts]);
+
+  const selectedProductGroup = useMemo(() => {
+    if (!selectedProductGroupDate) {
       return null;
     }
-    return sortedProducts.find((item) => item.id === selectedProductId) ?? null;
-  }, [selectedProductId, sortedProducts]);
+    return (
+      productGroups.find((group) => group.date === selectedProductGroupDate) ??
+      null
+    );
+  }, [productGroups, selectedProductGroupDate]);
+
+  const selectedProductReceipt = useMemo(() => {
+    if (!selectedProductGroup) {
+      return null;
+    }
+    const brandMap = new Map<string, ClientProduct[]>();
+    let total = 0;
+
+    for (const entry of selectedProductGroup.items) {
+      const brandKey = entry.brand?.trim() || "Unbranded";
+      total += parseCurrencyValue(entry.cost);
+      if (!brandMap.has(brandKey)) {
+        brandMap.set(brandKey, []);
+      }
+      brandMap.get(brandKey)?.push(entry);
+    }
+
+    const brands = Array.from(brandMap.entries()).map(([brand, items]) => ({
+      brand,
+      items
+    }));
+
+    return {
+      date: selectedProductGroup.date,
+      brands,
+      total
+    };
+  }, [selectedProductGroup]);
 
   const selectedAppointment = useMemo(() => {
     if (!selectedAppointmentId) {
@@ -1040,6 +1162,16 @@ export default function ClientsDashboard() {
       .slice(0, 3);
   }, [allClients, referredByQuery, selectedClientId]);
 
+  useEffect(() => {
+    if (!referredByQuery.trim() || referredByMatches.length === 0) {
+      setReferredByActiveIndex(-1);
+      return;
+    }
+    setReferredByActiveIndex((prev) =>
+      prev >= referredByMatches.length ? referredByMatches.length - 1 : prev
+    );
+  }, [referredByMatches, referredByQuery]);
+
   const referredBySelected = useMemo(() => {
     const trimmedForm = clientForm.referred_by.trim();
     if (trimmedForm) {
@@ -1054,11 +1186,11 @@ export default function ClientsDashboard() {
 
   const referralStats = useMemo(() => {
     if (!selectedClientId) {
-      return { count: 0, latestName: "" };
+      return { count: 0, names: [] as string[] };
     }
     const selected = allClients.find((client) => client.id === selectedClientId);
     if (!selected) {
-      return { count: 0, latestName: "" };
+      return { count: 0, names: [] as string[] };
     }
     const selectedName = selected.full_name.trim().toLowerCase();
     const idToken = `${REFERRED_BY_PREFIX}${selectedClientId}`;
@@ -1079,16 +1211,12 @@ export default function ClientsDashboard() {
       return false;
     });
 
-    let latestName = "";
-    let latestId = -1;
-    for (const client of matches) {
-      if (client.id > latestId) {
-        latestId = client.id;
-        latestName = client.full_name;
-      }
-    }
+    const names = matches
+      .slice()
+      .sort((a, b) => b.id - a.id)
+      .map((client) => client.full_name);
 
-    return { count: matches.length, latestName };
+    return { count: matches.length, names };
   }, [allClients, selectedClientId]);
 
   const compareBeforePhoto = useMemo(() => {
@@ -1115,6 +1243,22 @@ export default function ClientsDashboard() {
       null
     );
   }, [prescriptions, selectedPrescriptionId]);
+  const isCurrentPrescription = Boolean(selectedPrescription?.is_current);
+  const sortedNotes = useMemo(() => {
+    return [...notes].sort((a, b) => {
+      const aDone = a.done_at ? 1 : 0;
+      const bDone = b.done_at ? 1 : 0;
+      if (aDone !== bDone) {
+        return aDone - bDone;
+      }
+      const dateDiff =
+        parseMmddyyyy(b.date_seen ?? "") - parseMmddyyyy(a.date_seen ?? "");
+      if (dateDiff !== 0) {
+        return dateDiff;
+      }
+      return (b.id ?? 0) - (a.id ?? 0);
+    });
+  }, [notes]);
 
   const activeSearchClientId = useMemo(() => {
     if (
@@ -1176,7 +1320,6 @@ export default function ClientsDashboard() {
     initialNewClientRef.current = key;
 
     handleNewClient();
-    setOverviewTab("info");
     setOverviewMode("edit");
 
     if (trimmedName) {
@@ -1188,10 +1331,33 @@ export default function ClientsDashboard() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("newClient");
     params.delete("newClientName");
+    params.set("overview", "info");
     const nextQuery = params.toString();
     const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
     router.replace(nextUrl);
   }, [pathname, router, searchParams]);
+
+  useEffect(() => {
+    const urlTab = resolveWorkspaceTab(searchParams.get("tab"));
+    if (!urlTab) {
+      syncWorkspaceTabRoute(activeTabRef.current, "replace");
+      return;
+    }
+    if (urlTab !== activeTabRef.current) {
+      setActiveTab(urlTab);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const urlOverview = resolveOverviewTab(searchParams.get("overview"));
+    if (!urlOverview) {
+      syncOverviewTabRoute(overviewTabRef.current, "replace");
+      return;
+    }
+    if (urlOverview !== overviewTabRef.current) {
+      setOverviewTab(urlOverview);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     setPhotoQrDataUrl(null);
@@ -1307,6 +1473,56 @@ export default function ClientsDashboard() {
     }
     initialClientIdRef.current = clientId;
     router.replace(nextUrl);
+  };
+
+  const syncWorkspaceTabRoute = (tab: WorkspaceTab, mode: "push" | "replace") => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    const currentQuery = searchParams.toString();
+    const currentUrl = currentQuery ? `${pathname}?${currentQuery}` : pathname;
+    if (nextUrl === currentUrl) {
+      return;
+    }
+    if (mode === "push") {
+      router.push(nextUrl);
+    } else {
+      router.replace(nextUrl);
+    }
+  };
+
+  const syncOverviewTabRoute = (tab: OverviewTab, mode: "push" | "replace") => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("overview", tab);
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    const currentQuery = searchParams.toString();
+    const currentUrl = currentQuery ? `${pathname}?${currentQuery}` : pathname;
+    if (nextUrl === currentUrl) {
+      return;
+    }
+    if (mode === "push") {
+      router.push(nextUrl);
+    } else {
+      router.replace(nextUrl);
+    }
+  };
+
+  const handleWorkspaceTabChange = (tab: WorkspaceTab) => {
+    if (tab === activeTab) {
+      return;
+    }
+    setActiveTab(tab);
+    syncWorkspaceTabRoute(tab, "push");
+  };
+
+  const handleOverviewTabChange = (tab: OverviewTab) => {
+    if (tab === overviewTab) {
+      return;
+    }
+    setOverviewTab(tab);
+    syncOverviewTabRoute(tab, "push");
   };
 
   const getAlertStatusClass = (status: string) => {
@@ -1515,6 +1731,8 @@ export default function ClientsDashboard() {
       const rows = data.products ?? [];
       setProducts(rows);
       setSelectedProductId(null);
+      setSelectedProductGroupDate(null);
+      setCollapsedProductDates({});
       setProductForm(EMPTY_PRODUCT);
     } catch (err) {
       setNotice(
@@ -1598,6 +1816,31 @@ export default function ClientsDashboard() {
     }
   };
 
+  const loadNotes = async (clientId: number) => {
+    setLoadingNotes(true);
+    try {
+      const response = await fetch(`/api/notes?client_id=${clientId}`);
+      const data = (await response.json()) as {
+        notes?: ClientNote[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to load notes");
+      }
+
+      setNotes(data.notes ?? []);
+      setNoteDraft({ date_seen: "", notes: "" });
+      setIsNoteFormOpen(false);
+      setEditingNoteId(null);
+      setUnlockedNoteIds({});
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Failed to load notes", true);
+    } finally {
+      setLoadingNotes(false);
+    }
+  };
+
   const loadAlerts = async () => {
     setLoadingAlerts(true);
     try {
@@ -1630,6 +1873,7 @@ export default function ClientsDashboard() {
     await loadProducts(clientId);
     await loadPhotos(clientId);
     await loadPrescriptions(clientId);
+    await loadNotes(clientId);
   };
 
   const handleNewClient = () => {
@@ -1642,6 +1886,7 @@ export default function ClientsDashboard() {
     syncClientRoute(null);
     setOverviewMode("edit");
     setOverviewTab("info");
+    syncOverviewTabRoute("info", "replace");
     setClientForm(EMPTY_CLIENT);
     setReferredByQuery("");
     setReferredByValue("");
@@ -1655,6 +1900,8 @@ export default function ClientsDashboard() {
     setProducts([]);
     setProductForm(EMPTY_PRODUCT);
     setSelectedProductId(null);
+    setSelectedProductGroupDate(null);
+    setCollapsedProductDates({});
     setIsProductFormOpen(false);
     setPhotos([]);
     setSelectedPhotoId(null);
@@ -1666,6 +1913,11 @@ export default function ClientsDashboard() {
     setPhotoUploadKey((prev) => prev + 1);
     setPrescriptions([]);
     setSelectedPrescriptionId(null);
+    setNotes([]);
+    setNoteDraft({ date_seen: "", notes: "" });
+    setIsNoteFormOpen(false);
+    setEditingNoteId(null);
+    setUnlockedNoteIds({});
     setCopyTargetClientId("");
     setCopyStartDate(getTodayDateString());
     setAlertDeadline("");
@@ -1702,6 +1954,7 @@ export default function ClientsDashboard() {
   ) => {
     const value = event.target.value;
     setReferredByQuery(value);
+    setReferredByActiveIndex(-1);
   };
 
   const handleReferredBySelect = (client: Client) => {
@@ -1713,6 +1966,7 @@ export default function ClientsDashboard() {
     }));
     setReferredByValue(nextValue);
     setReferredByQuery("");
+    setReferredByActiveIndex(-1);
   };
 
   const handleReferredByCommit = () => {
@@ -1727,6 +1981,7 @@ export default function ClientsDashboard() {
     }));
     setReferredByValue(trimmed);
     setReferredByQuery("");
+    setReferredByActiveIndex(-1);
   };
 
   const handleReferredByClear = () => {
@@ -1737,6 +1992,7 @@ export default function ClientsDashboard() {
     }));
     setReferredByValue("");
     setReferredByQuery("");
+    setReferredByActiveIndex(-1);
   };
 
   const handleOverviewEditCancel = () => {
@@ -2827,6 +3083,203 @@ export default function ClientsDashboard() {
     }
   };
 
+  const handlePrescriptionMarkCurrent = async () => {
+    if (!selectedPrescriptionId || !selectedClientId) {
+      setNotice("Select a prescription to mark as current.", true);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/prescriptions/${selectedPrescriptionId}/current`,
+        { method: "PATCH" }
+      );
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to mark prescription as current");
+      }
+
+      setPrescriptions((prev) =>
+        prev.map((item) => ({
+          ...item,
+          is_current: item.id === selectedPrescriptionId ? 1 : 0
+        }))
+      );
+      setNotice("Marked as current prescription.");
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : "Failed to mark prescription",
+        true
+      );
+    }
+  };
+
+  const handleNoteDraftChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = event.target;
+    const nextValue = name === "date_seen" ? formatDateInput(value) : value;
+    setNoteDraft((prev) => ({ ...prev, [name]: nextValue }));
+  };
+
+  const handleNoteFormToggle = () => {
+    setIsNoteFormOpen(true);
+  };
+
+  const handleNoteCreate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedClientId) {
+      setNotice("Select a client before adding a note.", true);
+      return;
+    }
+
+    const trimmedDate = noteDraft.date_seen.trim();
+    const trimmedNotes = noteDraft.notes.trim();
+    if (!trimmedDate || !trimmedNotes) {
+      setNotice("Date last seen and notes are required.", true);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: selectedClientId,
+          date_seen: trimmedDate,
+          notes: trimmedNotes
+        })
+      });
+      const data = (await response.json()) as {
+        note?: ClientNote;
+        error?: string;
+      };
+      if (!response.ok || !data.note) {
+        throw new Error(data.error ?? "Failed to create note");
+      }
+      setNotes((prev) => [data.note as ClientNote, ...prev]);
+      setNoteDraft({ date_seen: "", notes: "" });
+      setIsNoteFormOpen(false);
+      setNotice("Note added.");
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Failed to add note", true);
+    }
+  };
+
+  const handleNoteFieldChange = (
+    noteId: number,
+    field: "date_seen" | "notes",
+    value: string
+  ) => {
+    const nextValue = field === "date_seen" ? formatDateInput(value) : value;
+    setNotes((prev) =>
+      prev.map((note) =>
+        note.id === noteId ? { ...note, [field]: nextValue } : note
+      )
+    );
+  };
+
+  const handleNoteEdit = (noteId: number) => {
+    setEditingNoteId(noteId);
+  };
+
+  const handleNoteSave = async (note: ClientNote) => {
+    const trimmedDate = note.date_seen.trim();
+    const trimmedNotes = note.notes.trim();
+    if (!trimmedDate || !trimmedNotes) {
+      setNotice("Date last seen and notes are required.", true);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/notes/${note.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date_seen: trimmedDate,
+          notes: trimmedNotes
+        })
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to save note");
+      }
+      setEditingNoteId(null);
+      setNotice("Note updated.");
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Failed to save note", true);
+    }
+  };
+
+  const handleNoteToggleDone = async (note: ClientNote, checked: boolean) => {
+    const doneDate = checked ? getTodayDateString() : null;
+    try {
+      const response = await fetch(`/api/notes/${note.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ done_at: doneDate })
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to update note status");
+      }
+      setNotes((prev) =>
+        prev.map((item) =>
+          item.id === note.id ? { ...item, done_at: doneDate } : item
+        )
+      );
+      setUnlockedNoteIds((prev) => {
+        if (!prev[note.id]) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[note.id];
+        return next;
+      });
+      setNotice(checked ? "Marked as done." : "Done status cleared.");
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : "Failed to update note",
+        true
+      );
+    }
+  };
+
+  const toggleNoteLock = (noteId: number) => {
+    setUnlockedNoteIds((prev) => ({
+      ...prev,
+      [noteId]: !prev[noteId]
+    }));
+  };
+
+  const handleNoteDelete = async (note: ClientNote) => {
+    const confirmDelete = window.confirm("Delete this note?");
+    if (!confirmDelete) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/notes/${note.id}`, {
+        method: "DELETE"
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to delete note");
+      }
+      setNotes((prev) => prev.filter((item) => item.id !== note.id));
+      setEditingNoteId((prev) => (prev === note.id ? null : prev));
+      setUnlockedNoteIds((prev) => {
+        if (!prev[note.id]) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[note.id];
+        return next;
+      });
+      setNotice("Note deleted.");
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Failed to delete note", true);
+    }
+  };
   const handlePrescriptionPrint = () => {
     if (!selectedPrescriptionId) {
       setNotice("Select a prescription to print.", true);
@@ -3151,8 +3604,7 @@ export default function ClientsDashboard() {
         ...prev,
         product: "",
         size: "",
-        cost: "",
-        brand: ""
+        cost: ""
       }));
       return;
     }
@@ -3170,7 +3622,38 @@ export default function ClientsDashboard() {
     }));
   };
 
+  const handleProductBrandChange = (
+    event: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    const nextBrand = event.target.value;
+    setProductForm((prev) => {
+      if (!nextBrand) {
+        return { ...prev, brand: "", product: "", size: "", cost: "" };
+      }
+      const matchesBrand = PRODUCT_CATALOG.some(
+        (item) => item.name === prev.product && item.brand === nextBrand
+      );
+      if (!matchesBrand) {
+        return { ...prev, brand: nextBrand, product: "", size: "", cost: "" };
+      }
+      return { ...prev, brand: nextBrand };
+    });
+  };
+
+  const handleProductGroupSelect = (groupDate: string) => {
+    setSelectedProductGroupDate(groupDate);
+  };
+
+  const toggleProductGroupCollapsed = (groupDate: string) => {
+    setCollapsedProductDates((prev) => ({
+      ...prev,
+      [groupDate]: !prev[groupDate]
+    }));
+  };
+
   const handleProductSelect = (entry: ClientProduct) => {
+    const dateKey = entry.date?.trim() || "No date";
+    setSelectedProductGroupDate(dateKey);
     setSelectedProductId(entry.id);
     setProductForm({
       id: entry.id,
@@ -3189,6 +3672,7 @@ export default function ClientsDashboard() {
 
   const handleProductNew = () => {
     setSelectedProductId(null);
+    setSelectedProductGroupDate(null);
     setProductForm(EMPTY_PRODUCT);
     setIsProductFormOpen(true);
   };
@@ -3205,8 +3689,12 @@ export default function ClientsDashboard() {
       return;
     }
 
-    if (!productForm.date.trim() || !productForm.product.trim()) {
-      setNotice("Date and product are required.", true);
+    if (
+      !productForm.date.trim() ||
+      !productForm.brand.trim() ||
+      !productForm.product.trim()
+    ) {
+      setNotice("Date, brand, and product are required.", true);
       return;
     }
 
@@ -3523,8 +4011,21 @@ export default function ClientsDashboard() {
   const hasCustomTreatment =
     appointmentForm.treatment &&
     !treatmentOptions.includes(appointmentForm.treatment);
+  const productBrands = useMemo(() => {
+    return Array.from(
+      new Set(PRODUCT_CATALOG.map((item) => item.brand))
+    ).sort();
+  }, []);
   const selectedCatalogProduct =
     PRODUCT_CATALOG.find((item) => item.name === productForm.product) ?? null;
+  const filteredCatalogProducts = useMemo(() => {
+    if (!productForm.brand) {
+      return [];
+    }
+    return PRODUCT_CATALOG.filter((item) => item.brand === productForm.brand);
+  }, [productForm.brand]);
+  const hasCustomBrand =
+    productForm.brand && !productBrands.includes(productForm.brand);
   const hasCustomProduct = productForm.product && !selectedCatalogProduct;
 
   return (
@@ -3702,8 +4203,8 @@ export default function ClientsDashboard() {
                   >
                     +{referralStats.count} Referral
                     {referralStats.count === 1 ? "" : "s"}
-                    {referralStats.latestName
-                      ? ` -> ${referralStats.latestName}`
+                    {referralStats.names.length > 0
+                      ? ` -> ${referralStats.names.join(", ")}`
                       : ""}
                   </span>
                 )}
@@ -3922,7 +4423,7 @@ export default function ClientsDashboard() {
                       overviewTab === "info" ? styles.tabButtonActive : ""
                     }`}
                     type="button"
-                    onClick={() => setOverviewTab("info")}
+                    onClick={() => handleOverviewTabChange("info")}
                     aria-pressed={overviewTab === "info"}
                   >
                     Info
@@ -3932,7 +4433,7 @@ export default function ClientsDashboard() {
                       overviewTab === "health" ? styles.tabButtonActive : ""
                     }`}
                     type="button"
-                    onClick={() => setOverviewTab("health")}
+                    onClick={() => handleOverviewTabChange("health")}
                     aria-pressed={overviewTab === "health"}
                   >
                     Health
@@ -4189,10 +4690,45 @@ export default function ClientsDashboard() {
                               autoComplete="off"
                               disabled={loadingClientDetails}
                               onKeyDown={(event) => {
+                                if (event.key === "ArrowDown") {
+                                  event.preventDefault();
+                                  if (referredByMatches.length > 0) {
+                                    setReferredByActiveIndex((prev) => {
+                                      if (prev < 0) {
+                                        return 0;
+                                      }
+                                      return Math.min(
+                                        prev + 1,
+                                        referredByMatches.length - 1
+                                      );
+                                    });
+                                  }
+                                  return;
+                                }
+                                if (event.key === "ArrowUp") {
+                                  event.preventDefault();
+                                  if (referredByMatches.length > 0) {
+                                    setReferredByActiveIndex((prev) => {
+                                      if (prev <= 0) {
+                                        return 0;
+                                      }
+                                      return prev - 1;
+                                    });
+                                  }
+                                  return;
+                                }
                                 if (event.key === "Enter") {
                                   event.preventDefault();
                                   if (referredByMatches.length > 0) {
-                                    handleReferredBySelect(referredByMatches[0]);
+                                    const nextIndex =
+                                      referredByActiveIndex >= 0
+                                        ? referredByActiveIndex
+                                        : 0;
+                                    const match = referredByMatches[nextIndex];
+                                    if (match) {
+                                      handleReferredBySelect(match);
+                                      return;
+                                    }
                                     return;
                                   }
                                   handleReferredByCommit();
@@ -4203,10 +4739,12 @@ export default function ClientsDashboard() {
                               <div className={styles.referredByResults}>
                                 {referredByMatches.length > 0 ? (
                                   <ul className={styles.referredByList}>
-                                    {referredByMatches.map((client) => {
+                                    {referredByMatches.map((client, index) => {
                                       const isSelected =
                                         parseReferredById(referredBySelected) ===
                                         client.id;
+                                      const isActive =
+                                        index === referredByActiveIndex && !isSelected;
                                       return (
                                         <li key={client.id}>
                                           <button
@@ -4214,8 +4752,13 @@ export default function ClientsDashboard() {
                                               isSelected
                                                 ? styles.referredByItemSelected
                                                 : ""
+                                            } ${
+                                              isActive ? styles.referredByItemActive : ""
                                             }`}
                                             type="button"
+                                            onMouseEnter={() =>
+                                              setReferredByActiveIndex(index)
+                                            }
                                             onMouseDown={(event) => {
                                               event.preventDefault();
                                               handleReferredBySelect(client);
@@ -4443,7 +4986,7 @@ export default function ClientsDashboard() {
               activeTab === tab.id ? styles.tabButtonActive : ""
             }`}
             type="button"
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleWorkspaceTabChange(tab.id)}
             aria-pressed={activeTab === tab.id}
           >
             {tab.label}
@@ -4767,13 +5310,14 @@ export default function ClientsDashboard() {
                   {loadingProducts && (
                     <p className={styles.notice}>Loading products...</p>
                   )}
-                  {!loadingProducts && sortedProducts.length === 0 && (
+                  {!loadingProducts && productGroups.length === 0 && (
                     <p className={styles.notice}>No products yet.</p>
                   )}
-                  {!loadingProducts && sortedProducts.length > 0 && (
+                  {!loadingProducts && productGroups.length > 0 && (
                     <table className={styles.appointmentsTable}>
                       <thead>
                         <tr>
+                          <th className={styles.productToggleHeader} />
                           <th>Date</th>
                           <th>Product</th>
                           <th>Size</th>
@@ -4782,24 +5326,91 @@ export default function ClientsDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedProducts.map((entry) => (
-                          <tr
-                            key={entry.id}
-                            className={
-                              selectedProductId === entry.id
-                                ? styles.appointmentRowSelected
-                                : undefined
+                        {productGroups.map((group) => {
+                          const isSelected = selectedProductGroupDate === group.date;
+                          const isCollapsed = collapsedProductDates[group.date] ?? false;
+                          if (group.items.length === 1) {
+                            const entry = group.items[0];
+                            if (!entry) {
+                              return null;
                             }
-                            onClick={() => handleProductSelect(entry)}
-                            onDoubleClick={() => handleProductEdit(entry)}
-                          >
-                            <td>{entry.date}</td>
-                            <td>{entry.product}</td>
-                            <td>{entry.size ?? ""}</td>
-                            <td>{entry.cost ?? ""}</td>
-                            <td>{entry.brand ?? ""}</td>
-                          </tr>
-                        ))}
+                            return (
+                              <tr
+                                key={entry.id}
+                                className={
+                                  isSelected ? styles.appointmentRowSelected : undefined
+                                }
+                                onClick={() => handleProductGroupSelect(group.date)}
+                                onDoubleClick={() => handleProductEdit(entry)}
+                              >
+                                <td className={styles.productToggleCell} />
+                                <td>{entry.date}</td>
+                                <td>{entry.product}</td>
+                                <td>{entry.size ?? ""}</td>
+                                <td>{entry.cost ?? ""}</td>
+                                <td>{entry.brand ?? ""}</td>
+                              </tr>
+                            );
+                          }
+
+                          return (
+                            <Fragment key={group.date}>
+                              <tr
+                                className={`${styles.productGroupRow} ${
+                                  isSelected ? styles.appointmentRowSelected : ""
+                                }`}
+                                onClick={() => handleProductGroupSelect(group.date)}
+                              >
+                                <td className={styles.productToggleCell}>
+                                  <button
+                                    className={styles.productGroupToggle}
+                                    type="button"
+                                    aria-label={
+                                      isCollapsed
+                                        ? "Expand product group"
+                                        : "Collapse product group"
+                                    }
+                                    aria-pressed={!isCollapsed}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleProductGroupSelect(group.date);
+                                      toggleProductGroupCollapsed(group.date);
+                                    }}
+                                  >
+                                    {isCollapsed ? ">" : "v"}
+                                  </button>
+                                </td>
+                                <td>{group.date}</td>
+                                <td colSpan={4} className={styles.productGroupSummary}>
+                                  {group.items.length} products
+                                </td>
+                              </tr>
+                              {!isCollapsed &&
+                                group.items.map((entry) => (
+                                  <tr
+                                    key={entry.id}
+                                    className={
+                                      isSelected
+                                        ? styles.appointmentRowSelected
+                                        : undefined
+                                    }
+                                    onClick={() => handleProductGroupSelect(group.date)}
+                                    onDoubleClick={() => handleProductEdit(entry)}
+                                  >
+                                    <td className={styles.productToggleCell} />
+                                    <td
+                                      className={styles.productTreeDateCell}
+                                      aria-hidden="true"
+                                    />
+                                    <td>{entry.product}</td>
+                                    <td>{entry.size ?? ""}</td>
+                                    <td>{entry.cost ?? ""}</td>
+                                    <td>{entry.brand ?? ""}</td>
+                                  </tr>
+                                ))}
+                            </Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
@@ -4838,22 +5449,49 @@ export default function ClientsDashboard() {
                           />
                         </div>
                         <div className={styles.field}>
+                          <span className={styles.label}>Brand</span>
+                          <select
+                            className={styles.select}
+                            name="brand"
+                            value={productForm.brand}
+                            onChange={handleProductBrandChange}
+                          >
+                            <option value="">Select brand</option>
+                            {hasCustomBrand && (
+                              <option value={productForm.brand}>
+                                {productForm.brand}
+                              </option>
+                            )}
+                            {productBrands.map((brand) => (
+                              <option key={brand} value={brand}>
+                                {brand}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className={styles.field}>
                           <span className={styles.label}>Product</span>
                           <select
                             className={styles.select}
                             name="product"
                             value={productForm.product}
                             onChange={handleProductSelectChange}
+                            disabled={!productForm.brand}
                           >
-                            <option value="">Select product</option>
+                            <option value="">
+                              {productForm.brand
+                                ? "Select product"
+                                : "Select brand first"}
+                            </option>
                             {hasCustomProduct && (
                               <option value={productForm.product}>
                                 {productForm.product}
                               </option>
                             )}
-                            {PRODUCT_CATALOG.map((item) => (
+                            {filteredCatalogProducts.map((item) => (
                               <option key={item.name} value={item.name}>
-                                {item.name}
+                                {item.name} ({item.size},{" "}
+                                {formatCurrencyInput(String(item.price))})
                               </option>
                             ))}
                           </select>
@@ -4873,15 +5511,6 @@ export default function ClientsDashboard() {
                             className={styles.input}
                             name="cost"
                             value={productForm.cost}
-                            onChange={handleProductChange}
-                          />
-                        </div>
-                        <div className={styles.field}>
-                          <span className={styles.label}>Brand</span>
-                          <input
-                            className={styles.input}
-                            name="brand"
-                            value={productForm.brand}
                             onChange={handleProductChange}
                           />
                         </div>
@@ -4912,33 +5541,62 @@ export default function ClientsDashboard() {
                     </div>
                   </div>
                   <div className={styles.appointmentNotesBody}>
-                    {!selectedProduct && (
+                    {!selectedProductReceipt && (
                       <p className={styles.appointmentNotesHint}>
                         Select a product to view details.
                       </p>
                     )}
-                    {selectedProduct && (
-                      <div className={styles.appointmentNoteDetail}>
-                        <div className={styles.appointmentNoteHeader}>
-                          <span className={styles.appointmentNoteTitle}>
-                            {selectedProduct.product || "Product"}
+                    {selectedProductReceipt && (
+                      <div className={styles.productReceipt}>
+                        <div className={styles.productReceiptHeader}>
+                          <span className={styles.productReceiptTitle}>
+                            Receipt
                           </span>
-                          <span className={styles.appointmentNoteMeta}>
-                            {selectedProduct.date || "Date"}
+                          <span className={styles.productReceiptDate}>
+                            {selectedProductReceipt.date}
                           </span>
                         </div>
-                        {selectedProduct.brand && (
-                          <div className={styles.appointmentNoteSub}>
-                            {selectedProduct.brand}
+                        {selectedProductReceipt.brands.map((group) => (
+                          <div
+                            key={group.brand}
+                            className={styles.productReceiptGroup}
+                          >
+                            <div className={styles.productReceiptBrand}>
+                              {group.brand}
+                            </div>
+                            <div className={styles.productReceiptItems}>
+                              {group.items.map((entry) => (
+                                <div
+                                  key={entry.id}
+                                  className={styles.productReceiptItem}
+                                >
+                                  <div>
+                                    <div className={styles.productReceiptName}>
+                                      {entry.product || "Product"}
+                                    </div>
+                                    <div className={styles.productReceiptMeta}>
+                                      {entry.size
+                                        ? `Size: ${entry.size}`
+                                        : "Size: —"}
+                                    </div>
+                                  </div>
+                                  <div className={styles.productReceiptCost}>
+                                    {entry.cost
+                                      ? formatCurrencyInput(entry.cost)
+                                      : "—"}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        )}
-                        <div className={styles.appointmentNoteBodyFull}>
-                          {selectedProduct.size
-                            ? `Size: ${selectedProduct.size}`
-                            : "Size: —"}
-                          {selectedProduct.cost
-                            ? `\nCost: ${selectedProduct.cost}`
-                            : "\nCost: —"}
+                        ))}
+                        <div className={styles.productReceiptTotal}>
+                          <span>Total</span>
+                          <span>
+                            {formatCurrencyInput(
+                              selectedProductReceipt.total.toFixed(2)
+                            )}
+                          </span>
                         </div>
                       </div>
                     )}
@@ -5462,6 +6120,253 @@ export default function ClientsDashboard() {
           </div>
         )}
 
+        {activeTab === "notes" && (
+          <div className={styles.section}>
+            <div className={styles.sectionHeaderRow}>
+              <h2 className={styles.sectionTitle}>Notes</h2>
+              {selectedClientId && (
+                <button
+                  className={styles.button}
+                  type={isNoteFormOpen ? "submit" : "button"}
+                  form={isNoteFormOpen ? "note-create-form" : undefined}
+                  onClick={() => {
+                    if (!isNoteFormOpen) {
+                      handleNoteFormToggle();
+                    }
+                  }}
+                >
+                  {isNoteFormOpen ? "Save Note" : "Add Note"}
+                </button>
+              )}
+            </div>
+            {!selectedClientId && (
+              <p className={styles.notice}>Select a client to add notes.</p>
+            )}
+            {selectedClientId && (
+              <div className={styles.notesLayout}>
+                {isNoteFormOpen && (
+                  <form
+                    id="note-create-form"
+                    className={styles.notesForm}
+                    onSubmit={handleNoteCreate}
+                  >
+                    <div className={styles.notesRow}>
+                      <label className={styles.field}>
+                        <span className={styles.label}>Date last seen</span>
+                        <input
+                          className={styles.input}
+                          name="date_seen"
+                          placeholder="MM/DD/YYYY"
+                          inputMode="numeric"
+                          value={noteDraft.date_seen}
+                          onChange={handleNoteDraftChange}
+                        />
+                      </label>
+                      <label className={styles.field}>
+                        <span className={styles.label}>Notes</span>
+                        <textarea
+                          className={`${styles.textarea} ${styles.notesTextarea}`}
+                          name="notes"
+                          placeholder="Add appointment notes..."
+                          value={noteDraft.notes}
+                          onChange={handleNoteDraftChange}
+                        />
+                      </label>
+                      <div className={styles.notesDoneField}>
+                        <span className={styles.label}>Done</span>
+                        <label className={styles.notesDoneToggle}>
+                          <input type="checkbox" disabled />
+                          <span className={styles.notesDoneLabel}>Not set</span>
+                        </label>
+                      </div>
+                    </div>
+                  </form>
+                )}
+
+                {loadingNotes && (
+                  <p className={styles.notice}>Loading notes...</p>
+                )}
+                {!loadingNotes && sortedNotes.length === 0 && (
+                  <p className={styles.notice}>No notes yet.</p>
+                )}
+                {!loadingNotes && sortedNotes.length > 0 && (
+                  <div className={styles.notesList}>
+                    {sortedNotes.map((note) => {
+                      const isDone = Boolean(note.done_at);
+                      const isEditing = editingNoteId === note.id;
+                      const isUnlocked = unlockedNoteIds[note.id] ?? false;
+                      const doneLocked = isDone && !isUnlocked;
+                      return (
+                        <div key={note.id} className={styles.notesItem}>
+                          {isEditing ? (
+                            <div className={styles.notesRow}>
+                              <label className={styles.field}>
+                                <span className={styles.label}>Date last seen</span>
+                                <input
+                                  className={styles.input}
+                                  name="date_seen"
+                                  placeholder="MM/DD/YYYY"
+                                  inputMode="numeric"
+                                  value={note.date_seen}
+                                  onChange={(event) =>
+                                    handleNoteFieldChange(
+                                      note.id,
+                                      "date_seen",
+                                      event.target.value
+                                    )
+                                  }
+                                />
+                              </label>
+                              <label className={styles.field}>
+                                <span className={styles.label}>Notes</span>
+                                <textarea
+                                  className={`${styles.textarea} ${styles.notesTextarea}`}
+                                  name="notes"
+                                  placeholder="Add appointment notes..."
+                                  value={note.notes}
+                                  onChange={(event) =>
+                                    handleNoteFieldChange(
+                                      note.id,
+                                      "notes",
+                                      event.target.value
+                                    )
+                                  }
+                                />
+                              </label>
+                              <div className={styles.notesDoneField}>
+                                <span className={styles.label}>Done</span>
+                                <label className={styles.notesDoneToggle}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isDone}
+                                    disabled={doneLocked}
+                                    onChange={(event) =>
+                                      handleNoteToggleDone(note, event.target.checked)
+                                    }
+                                  />
+                                  <span className={styles.notesDoneLabel}>
+                                    {note.done_at ? note.done_at : "Not set"}
+                                  </span>
+                                  {note.done_at && (
+                                    <button
+                                      className={`${styles.notesLockButton} ${
+                                        isUnlocked
+                                          ? styles.notesLockButtonUnlocked
+                                          : ""
+                                      }`}
+                                      type="button"
+                                      onClick={() => toggleNoteLock(note.id)}
+                                      aria-label={
+                                        isUnlocked
+                                          ? "Lock done status"
+                                          : "Unlock done status"
+                                      }
+                                    >
+                                      <span
+                                        className={styles.notesLockIcon}
+                                        aria-hidden="true"
+                                      />
+                                    </button>
+                                  )}
+                                </label>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className={styles.notesView}>
+                              <div className={styles.notesViewRow}>
+                                <div className={styles.notesViewBlock}>
+                                  <div className={styles.notesViewLabel}>
+                                    Date last seen
+                                  </div>
+                                  <div className={styles.notesViewValue}>
+                                    {note.date_seen || "—"}
+                                  </div>
+                                </div>
+                                <div className={styles.notesViewBlock}>
+                                  <div className={styles.notesViewLabel}>Notes</div>
+                                  <div className={styles.notesViewText}>
+                                    {note.notes || "—"}
+                                  </div>
+                                </div>
+                                <div className={styles.notesDoneField}>
+                                  <div className={styles.notesViewLabel}>Done</div>
+                                  <label className={styles.notesDoneToggle}>
+                                    <input
+                                      type="checkbox"
+                                      checked={isDone}
+                                      disabled={doneLocked}
+                                      onChange={(event) =>
+                                        handleNoteToggleDone(
+                                          note,
+                                          event.target.checked
+                                        )
+                                      }
+                                    />
+                                    <span className={styles.notesDoneLabel}>
+                                      {note.done_at ? note.done_at : "Not set"}
+                                    </span>
+                                    {note.done_at && (
+                                      <button
+                                        className={`${styles.notesLockButton} ${
+                                          isUnlocked
+                                            ? styles.notesLockButtonUnlocked
+                                            : ""
+                                        }`}
+                                        type="button"
+                                        onClick={() => toggleNoteLock(note.id)}
+                                        aria-label={
+                                          isUnlocked
+                                            ? "Lock done status"
+                                            : "Unlock done status"
+                                        }
+                                      >
+                                        <span
+                                          className={styles.notesLockIcon}
+                                          aria-hidden="true"
+                                        />
+                                      </button>
+                                    )}
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <div className={styles.notesActions}>
+                            {isEditing ? (
+                              <button
+                                className={styles.buttonSecondary}
+                                type="button"
+                                onClick={() => handleNoteSave(note)}
+                              >
+                                Save
+                              </button>
+                            ) : (
+                              <button
+                                className={styles.buttonSecondary}
+                                type="button"
+                                onClick={() => handleNoteEdit(note.id)}
+                              >
+                                Edit
+                              </button>
+                            )}
+                            <button
+                              className={`${styles.buttonSecondary} ${styles.buttonDanger}`}
+                              type="button"
+                              onClick={() => handleNoteDelete(note)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === "prescriptions" && (
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>Prescriptions</h2>
@@ -5497,12 +6402,23 @@ export default function ClientsDashboard() {
                           selectedPrescriptionId === prescription.id
                             ? styles.prescriptionItemSelected
                             : ""
+                        } ${
+                          prescription.is_current
+                            ? styles.prescriptionItemCurrent
+                            : ""
                         }`}
                         onClick={() => handlePrescriptionSelect(prescription)}
                         onDoubleClick={() => setIsPrescriptionEditing(true)}
                       >
-                        <div className={styles.clientItemName}>
-                          {prescription.start_date ?? "Unknown"}
+                        <div className={styles.prescriptionItemHeader}>
+                          <div className={styles.clientItemName}>
+                            {prescription.start_date ?? "Unknown"}
+                          </div>
+                          {prescription.is_current ? (
+                            <span className={styles.prescriptionCurrentBadge}>
+                              Current
+                            </span>
+                          ) : null}
                         </div>
                         <div className={styles.notice}>
                           {prescription.form_type ?? "Unknown"}
@@ -5529,11 +6445,12 @@ export default function ClientsDashboard() {
                           Edit
                         </button>
                         <button
-                          className={`${styles.buttonSecondary} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                          className={styles.buttonSecondary}
                           type="button"
-                          onClick={handlePrescriptionDelete}
+                          onClick={handlePrescriptionMarkCurrent}
+                          disabled={isCurrentPrescription}
                         >
-                          Delete
+                          {isCurrentPrescription ? "Current" : "Mark Current"}
                         </button>
                       </div>
                       <div className={styles.copyPanel}>
