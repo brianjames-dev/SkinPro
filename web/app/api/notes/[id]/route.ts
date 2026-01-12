@@ -1,21 +1,8 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { ensureNotesTable } from "@/lib/api/ensureTables";
 
 export const runtime = "nodejs";
-
-const ensureNotesTable = () => {
-  const db = getDb();
-  db.prepare(
-    "CREATE TABLE IF NOT EXISTS client_notes (" +
-      "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-      "client_id INTEGER NOT NULL, " +
-      "date_seen TEXT NOT NULL, " +
-      "notes TEXT NOT NULL, " +
-      "done_at TEXT, " +
-      "created_at TEXT NOT NULL" +
-      ")"
-  ).run();
-};
 
 export async function PATCH(
   request: Request,

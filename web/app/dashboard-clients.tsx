@@ -1,9 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import styles from "./clients/clients.module.css";
+import Button from "./ui/Button";
+import ButtonLink from "./ui/ButtonLink";
+import Field from "./ui/Field";
+import Notice from "./ui/Notice";
+import { formatAddress } from "@/lib/format";
 
 type Client = {
   id: number;
@@ -22,12 +26,6 @@ type Client = {
 type ClientsResponse = {
   clients: Client[];
   error?: string;
-};
-
-const formatAddress = (client: Client) => {
-  const line1 = [client.address1, client.address2].filter(Boolean).join(" ").trim();
-  const line2 = [client.city, client.state, client.zip].filter(Boolean).join(" ").trim();
-  return [line1, line2].filter(Boolean).join(", ");
 };
 
 export default function DashboardClients() {
@@ -250,24 +248,23 @@ export default function DashboardClients() {
       <div className={styles.tableHeader}>
         <div>
           <h2 className={styles.tableTitle}>Clients Directory</h2>
-          <p className={styles.notice}>
+          <Notice>
             Search by name or open the workspace to edit details.
-          </p>
+          </Notice>
         </div>
         <div className={styles.tableActions}>
-          <button
-            className={styles.button}
+          <Button
             type="button"
             onClick={handleOpenWorkspace}
             disabled={!selectedClientId}
           >
             Open Workspace
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className={styles.searchBar}>
-        <label className={styles.field}>
+        <Field>
           <input
             className={styles.input}
             name="search"
@@ -313,24 +310,16 @@ export default function DashboardClients() {
               }
             }}
           />
-        </label>
-        <button
-          className={styles.buttonSecondary}
-          type="button"
-          onClick={handleSearch}
-        >
+        </Field>
+        <Button variant="secondary" type="button" onClick={handleSearch}>
           Search
-        </button>
-        <button
-          className={styles.buttonSecondary}
-          type="button"
-          onClick={handleClear}
-        >
+        </Button>
+        <Button variant="secondary" type="button" onClick={handleClear}>
           Clear
-        </button>
-        <Link className={styles.buttonSecondary} href={addClientHref}>
+        </Button>
+        <ButtonLink variant="secondary" href={addClientHref}>
           Add Client
-        </Link>
+        </ButtonLink>
       </div>
 
       <div

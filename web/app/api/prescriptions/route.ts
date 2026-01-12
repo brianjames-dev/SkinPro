@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { generatePrescriptionPdf } from "@/lib/prescriptions/generatePrescription";
-import { ensureCurrentPrescriptionColumn } from "./utils";
+import { ensureCurrentPrescriptionColumn } from "@/lib/api/ensureTables";
 
 export const runtime = "nodejs";
 

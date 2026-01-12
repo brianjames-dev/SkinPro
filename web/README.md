@@ -5,6 +5,15 @@ Local Next.js UI backed by the existing SkinPro SQLite database and SkinProData 
 Prereqs
 - Node 20 LTS (avoid Node 24 for better-sqlite3 prebuilds)
 - Run the current desktop app at least once so it creates SkinProData and the pointer file
+- Set `SKINPRO_PIN` to enable the access gate
+
+Security config
+- `SKINPRO_PIN` access PIN for the web UI and API
+- `SKINPRO_AUTH_TTL_MINUTES` cookie TTL (default: 10080 = 7 days)
+- `SKINPRO_AUTH_SECRET` optional HMAC secret override
+- `SKINPRO_AUTH_DISABLED=1` to bypass auth (local dev only)
+- `SKINPRO_QR_TOKEN_TTL_MINUTES` QR upload token TTL (default: 10)
+- `SKINPRO_QR_LAN=1` to allow LAN QR links (default is localhost only)
 
 Config lookup order
 1) `SKINPRO_DATA_DIR` env var (optional override)
@@ -19,7 +28,7 @@ Run
 Notes
 - PDF generation uses `icons/corium_logo.png` (created from the original WebP).
 - Use `[[highlight]]` and `[[/highlight]]` in directions to highlight text in PDFs.
-- QR uploads use the local LAN IP. Override with `SKINPRO_QR_HOST` if needed.
+- QR uploads default to localhost; use `SKINPRO_QR_HOST` or `SKINPRO_QR_LAN=1` to enable LAN QR links.
 - Prescription templates are stored in `SkinProData/prescriptions/templates.json`.
 
 Endpoints
@@ -57,10 +66,10 @@ Endpoints
 - `GET /api/prescriptions/templates`
 - `POST /api/prescriptions/templates`
 - `DELETE /api/prescriptions/templates/[id]`
-- `GET /api/uploads/qr?cid=123&aid=456`
-- `POST /api/uploads/qr?cid=123&aid=456`
-- `GET /api/uploads/profile?cid=123`
-- `POST /api/uploads/profile?cid=123`
+- `GET /api/uploads/qr?token=...`
+- `POST /api/uploads/qr?token=...`
+- `GET /api/uploads/profile?token=...`
+- `POST /api/uploads/profile?token=...`
 - `GET /api/uploads/qr-code?mode=photo&client_id=123&appointment_id=456`
 
 PDF prototype

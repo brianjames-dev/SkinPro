@@ -2,6 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import styles from "./clients/clients.module.css";
+import Badge from "./ui/Badge";
+import Button from "./ui/Button";
+import ButtonRow from "./ui/ButtonRow";
+import ConfirmDialog from "./ui/ConfirmDialog";
+import Field from "./ui/Field";
+import Notice from "./ui/Notice";
+import SearchMenu from "./ui/SearchMenu";
+import StatusMessage from "./ui/StatusMessage";
+import { formatDateInput, normalizeDateInput } from "@/lib/format";
+import { parseDateParts, parseMmddyyyy } from "@/lib/parse";
+import useKeyboardListNavigation from "../lib/hooks/useKeyboardListNavigation";
 
 type Alert = {
   id: number;
@@ -26,56 +37,6 @@ type AlertsResponse = {
 type ClientsResponse = {
   clients?: ClientOption[];
   error?: string;
-};
-
-const parseMmddyyyy = (value: string): number => {
-  const [month, day, year] = value.split("/").map(Number);
-  if (!month || !day || !year) {
-    return 0;
-  }
-  const parsed = new Date(year, month - 1, day);
-  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
-};
-
-const normalizeDateInput = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-  const digits = trimmed.replace(/\D/g, "");
-  if (digits.length === 8) {
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-  }
-  const normalized = trimmed.replace(/[-.]/g, "/");
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(normalized)) {
-    return normalized;
-  }
-  return trimmed;
-};
-
-const formatDateInput = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
-  if (digits.length <= 2) {
-    return digits;
-  }
-  if (digits.length <= 4) {
-    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  }
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-};
-
-const parseDateParts = (value: string) => {
-  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) {
-    return null;
-  }
-  const month = Number(match[1]);
-  const day = Number(match[2]);
-  const year = Number(match[3]);
-  if (!month || !day || !year) {
-    return null;
-  }
-  return { month, day, year };
 };
 
 const calculateAlertStatus = (deadline: string) => {
@@ -119,13 +80,13 @@ export default function DashboardAlerts() {
   const [loadingClients, setLoadingClients] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientSearchQuery, setClientSearchQuery] = useState("");
-  const [clientSearchActiveIndex, setClientSearchActiveIndex] = useState(-1);
   const [alertDeadline, setAlertDeadline] = useState("");
   const [alertNotes, setAlertNotes] = useState("");
   const [editingAlertId, setEditingAlertId] = useState<number | null>(null);
   const [editAlertDeadline, setEditAlertDeadline] = useState("");
   const [editAlertNotes, setEditAlertNotes] = useState("");
   const [isAlertFormOpen, setIsAlertFormOpen] = useState(false);
+  const [alertPendingDelete, setAlertPendingDelete] = useState<Alert | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -149,17 +110,18 @@ export default function DashboardAlerts() {
 
   const hasClientSearchQuery = clientSearchQuery.trim().length > 0;
   const canShowClientResults = hasClientSearchQuery && !selectedClientId;
-
-  const activeClientSearchId = useMemo(() => {
-    if (
-      !canShowClientResults ||
-      clientSearchActiveIndex < 0 ||
-      clientSearchActiveIndex >= clientMatches.length
-    ) {
-      return null;
+  const {
+    activeIndex: clientSearchActiveIndex,
+    setActiveIndex: setClientSearchActiveIndex,
+    onKeyDown: handleClientSearchKeyDown
+  } = useKeyboardListNavigation<ClientOption>({
+    items: clientMatches,
+    isOpen: canShowClientResults,
+    onSelect: (client) => {
+      setSelectedClientId(String(client.id));
+      setClientSearchQuery(client.full_name);
     }
-    return clientMatches[clientSearchActiveIndex].id;
-  }, [canShowClientResults, clientMatches, clientSearchActiveIndex]);
+  });
 
   const sortedAlerts = useMemo(() => {
     return [...alerts].sort((a, b) => parseMmddyyyy(a.deadline) - parseMmddyyyy(b.deadline));
@@ -228,22 +190,6 @@ export default function DashboardAlerts() {
     void loadAlerts();
     void loadClients();
   }, []);
-
-  useEffect(() => {
-    setClientSearchActiveIndex(-1);
-  }, [clientSearchQuery]);
-
-  useEffect(() => {
-    if (!canShowClientResults || clientMatches.length === 0) {
-      if (clientSearchActiveIndex !== -1) {
-        setClientSearchActiveIndex(-1);
-      }
-      return;
-    }
-    if (clientSearchActiveIndex >= clientMatches.length) {
-      setClientSearchActiveIndex(clientMatches.length - 1);
-    }
-  }, [canShowClientResults, clientSearchActiveIndex, clientMatches.length]);
 
   const resetAlertForm = () => {
     setSelectedClientId("");
@@ -337,11 +283,6 @@ export default function DashboardAlerts() {
   };
 
   const handleAlertDelete = async (alert: Alert) => {
-    const confirmDelete = window.confirm("Delete this alert?");
-    if (!confirmDelete) {
-      return;
-    }
-
     try {
       const response = await fetch(`/api/alerts/${alert.id}`, {
         method: "DELETE"
@@ -360,25 +301,29 @@ export default function DashboardAlerts() {
     }
   };
 
+  const handleAlertDeleteConfirm = async () => {
+    if (!alertPendingDelete) {
+      return;
+    }
+    const alert = alertPendingDelete;
+    setAlertPendingDelete(null);
+    await handleAlertDelete(alert);
+  };
+
   return (
     <section className={`${styles.panel} ${styles.workspacePanel}`}>
       <div className={styles.section}>
         <div className={styles.sectionHeaderRow}>
           <h2 className={styles.sectionTitle}>Alerts</h2>
           {!isAlertFormOpen && (
-            <button
-              className={styles.button}
-              type="button"
-              onClick={() => setIsAlertFormOpen(true)}
-            >
+            <Button type="button" onClick={() => setIsAlertFormOpen(true)}>
               New Alert
-            </button>
+            </Button>
           )}
         </div>
         {isAlertFormOpen && (
           <form onSubmit={handleAlertCreate} className={styles.alertForm}>
-            <label className={styles.field}>
-              <span className={styles.label}>Client</span>
+            <Field label="Client">
               <div className={styles.referredByField}>
                 <input
                   className={styles.input}
@@ -395,96 +340,47 @@ export default function DashboardAlerts() {
                     if (selectedClientId) {
                       setSelectedClientId("");
                     }
+                    setClientSearchActiveIndex(-1);
                   }}
                   onKeyDown={(event) => {
-                    if (event.key === "ArrowDown" && canShowClientResults) {
-                      event.preventDefault();
-                      if (clientMatches.length > 0) {
-                        setClientSearchActiveIndex((prev) =>
-                          Math.min(prev + 1, clientMatches.length - 1)
-                        );
-                      }
+                    if (handleClientSearchKeyDown(event)) {
                       return;
-                    }
-                    if (event.key === "ArrowUp" && canShowClientResults) {
-                      event.preventDefault();
-                      if (clientMatches.length > 0) {
-                        setClientSearchActiveIndex((prev) =>
-                          prev <= 0 ? 0 : prev - 1
-                        );
-                      }
-                      return;
-                    }
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      if (canShowClientResults && clientMatches.length > 0) {
-                        const nextIndex =
-                          clientSearchActiveIndex >= 0
-                            ? clientSearchActiveIndex
-                            : 0;
-                        const nextClient = clientMatches[nextIndex];
-                        setSelectedClientId(String(nextClient.id));
-                        setClientSearchQuery(nextClient.full_name);
-                        setClientSearchActiveIndex(-1);
-                      }
                     }
                   }}
                   disabled={loadingClients}
                 />
                 {canShowClientResults && (
-                  <div className={styles.referredByResults}>
-                    {loadingClients && (
-                      <div className={styles.notice}>Loading clients...</div>
-                    )}
-                    {!loadingClients && clientMatches.length === 0 && (
-                      <div className={styles.referredByEmpty}>No results</div>
-                    )}
-                    {!loadingClients && clientMatches.length > 0 && (
-                      <ul className={styles.referredByList}>
-                        {clientMatches.map((client) => (
-                          <li key={client.id}>
-                            <button
-                              className={`${styles.referredByItem} ${
-                                activeClientSearchId === client.id
-                                  ? styles.referredByItemSelected
-                                  : ""
-                              }`}
-                              type="button"
-                              onMouseDown={(event) => {
-                                event.preventDefault();
-                                setSelectedClientId(String(client.id));
-                                setClientSearchQuery(client.full_name);
-                                setClientSearchActiveIndex(-1);
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter" || event.key === " ") {
-                                  event.preventDefault();
-                                  setSelectedClientId(String(client.id));
-                                  setClientSearchQuery(client.full_name);
-                                  setClientSearchActiveIndex(-1);
-                                }
-                              }}
-                              aria-selected={activeClientSearchId === client.id}
-                            >
-                              <span className={styles.referredByName}>
-                                {client.full_name}
-                              </span>
-                              {client.primary_phone && (
-                                <span className={styles.referredByMeta}>
-                                  {client.primary_phone}
-                                </span>
-                              )}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  <SearchMenu
+                    show
+                    loading={loadingClients}
+                    loadingMessage="Loading clients..."
+                    emptyMessage="No results"
+                    items={clientMatches}
+                    activeIndex={clientSearchActiveIndex}
+                    onActiveIndexChange={setClientSearchActiveIndex}
+                    getKey={(client) => client.id}
+                    getLabel={(client) => client.full_name}
+                    getMeta={(client) => client.primary_phone ?? ""}
+                    onSelect={(client) => {
+                      setSelectedClientId(String(client.id));
+                      setClientSearchQuery(client.full_name);
+                      setClientSearchActiveIndex(-1);
+                    }}
+                    containerClassName={styles.referredByResults}
+                    listClassName={styles.referredByList}
+                    itemClassName={styles.referredByItem}
+                    itemSelectedClassName={styles.referredByItemSelected}
+                    itemActiveClassName={styles.referredByItemSelected}
+                    labelClassName={styles.referredByName}
+                    metaClassName={styles.referredByMeta}
+                    emptyClassName={styles.referredByEmpty}
+                    labelElement="span"
+                    metaElement="span"
+                  />
                 )}
               </div>
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>Deadline</span>
+            </Field>
+            <Field label="Deadline">
               <input
                 className={styles.input}
                 placeholder="MM/DD/YYYY"
@@ -495,26 +391,21 @@ export default function DashboardAlerts() {
                 }
                 disabled={!selectedClient}
               />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>Notes</span>
+            </Field>
+            <Field label="Notes">
               <textarea
                 className={styles.textarea}
                 value={alertNotes}
                 onChange={(event) => setAlertNotes(event.target.value)}
                 disabled={!selectedClient}
               />
-            </label>
-            <div className={`${styles.buttonRow} ${styles.alertFormActions}`}>
-              <button
-                className={styles.button}
-                type="submit"
-                disabled={!selectedClient}
-              >
+            </Field>
+            <ButtonRow className={styles.alertFormActions}>
+              <Button type="submit" disabled={!selectedClient}>
                 Set Alert
-              </button>
-              <button
-                className={styles.buttonSecondary}
+              </Button>
+              <Button
+                variant="secondary"
                 type="button"
                 onClick={() => {
                   resetAlertForm();
@@ -522,23 +413,21 @@ export default function DashboardAlerts() {
                 }}
               >
                 Cancel
-              </button>
+              </Button>
               {selectedClient ? (
-                <span className={styles.notice}>
+                <Notice as="span">
                   Setting alert for {selectedClient.full_name}.
-                </span>
+                </Notice>
               ) : (
-                <span className={styles.notice}>
-                  Select a client to set a new alert.
-                </span>
+                <Notice as="span">Select a client to set a new alert.</Notice>
               )}
-            </div>
+            </ButtonRow>
           </form>
         )}
 
-        {loadingAlerts && <p className={styles.notice}>Loading alerts...</p>}
+        {loadingAlerts && <Notice>Loading alerts...</Notice>}
         {!loadingAlerts && sortedAlerts.length === 0 && (
-          <p className={styles.notice}>No alerts yet.</p>
+          <Notice>No alerts yet.</Notice>
         )}
         {!loadingAlerts && sortedAlerts.length > 0 && (
           <div className={styles.alertsTableWrap}>
@@ -560,33 +449,32 @@ export default function DashboardAlerts() {
                     <tr key={alert.id}>
                       <td>{alert.full_name}</td>
                       <td>
-                        <span
-                          className={`${styles.alertStatus} ${getAlertStatusClass(
-                            statusText
-                          )}`}
+                        <Badge
+                          baseClassName={styles.alertStatus}
+                          toneClassName={getAlertStatusClass(statusText)}
                         >
                           {statusText}
-                        </span>
+                        </Badge>
                       </td>
                       <td>{alert.deadline}</td>
                       <td>{alert.primary_phone ?? ""}</td>
                       <td>{alert.notes ?? ""}</td>
                       <td>
                         <div className={styles.alertActions}>
-                          <button
-                            className={styles.buttonSecondary}
+                          <Button
+                            variant="secondary"
                             type="button"
                             onClick={() => handleAlertEditStart(alert)}
                           >
                             Edit
-                          </button>
-                          <button
-                            className={`${styles.button} ${styles.buttonDanger}`}
+                          </Button>
+                          <Button
+                            danger
                             type="button"
-                            onClick={() => handleAlertDelete(alert)}
+                            onClick={() => setAlertPendingDelete(alert)}
                           >
                             Delete
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -601,8 +489,7 @@ export default function DashboardAlerts() {
           <form onSubmit={handleAlertUpdate} className={styles.alertEditPanel}>
             <h3>Edit Alert</h3>
             <div className={styles.formGrid}>
-              <label className={styles.field}>
-                <span className={styles.label}>Deadline</span>
+              <Field label="Deadline">
                 <input
                   className={styles.input}
                   placeholder="MM/DD/YYYY"
@@ -612,33 +499,44 @@ export default function DashboardAlerts() {
                     setEditAlertDeadline(formatDateInput(event.target.value))
                   }
                 />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.label}>Notes</span>
+              </Field>
+              <Field label="Notes">
                 <textarea
                   className={styles.textarea}
                   value={editAlertNotes}
                   onChange={(event) => setEditAlertNotes(event.target.value)}
                 />
-              </label>
+              </Field>
             </div>
-            <div className={styles.buttonRow}>
-              <button className={styles.button} type="submit">
-                Save Changes
-              </button>
-              <button
-                className={styles.buttonSecondary}
+            <ButtonRow>
+              <Button type="submit">Save Changes</Button>
+              <Button
+                variant="secondary"
                 type="button"
                 onClick={handleAlertEditCancel}
               >
                 Cancel
-              </button>
-            </div>
+              </Button>
+            </ButtonRow>
           </form>
         )}
 
-        {status && <p className={styles.status}>{status}</p>}
-        {error && <p className={styles.status}>Error: {error}</p>}
+        <ConfirmDialog
+          open={Boolean(alertPendingDelete)}
+          title="Delete Alert"
+          message={
+            alertPendingDelete
+              ? `Delete the alert for ${alertPendingDelete.full_name}?`
+              : "Delete this alert?"
+          }
+          confirmLabel="Delete"
+          confirmDanger
+          onCancel={() => setAlertPendingDelete(null)}
+          onConfirm={handleAlertDeleteConfirm}
+        />
+
+        {status && <StatusMessage>{status}</StatusMessage>}
+        {error && <StatusMessage>Error: {error}</StatusMessage>}
       </div>
     </section>
   );

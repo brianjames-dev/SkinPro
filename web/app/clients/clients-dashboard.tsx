@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -13,6 +12,42 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import styles from "./clients.module.css";
 import { PRODUCT_CATALOG } from "@/lib/productCatalog";
+import {
+  formatCurrencyInput,
+  formatDateInput,
+  formatPhoneInput,
+  getTodayDateString,
+  normalizeDateInput
+} from "@/lib/format";
+import {
+  parseCurrencyValue,
+  parseDateParts,
+  parseMmddyyyy,
+  parseMonthDay
+} from "@/lib/parse";
+import useQueryTabSync from "@/lib/hooks/useQueryTabSync";
+import Badge from "../ui/Badge";
+import Button from "../ui/Button";
+import ButtonLink from "../ui/ButtonLink";
+import ButtonRow from "../ui/ButtonRow";
+import SelectMenu from "../ui/SelectMenu";
+import ConfirmDialog from "../ui/ConfirmDialog";
+import Field from "../ui/Field";
+import IconButton from "../ui/IconButton";
+import List from "../ui/List";
+import ListRow from "../ui/ListRow";
+import ListRowButton from "../ui/ListRowButton";
+import LockableCheckbox from "../ui/LockableCheckbox";
+import Modal from "../ui/Modal";
+import Notice from "../ui/Notice";
+import Receipt from "../ui/Receipt";
+import SearchMenu from "../ui/SearchMenu";
+import StatusMessage from "../ui/StatusMessage";
+import TreeToggle from "../ui/TreeToggle";
+import TogglePill from "../ui/TogglePill";
+import Tabs from "../ui/Tabs";
+import TreeList from "../ui/TreeList";
+import useKeyboardListNavigation from "@/lib/hooks/useKeyboardListNavigation";
 
 type Client = {
   id: number;
@@ -206,6 +241,12 @@ type ProductForm = {
   brand: string;
 };
 
+type ProductGroup = {
+  id: string;
+  date: string;
+  items: ClientProduct[];
+};
+
 const WORKSPACE_TABS: { id: WorkspaceTab; label: string }[] = [
   { id: "appointments", label: "Appointments" },
   { id: "products", label: "Products" },
@@ -213,6 +254,30 @@ const WORKSPACE_TABS: { id: WorkspaceTab; label: string }[] = [
   { id: "prescriptions", label: "Prescriptions" },
   { id: "notes", label: "Notes" }
 ];
+
+const WORKSPACE_TAB_IDS = WORKSPACE_TABS.map((tab) => tab.id);
+
+const OVERVIEW_TABS: { id: OverviewTab; label: string }[] = [
+  { id: "info", label: "Info" },
+  { id: "health", label: "Health" }
+];
+
+const OVERVIEW_TAB_IDS = OVERVIEW_TABS.map((tab) => tab.id);
+
+const UPLOAD_TABS = [
+  { id: "qr", label: "QR" },
+  { id: "local", label: "Local" }
+] as const;
+
+const NOTES_TOGGLE_OPTIONS = [
+  { id: "all", label: "All" },
+  { id: "selected", label: "Selected" }
+] as const;
+
+const PHOTO_COMPARE_OPTIONS = [
+  { id: "before", label: "Before" },
+  { id: "after", label: "After" }
+] as const;
 
 const EMPTY_CLIENT: ClientForm = {
   full_name: "",
@@ -259,7 +324,7 @@ const EMPTY_PRODUCT: ProductForm = {
 };
 
 const MAX_PRESCRIPTION_ROWS = 10;
-const PRESCRIPTION_PRODUCT_MAX_LENGTH = 23;
+const PRESCRIPTION_PRODUCT_MAX_LENGTH = 22;
 const PHOTO_PAGE_SIZE = 14;
 const BIRTHDAY_WINDOW_BEFORE_DAYS = 14;
 const BIRTHDAY_WINDOW_AFTER_DAYS = 7;
@@ -366,109 +431,10 @@ const stepsDictToDraft = (steps: Record<string, unknown>): PrescriptionDraft => 
   return normalizePrescriptionDraft(draft, maxCol);
 };
 
-const parseMmddyyyy = (value: string): number => {
-  const [month, day, year] = value.split("/").map(Number);
-  if (!month || !day || !year) {
-    return 0;
-  }
-  const parsed = new Date(year, month - 1, day);
-  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
-};
-
-const getTodayDateString = () => {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const year = String(now.getFullYear());
-  return `${month}/${day}/${year}`;
-};
-
-const normalizeDateInput = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-  const digits = trimmed.replace(/\D/g, "");
-  if (digits.length === 8) {
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-  }
-  const normalized = trimmed.replace(/[-.]/g, "/");
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(normalized)) {
-    return normalized;
-  }
-  return trimmed;
-};
-
-const formatDateInput = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
-  if (digits.length <= 2) {
-    return digits;
-  }
-  if (digits.length <= 4) {
-    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  }
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-};
-
-const formatCurrencyInput = (value: string) => {
-  const cleaned = value.replace(/[^0-9.]/g, "");
-  if (!cleaned) {
-    return "";
-  }
-  const [whole = "", ...decimalParts] = cleaned.split(".");
-  const decimals = decimalParts.join("");
-  const normalized = decimals ? `${whole}.${decimals}` : whole;
-  const safeNormalized = normalized.startsWith(".") ? `0${normalized}` : normalized;
-  return `$${safeNormalized}`;
-};
-
-const parseCurrencyValue = (value?: string | null) => {
-  if (!value) {
-    return 0;
-  }
-  const cleaned = value.replace(/[^0-9.]/g, "");
-  if (!cleaned) {
-    return 0;
-  }
-  const parsed = Number(cleaned);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
 const APPOINTMENT_TYPES = ["Facial", "Electrolysis"] as const;
 const APPOINTMENT_TREATMENTS: Record<string, string[]> = {
   Facial: ["Signature Facial", "Hydrating Facial", "Brightening Facial"],
   Electrolysis: ["15 min Electrolysis", "30 min Electrolysis", "60 min Electrolysis"]
-};
-
-const parseMonthDay = (value: string): { month: number; day: number } | null => {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const parts = trimmed.split(/[-/]/).filter(Boolean);
-  let month: number | null = null;
-  let day: number | null = null;
-
-  if (parts.length >= 3 && parts[0]?.length === 4) {
-    month = Number(parts[1]);
-    day = Number(parts[2]);
-  } else {
-    const digits = trimmed.replace(/\D/g, "");
-    if (digits.length >= 4) {
-      month = Number(digits.slice(0, 2));
-      day = Number(digits.slice(2, 4));
-    } else if (parts.length >= 2) {
-      month = Number(parts[0]);
-      day = Number(parts[1]);
-    }
-  }
-
-  if (!month || !day || month < 1 || month > 12 || day < 1 || day > 31) {
-    return null;
-  }
-
-  return { month, day };
 };
 
 const diffDays = (target: Date, base: Date) => {
@@ -501,20 +467,6 @@ const isWithinBirthdayWindow = (value: string, now = new Date()) => {
       delta >= -BIRTHDAY_WINDOW_AFTER_DAYS && delta <= BIRTHDAY_WINDOW_BEFORE_DAYS
     );
   });
-};
-
-const formatPhoneInput = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 10);
-  if (!digits) {
-    return "";
-  }
-  if (digits.length <= 3) {
-    return digits;
-  }
-  if (digits.length <= 6) {
-    return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-  }
-  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 };
 
 const formatCompactValue = (value: string) => {
@@ -673,50 +625,21 @@ const UploadSuccessModal = ({
   message: string;
   onConfirm: () => void;
 }) => {
-  if (!open || !portalTarget) {
-    return null;
-  }
-
-  return createPortal(
-    <div
-      className={styles.modalBackdrop}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="upload-success-title"
-      onClick={onConfirm}
+  return (
+    <Modal
+      open={open}
+      title={title}
+      onClose={onConfirm}
+      portalTarget={portalTarget}
     >
-      <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
-        <div className={styles.modalHeader}>
-          <div>
-            <h3 id="upload-success-title" className={styles.modalTitle}>
-              {title}
-            </h3>
-            <p className={styles.notice}>{message}</p>
-          </div>
-        </div>
-        <div className={styles.buttonRow}>
-          <button className={styles.button} type="button" onClick={onConfirm}>
-            OK
-          </button>
-        </div>
-      </div>
-    </div>,
-    portalTarget
+      <Notice>{message}</Notice>
+      <ButtonRow>
+        <Button type="button" onClick={onConfirm}>
+          OK
+        </Button>
+      </ButtonRow>
+    </Modal>
   );
-};
-
-const parseDateParts = (value: string) => {
-  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) {
-    return null;
-  }
-  const month = Number(match[1]);
-  const day = Number(match[2]);
-  const year = Number(match[3]);
-  if (!month || !day || !year) {
-    return null;
-  }
-  return { month, day, year };
 };
 
 const calculateAlertStatus = (deadline: string) => {
@@ -757,21 +680,6 @@ export default function ClientsDashboard() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const resolveWorkspaceTab = (value: string | null): WorkspaceTab | null => {
-    if (value === "appointments" || value === "products" || value === "photos") {
-      return value;
-    }
-    if (value === "prescriptions" || value === "notes") {
-      return value;
-    }
-    return null;
-  };
-  const resolveOverviewTab = (value: string | null): OverviewTab | null => {
-    if (value === "info" || value === "health") {
-      return value;
-    }
-    return null;
-  };
   const initialClientIdRef = useRef<number | null>(null);
   const initialNewClientRef = useRef<string | null>(null);
   const selectedClientIdRef = useRef<number | null>(null);
@@ -907,37 +815,44 @@ export default function ClientsDashboard() {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [copyTargetClientId, setCopyTargetClientId] = useState("");
+  const [copyClientQuery, setCopyClientQuery] = useState("");
   const [copyStartDate, setCopyStartDate] = useState(getTodayDateString());
   const [printUrl, setPrintUrl] = useState<string | null>(null);
   const printFrameRef = useRef<HTMLIFrameElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchActiveIndex, setSearchActiveIndex] = useState(-1);
   const [referredByQuery, setReferredByQuery] = useState("");
-  const [referredByActiveIndex, setReferredByActiveIndex] = useState(-1);
   const [referredByValue, setReferredByValue] = useState("");
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingClients, setLoadingClients] = useState(false);
   const [loadingClientDetails, setLoadingClientDetails] = useState(false);
-  const [overviewTab, setOverviewTab] = useState<OverviewTab>(() => {
-    return resolveOverviewTab(searchParams.get("overview")) ?? "info";
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    confirmDanger?: boolean;
+  } | null>(null);
+  const confirmActionRef = useRef<(() => void | Promise<void>) | null>(null);
+  const {
+    value: overviewTab,
+    onChange: handleOverviewTabChange,
+    replaceValue: replaceOverviewTab
+  } = useQueryTabSync<OverviewTab>({
+    key: "overview",
+    defaultValue: "info",
+    values: OVERVIEW_TAB_IDS
   });
   const [overviewMode, setOverviewMode] = useState<OverviewMode>("compact");
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>(() => {
-    return resolveWorkspaceTab(searchParams.get("tab")) ?? "appointments";
-  });
-  const overviewTabRef = useRef(overviewTab);
-  const activeTabRef = useRef(activeTab);
-
-  useEffect(() => {
-    overviewTabRef.current = overviewTab;
-  }, [overviewTab]);
-
-  useEffect(() => {
-    activeTabRef.current = activeTab;
-  }, [activeTab]);
+  const { value: activeTab, onChange: handleWorkspaceTabChange } =
+    useQueryTabSync<WorkspaceTab>({
+      key: "tab",
+      defaultValue: "appointments",
+      values: WORKSPACE_TAB_IDS
+    });
   const primaryPhoneInputRef = useRef<HTMLInputElement | null>(null);
+  const canSaveTemplate = isPrescriptionEditing || Boolean(selectedPrescriptionId);
+  const hasSelectedTemplate = Boolean(selectedTemplateId);
 
   const confettiPieces = useMemo(
     () =>
@@ -1025,8 +940,8 @@ export default function ClientsDashboard() {
     });
   }, [products]);
 
-  const productGroups = useMemo(() => {
-    const groups: { date: string; items: ClientProduct[] }[] = [];
+  const productGroups = useMemo<ProductGroup[]>(() => {
+    const groups: ProductGroup[] = [];
     const indexByDate = new Map<string, number>();
 
     for (const entry of sortedProducts) {
@@ -1034,7 +949,7 @@ export default function ClientsDashboard() {
       const existingIndex = indexByDate.get(dateKey);
       if (existingIndex === undefined) {
         indexByDate.set(dateKey, groups.length);
-        groups.push({ date: dateKey, items: [entry] });
+        groups.push({ id: dateKey, date: dateKey, items: [entry] });
       } else {
         groups[existingIndex]?.items.push(entry);
       }
@@ -1146,6 +1061,17 @@ export default function ClientsDashboard() {
   }, [photos, photoVisibleCount]);
 
   const hasSearchQuery = searchQuery.trim().length > 0;
+  const {
+    activeIndex: searchActiveIndex,
+    setActiveIndex: setSearchActiveIndex,
+    onKeyDown: handleSearchKeyDown
+  } = useKeyboardListNavigation<Client>({
+    items: filteredClients,
+    isOpen: hasSearchQuery,
+    onSelect: (client) => {
+      void handleSelectClientFromSearch(client.id);
+    }
+  });
 
   const referredByMatches = useMemo(() => {
     const normalizedQuery = referredByQuery.trim().toLowerCase();
@@ -1161,16 +1087,16 @@ export default function ClientsDashboard() {
       })
       .slice(0, 3);
   }, [allClients, referredByQuery, selectedClientId]);
-
-  useEffect(() => {
-    if (!referredByQuery.trim() || referredByMatches.length === 0) {
-      setReferredByActiveIndex(-1);
-      return;
-    }
-    setReferredByActiveIndex((prev) =>
-      prev >= referredByMatches.length ? referredByMatches.length - 1 : prev
-    );
-  }, [referredByMatches, referredByQuery]);
+  const hasReferredByQuery = referredByQuery.trim() !== "";
+  const {
+    activeIndex: referredByActiveIndex,
+    setActiveIndex: setReferredByActiveIndex,
+    onKeyDown: handleReferredByKeyDown
+  } = useKeyboardListNavigation<Client>({
+    items: referredByMatches,
+    isOpen: hasReferredByQuery && referredByMatches.length > 0,
+    onSelect: handleReferredBySelect
+  });
 
   const referredBySelected = useMemo(() => {
     const trimmedForm = clientForm.referred_by.trim();
@@ -1183,6 +1109,40 @@ export default function ClientsDashboard() {
   const referredByDisplay = useMemo(() => {
     return resolveReferredByName(referredBySelected, allClients);
   }, [referredBySelected, allClients]);
+
+  const selectedCopyClient = useMemo(() => {
+    if (!copyTargetClientId) {
+      return null;
+    }
+    return (
+      clientOptions.find(
+        (client) => String(client.id) === copyTargetClientId
+      ) ?? null
+    );
+  }, [clientOptions, copyTargetClientId]);
+
+  const copyClientMatches = useMemo(() => {
+    const normalizedQuery = copyClientQuery.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return [];
+    }
+    return clientOptions
+      .filter((client) =>
+        client.full_name.toLowerCase().includes(normalizedQuery)
+      )
+      .slice(0, 3);
+  }, [clientOptions, copyClientQuery]);
+
+  const hasCopyClientQuery = copyClientQuery.trim() !== "";
+  const {
+    activeIndex: copyClientActiveIndex,
+    setActiveIndex: setCopyClientActiveIndex,
+    onKeyDown: handleCopyClientKeyDown
+  } = useKeyboardListNavigation<Client>({
+    items: copyClientMatches,
+    isOpen: hasCopyClientQuery && copyClientMatches.length > 0,
+    onSelect: handleCopyClientSelect
+  });
 
   const referralStats = useMemo(() => {
     if (!selectedClientId) {
@@ -1260,17 +1220,6 @@ export default function ClientsDashboard() {
     });
   }, [notes]);
 
-  const activeSearchClientId = useMemo(() => {
-    if (
-      !hasSearchQuery ||
-      searchActiveIndex < 0 ||
-      searchActiveIndex >= filteredClients.length
-    ) {
-      return null;
-    }
-    return filteredClients[searchActiveIndex].id;
-  }, [hasSearchQuery, searchActiveIndex, filteredClients]);
-
   useEffect(() => {
     void loadClients();
     void loadClientOptions();
@@ -1338,28 +1287,6 @@ export default function ClientsDashboard() {
   }, [pathname, router, searchParams]);
 
   useEffect(() => {
-    const urlTab = resolveWorkspaceTab(searchParams.get("tab"));
-    if (!urlTab) {
-      syncWorkspaceTabRoute(activeTabRef.current, "replace");
-      return;
-    }
-    if (urlTab !== activeTabRef.current) {
-      setActiveTab(urlTab);
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    const urlOverview = resolveOverviewTab(searchParams.get("overview"));
-    if (!urlOverview) {
-      syncOverviewTabRoute(overviewTabRef.current, "replace");
-      return;
-    }
-    if (urlOverview !== overviewTabRef.current) {
-      setOverviewTab(urlOverview);
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
     setPhotoQrDataUrl(null);
     setPhotoQrUrl(null);
   }, [selectedClientId, photoUploadAppointmentId]);
@@ -1393,22 +1320,6 @@ export default function ClientsDashboard() {
     setAppointmentNotesMode("all");
     setIsProductFormOpen(false);
   }, [selectedClientId]);
-
-  useEffect(() => {
-    setSearchActiveIndex(-1);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    if (!hasSearchQuery || filteredClients.length === 0) {
-      if (searchActiveIndex !== -1) {
-        setSearchActiveIndex(-1);
-      }
-      return;
-    }
-    if (searchActiveIndex >= filteredClients.length) {
-      setSearchActiveIndex(filteredClients.length - 1);
-    }
-  }, [hasSearchQuery, filteredClients.length, searchActiveIndex]);
 
   useEffect(() => {
     if (!selectedClientId || overviewMode !== "compact") {
@@ -1456,6 +1367,38 @@ export default function ClientsDashboard() {
     }
   };
 
+  const openConfirmDialog = useCallback(
+    (options: {
+      title: string;
+      message: string;
+      confirmLabel?: string;
+      confirmDanger?: boolean;
+      onConfirm: () => void | Promise<void>;
+    }) => {
+      confirmActionRef.current = options.onConfirm;
+      setConfirmDialog({
+        title: options.title,
+        message: options.message,
+        confirmLabel: options.confirmLabel,
+        confirmDanger: options.confirmDanger
+      });
+    },
+    []
+  );
+
+  const handleConfirmDialogCancel = () => {
+    setConfirmDialog(null);
+    confirmActionRef.current = null;
+  };
+
+  const handleConfirmDialogConfirm = async () => {
+    const action = confirmActionRef.current;
+    handleConfirmDialogCancel();
+    if (action) {
+      await action();
+    }
+  };
+
   const syncClientRoute = (clientId: number | null) => {
     const params = new URLSearchParams(searchParams.toString());
     if (clientId === null) {
@@ -1473,56 +1416,6 @@ export default function ClientsDashboard() {
     }
     initialClientIdRef.current = clientId;
     router.replace(nextUrl);
-  };
-
-  const syncWorkspaceTabRoute = (tab: WorkspaceTab, mode: "push" | "replace") => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", tab);
-    const nextQuery = params.toString();
-    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
-    const currentQuery = searchParams.toString();
-    const currentUrl = currentQuery ? `${pathname}?${currentQuery}` : pathname;
-    if (nextUrl === currentUrl) {
-      return;
-    }
-    if (mode === "push") {
-      router.push(nextUrl);
-    } else {
-      router.replace(nextUrl);
-    }
-  };
-
-  const syncOverviewTabRoute = (tab: OverviewTab, mode: "push" | "replace") => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("overview", tab);
-    const nextQuery = params.toString();
-    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
-    const currentQuery = searchParams.toString();
-    const currentUrl = currentQuery ? `${pathname}?${currentQuery}` : pathname;
-    if (nextUrl === currentUrl) {
-      return;
-    }
-    if (mode === "push") {
-      router.push(nextUrl);
-    } else {
-      router.replace(nextUrl);
-    }
-  };
-
-  const handleWorkspaceTabChange = (tab: WorkspaceTab) => {
-    if (tab === activeTab) {
-      return;
-    }
-    setActiveTab(tab);
-    syncWorkspaceTabRoute(tab, "push");
-  };
-
-  const handleOverviewTabChange = (tab: OverviewTab) => {
-    if (tab === overviewTab) {
-      return;
-    }
-    setOverviewTab(tab);
-    syncOverviewTabRoute(tab, "push");
   };
 
   const getAlertStatusClass = (status: string) => {
@@ -1864,6 +1757,7 @@ export default function ClientsDashboard() {
     syncClientRoute(clientId);
     setNotice(null);
     setCopyTargetClientId("");
+    setCopyClientQuery("");
     setCopyStartDate(getTodayDateString());
     setAlertDeadline("");
     setAlertNotes("");
@@ -1885,8 +1779,7 @@ export default function ClientsDashboard() {
     setSelectedClientId(null);
     syncClientRoute(null);
     setOverviewMode("edit");
-    setOverviewTab("info");
-    syncOverviewTabRoute("info", "replace");
+    replaceOverviewTab("info");
     setClientForm(EMPTY_CLIENT);
     setReferredByQuery("");
     setReferredByValue("");
@@ -1919,6 +1812,7 @@ export default function ClientsDashboard() {
     setEditingNoteId(null);
     setUnlockedNoteIds({});
     setCopyTargetClientId("");
+    setCopyClientQuery("");
     setCopyStartDate(getTodayDateString());
     setAlertDeadline("");
     setAlertNotes("");
@@ -1957,7 +1851,7 @@ export default function ClientsDashboard() {
     setReferredByActiveIndex(-1);
   };
 
-  const handleReferredBySelect = (client: Client) => {
+  function handleReferredBySelect(client: Client) {
     const nextValue = `${REFERRED_BY_PREFIX}${client.id}`;
     clientFormMutationIdRef.current += 1;
     setClientForm((prev) => ({
@@ -1967,7 +1861,7 @@ export default function ClientsDashboard() {
     setReferredByValue(nextValue);
     setReferredByQuery("");
     setReferredByActiveIndex(-1);
-  };
+  }
 
   const handleReferredByCommit = () => {
     const trimmed = referredByQuery.trim();
@@ -1993,6 +1887,32 @@ export default function ClientsDashboard() {
     setReferredByValue("");
     setReferredByQuery("");
     setReferredByActiveIndex(-1);
+  };
+
+  const handleCopyClientChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = event.target.value;
+    const normalizedValue = value.trim().toLowerCase();
+    const selectedName = selectedCopyClient?.full_name ?? "";
+    const normalizedSelected = selectedName.trim().toLowerCase();
+    if (copyTargetClientId && normalizedSelected !== normalizedValue) {
+      setCopyTargetClientId("");
+    }
+    setCopyClientQuery(value);
+    setCopyClientActiveIndex(-1);
+  };
+
+  function handleCopyClientSelect(client: Client) {
+    setCopyTargetClientId(String(client.id));
+    setCopyClientQuery("");
+    setCopyClientActiveIndex(-1);
+  }
+
+  const handleCopyClientClear = () => {
+    setCopyTargetClientId("");
+    setCopyClientQuery("");
+    setCopyClientActiveIndex(-1);
   };
 
   const handleOverviewEditCancel = () => {
@@ -2108,13 +2028,6 @@ export default function ClientsDashboard() {
 
   const handleClientDelete = async () => {
     if (!selectedClientId) {
-      return;
-    }
-
-    const confirmDelete = window.confirm(
-      "Delete this client and all associated data?"
-    );
-    if (!confirmDelete) {
       return;
     }
 
@@ -2277,24 +2190,30 @@ export default function ClientsDashboard() {
   const openProfileUploadModal = () => {
     setProfileUploadMode("qr");
     setIsProfileUploadOpen(true);
-    if (!profileQrDataUrl && !profileQrLoading) {
+    setProfileQrDataUrl(null);
+    setProfileQrUrl(null);
+    if (!profileQrLoading) {
       void handleProfileQrGenerate();
     }
   };
 
   const closeProfileUploadModal = () => {
+    clearQrProfilePolling();
     setIsProfileUploadOpen(false);
   };
 
   const openPhotoUploadModal = () => {
     setPhotoUploadMode("qr");
     setIsPhotoUploadOpen(true);
-    if (photoUploadAppointmentId && !photoQrDataUrl && !photoQrLoading) {
+    setPhotoQrDataUrl(null);
+    setPhotoQrUrl(null);
+    if (photoUploadAppointmentId && !photoQrLoading) {
       void handlePhotoQrGenerate();
     }
   };
 
   const closePhotoUploadModal = () => {
+    clearQrPhotoPolling();
     setIsPhotoUploadOpen(false);
   };
 
@@ -2572,11 +2491,6 @@ export default function ClientsDashboard() {
   };
 
   const handlePhotoDelete = async (photo: Photo) => {
-    const confirmDelete = window.confirm("Delete this photo?");
-    if (!confirmDelete) {
-      return;
-    }
-
     try {
       const response = await fetch(`/api/photos/${photo.id}`, {
         method: "DELETE"
@@ -2776,11 +2690,6 @@ export default function ClientsDashboard() {
   };
 
   const handleAlertDelete = async (alert: Alert) => {
-    const confirmDelete = window.confirm("Delete this alert?");
-    if (!confirmDelete) {
-      return;
-    }
-
     try {
       const response = await fetch(`/api/alerts/${alert.id}`, {
         method: "DELETE"
@@ -3055,10 +2964,6 @@ export default function ClientsDashboard() {
     if (!selectedPrescriptionId || !selectedClientId) {
       return;
     }
-    const confirmDelete = window.confirm("Delete this prescription?");
-    if (!confirmDelete) {
-      return;
-    }
 
     try {
       const response = await fetch(
@@ -3253,10 +3158,6 @@ export default function ClientsDashboard() {
   };
 
   const handleNoteDelete = async (note: ClientNote) => {
-    const confirmDelete = window.confirm("Delete this note?");
-    if (!confirmDelete) {
-      return;
-    }
     try {
       const response = await fetch(`/api/notes/${note.id}`, {
         method: "DELETE"
@@ -3428,11 +3329,6 @@ export default function ClientsDashboard() {
       return;
     }
 
-    const confirmDelete = window.confirm("Delete this template?");
-    if (!confirmDelete) {
-      return;
-    }
-
     try {
       const response = await fetch(
         `/api/prescriptions/templates/${selectedTemplateId}`,
@@ -3552,11 +3448,6 @@ export default function ClientsDashboard() {
 
   const handleAppointmentDelete = async () => {
     if (!selectedAppointmentId || !selectedClientId) {
-      return;
-    }
-
-    const confirmDelete = window.confirm("Delete this appointment?");
-    if (!confirmDelete) {
       return;
     }
 
@@ -3747,11 +3638,6 @@ export default function ClientsDashboard() {
 
   const handleProductDelete = async () => {
     if (!selectedProductId || !selectedClientId) {
-      return;
-    }
-
-    const confirmDelete = window.confirm("Delete this product entry?");
-    if (!confirmDelete) {
       return;
     }
 
@@ -4075,7 +3961,7 @@ export default function ClientsDashboard() {
         <section className={`${styles.panel} ${styles.clientsPanel}`}>
           <div className={styles.clientSearchPanel}>
             <div className={styles.clientSearchRow}>
-              <label className={styles.field}>
+              <Field>
                 <input
                   className={styles.input}
                   name="search"
@@ -4086,105 +3972,57 @@ export default function ClientsDashboard() {
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck={false}
-                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                    setSearchActiveIndex(-1);
+                  }}
                   onKeyDown={(event) => {
-                    if (event.key === "ArrowDown" && hasSearchQuery) {
-                      event.preventDefault();
-                      if (filteredClients.length > 0) {
-                        setSearchActiveIndex((prev) =>
-                          Math.min(prev + 1, filteredClients.length - 1)
-                        );
-                      }
-                      return;
-                    }
-                    if (event.key === "ArrowUp" && hasSearchQuery) {
-                      event.preventDefault();
-                      if (filteredClients.length > 0) {
-                        setSearchActiveIndex((prev) =>
-                          prev <= 0 ? 0 : prev - 1
-                        );
-                      }
+                    if (handleSearchKeyDown(event)) {
                       return;
                     }
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      if (hasSearchQuery && filteredClients.length > 0) {
-                        const nextIndex =
-                          searchActiveIndex >= 0 ? searchActiveIndex : 0;
-                        const nextClient = filteredClients[nextIndex];
-                        if (nextClient) {
-                          void handleSelectClientFromSearch(nextClient.id);
-                          return;
-                        }
-                      }
                       handleSearch();
                     }
                   }}
                 />
-              </label>
-              <div className={styles.clientSearchActions}>
-                <button
-                  className={styles.buttonSecondary}
-                  type="button"
-                  onClick={handleSearch}
-                >
-                  Search
-                </button>
-                <button
-                  className={styles.buttonSecondary}
-                  type="button"
-                  onClick={handleSearchClear}
-                >
-                  Clear
-                </button>
-                <button
-                  className={styles.button}
-                  type="button"
-                  onClick={handleAddClientFromSearch}
-                >
-                  Add Client
-                </button>
-              </div>
+              </Field>
+            <div className={styles.clientSearchActions}>
+              <Button variant="secondary" type="button" onClick={handleSearch}>
+                Search
+              </Button>
+              <Button variant="secondary" type="button" onClick={handleSearchClear}>
+                Clear
+              </Button>
+              <Button type="button" onClick={handleAddClientFromSearch}>
+                Add Client
+              </Button>
+            </div>
             </div>
             {hasSearchQuery && (
-              <div className={styles.clientSearchResults}>
-                {loadingClients && (
-                  <p className={styles.notice}>Loading clients...</p>
-                )}
-                {!loadingClients && filteredClients.length === 0 && (
-                  <p className={styles.notice}>No clients found.</p>
-                )}
-                {!loadingClients && filteredClients.length > 0 && (
-                  <ul className={styles.clientSearchList}>
-                    {filteredClients.map((client) => (
-                      <li
-                        key={client.id}
-                        className={`${styles.clientItem} ${
-                          activeSearchClientId === client.id
-                            ? styles.clientItemSelected
-                            : ""
-                        }`}
-                        onClick={() => void handleSelectClientFromSearch(client.id)}
-                        role="button"
-                        tabIndex={0}
-                        aria-selected={activeSearchClientId === client.id}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            void handleSelectClientFromSearch(client.id);
-                          }
-                        }}
-                      >
-                        <div className={styles.clientItemName}>
-                          {client.full_name}
-                        </div>
-                        <div className={styles.notice}>
-                          {client.primary_phone || "No phone"}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <SearchMenu
+                show
+                loading={loadingClients}
+                loadingMessage="Loading clients..."
+                emptyMessage="No clients found."
+                items={filteredClients}
+                activeIndex={searchActiveIndex}
+                onActiveIndexChange={setSearchActiveIndex}
+                getKey={(client) => client.id}
+                getLabel={(client) => client.full_name}
+                getMeta={(client) => client.primary_phone || "No phone"}
+                onSelect={(client) => {
+                  void handleSelectClientFromSearch(client.id);
+                }}
+                containerClassName={styles.clientSearchResults}
+                listClassName={styles.clientSearchList}
+                itemClassName={styles.clientItem}
+                itemActiveClassName={styles.clientItemSelected}
+                labelClassName={styles.clientItemName}
+                metaClassName={styles.notice}
+                labelElement="div"
+                metaElement="div"
+              />
             )}
           </div>
         </section>
@@ -4224,9 +4062,7 @@ export default function ClientsDashboard() {
               }`}
             >
               {!selectedClientId && (
-                <p className={styles.notice}>
-                  Select a client to manage profile photos.
-                </p>
+                <Notice>Select a client to manage profile photos.</Notice>
               )}
               {selectedClientId && (
                 <>
@@ -4258,200 +4094,121 @@ export default function ClientsDashboard() {
                       </div>
                     )}
                     {overviewMode === "edit" && (
-                      <div className={styles.buttonRow}>
-                        <button
-                          className={styles.button}
-                          type="button"
-                          onClick={openProfileUploadModal}
-                        >
+                      <ButtonRow>
+                        <Button type="button" onClick={openProfileUploadModal}>
                           Upload
-                        </button>
-                      </div>
+                        </Button>
+                      </ButtonRow>
                     )}
                   </div>
 
-                  {isProfileUploadOpen && portalTarget
-                    ? createPortal(
-                        <div
-                          className={styles.modalBackdrop}
-                          role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="profile-upload-title"
-                        onClick={() => {
-                          clearQrProfilePolling();
-                          closeProfileUploadModal();
-                        }}
-                      >
-                          <div
-                            className={styles.modal}
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <div className={styles.modalHeader}>
-                              <div>
-                                <h3
-                                  id="profile-upload-title"
-                                  className={styles.modalTitle}
-                                >
-                                  Upload Profile Photo
-                                </h3>
-                                <p className={styles.notice}>
-                                  {clientForm.full_name
-                                    ? `For ${clientForm.full_name}`
-                                    : "Select a client to upload."}
-                                </p>
-                              </div>
-                            <button
-                              className={styles.iconButton}
+                  <Modal
+                    open={isProfileUploadOpen}
+                    title="Upload Profile Photo"
+                    onClose={closeProfileUploadModal}
+                    portalTarget={portalTarget}
+                  >
+                    <div className={styles.modalSection}>
+                      <Notice>
+                        {clientForm.full_name
+                          ? `For ${clientForm.full_name}`
+                          : "Select a client to upload."}
+                      </Notice>
+                    </div>
+
+                    <Tabs
+                      className={styles.overviewTabs}
+                      value={profileUploadMode}
+                      onChange={handleProfileModeChange}
+                      tabs={UPLOAD_TABS}
+                    />
+
+                    {profileUploadMode === "local" && (
+                      <div className={styles.modalSection}>
+                        <input
+                          ref={profileFileInputRef}
+                          key={profileUploadKey}
+                          className={styles.hiddenInput}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProfileFileChange}
+                        />
+                        <div className={styles.uploadPanel}>
+                          <div className={styles.modalRow}>
+                            <Button
+                              variant="secondary"
                               type="button"
-                              onClick={() => {
-                                clearQrProfilePolling();
-                                closeProfileUploadModal();
-                              }}
-                              aria-label="Close"
-                              title="Close"
+                              onClick={openProfileLocalPicker}
                             >
-                              X
-                            </button>
-                            </div>
+                              Choose File
+                            </Button>
+                            <Notice as="span">
+                              {profileUploadFile
+                                ? profileUploadFile.name
+                                : "No file selected."}
+                            </Notice>
+                          </div>
+                          <ButtonRow>
+                            <Button
+                              type="button"
+                              onClick={handleProfileUploadClick}
+                              disabled={!profileUploadFile}
+                            >
+                              Upload
+                            </Button>
+                          </ButtonRow>
+                        </div>
+                      </div>
+                    )}
 
-                            <div className={styles.overviewTabs}>
-                              <button
-                                className={`${styles.tabButton} ${
-                                  profileUploadMode === "qr"
-                                    ? styles.tabButtonActive
-                                    : ""
-                                }`}
-                                type="button"
-                                onClick={() => handleProfileModeChange("qr")}
-                              >
-                                QR
-                              </button>
-                              <button
-                                className={`${styles.tabButton} ${
-                                  profileUploadMode === "local"
-                                    ? styles.tabButtonActive
-                                    : ""
-                                }`}
-                                type="button"
-                                onClick={() => handleProfileModeChange("local")}
-                              >
-                                Local
-                              </button>
-                            </div>
-
-                            {profileUploadMode === "local" && (
-                              <div className={styles.modalSection}>
-                                <input
-                                  ref={profileFileInputRef}
-                                  key={profileUploadKey}
-                                  className={styles.hiddenInput}
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={handleProfileFileChange}
-                                />
-                                <div className={styles.uploadPanel}>
-                                  <div className={styles.modalRow}>
-                                    <button
-                                      className={styles.buttonSecondary}
-                                      type="button"
-                                      onClick={openProfileLocalPicker}
-                                    >
-                                      Choose File
-                                    </button>
-                                    <span className={styles.notice}>
-                                      {profileUploadFile
-                                        ? profileUploadFile.name
-                                        : "No file selected."}
-                                    </span>
-                                  </div>
-                                  <div className={styles.buttonRow}>
-                                    <button
-                                      className={styles.button}
-                                      type="button"
-                                      onClick={handleProfileUploadClick}
-                                      disabled={!profileUploadFile}
-                                    >
-                                      Upload
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {profileUploadMode === "qr" && (
-                              <div className={styles.modalSection}>
-                                <div className={styles.qrPanel}>
-                                <div className={styles.qrHeader}>
-                                  <h3>Profile QR Upload</h3>
-                                  {profileQrLoading && (
-                                    <span className={styles.notice}>
-                                      Generating...
-                                    </span>
-                                  )}
-                                </div>
-                                  {profileQrDataUrl && (
-                                    <div className={styles.qrContent}>
-                                      <img
-                                        className={styles.qrImage}
-                                        src={profileQrDataUrl}
-                                        alt="Profile upload QR code"
-                                      />
-                                      {profileQrUrl && (
-                                        <div className={styles.qrUrl}>
-                                          {profileQrUrl}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
+                    {profileUploadMode === "qr" && (
+                      <div className={styles.modalSection}>
+                        <div className={styles.qrPanel}>
+                          <div className={styles.qrHeader}>
+                            <h3>Profile QR Upload</h3>
+                            {profileQrLoading && (
+                              <Notice as="span">Generating...</Notice>
                             )}
                           </div>
-                        </div>,
-                        portalTarget
-                      )
-                    : null}
+                          {profileQrDataUrl && (
+                            <div className={styles.qrContent}>
+                              <img
+                                className={styles.qrImage}
+                                src={profileQrDataUrl}
+                                alt="Profile upload QR code"
+                              />
+                              {profileQrUrl && (
+                                <div className={styles.qrUrl}>{profileQrUrl}</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </Modal>
                 </>
               )}
             </div>
 
             <div className={styles.detailsPanel}>
               <div className={styles.detailsHeader}>
-                <div className={styles.overviewTabs}>
-                  <button
-                    className={`${styles.tabButton} ${
-                      overviewTab === "info" ? styles.tabButtonActive : ""
-                    }`}
-                    type="button"
-                    onClick={() => handleOverviewTabChange("info")}
-                    aria-pressed={overviewTab === "info"}
-                  >
-                    Info
-                  </button>
-                  <button
-                    className={`${styles.tabButton} ${
-                      overviewTab === "health" ? styles.tabButtonActive : ""
-                    }`}
-                    type="button"
-                    onClick={() => handleOverviewTabChange("health")}
-                    aria-pressed={overviewTab === "health"}
-                  >
-                    Health
-                  </button>
-                </div>
+                <Tabs
+                  className={styles.overviewTabs}
+                  value={overviewTab}
+                  onChange={handleOverviewTabChange}
+                  tabs={OVERVIEW_TABS}
+                />
                 {overviewMode === "compact" && (
-                  <button
-                    className={styles.buttonSecondary}
+                  <Button
+                    variant="secondary"
                     type="button"
                     disabled={loadingClientDetails}
-                    onClick={() =>
-                      setOverviewMode("edit")
-                    }
+                    onClick={() => setOverviewMode("edit")}
                     aria-label="Edit client"
                     title="Edit"
                   >
                     Edit
-                  </button>
+                  </Button>
                 )}
               </div>
 
@@ -4461,36 +4218,31 @@ export default function ClientsDashboard() {
                 }`}
               >
               {overviewMode === "edit" && (
-                <button
-                  className={`${styles.buttonSecondary} ${styles.editToggleIcon} ${styles.editToggleFloatingCard}`}
-                  type="button"
+                <IconButton
+                  className={`${styles.editToggleIcon} ${styles.editToggleFloatingCard}`}
                   disabled={loadingClientDetails}
                   onClick={handleOverviewEditCancel}
                   aria-label="Exit edit mode"
                   title="Close edit"
                 >
                   X
-                </button>
+                </IconButton>
               )}
               {overviewTab === "info" && (
                 <>
                   {overviewMode === "compact" ? (
                     <>
                       {!selectedClientId && (
-                        <p className={styles.notice}>
-                          Select a client to view info.
-                        </p>
+                        <Notice>Select a client to view info.</Notice>
                       )}
                       {selectedClientId && (
                         <div
                           className={`${styles.formGrid} ${styles.compactGrid} ${styles.infoGrid}`}
                         >
-                          <div className={styles.field}>
-                            <span className={styles.label}>Gender</span>
+                          <Field as="div" label="Gender">
                             <CompactValue value={clientForm.gender} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Phone</span>
+                          </Field>
+                          <Field as="div" label="Phone">
                             <CompactValue
                               value={formatCompactPhones(
                                 clientForm.primary_phone,
@@ -4498,38 +4250,33 @@ export default function ClientsDashboard() {
                               )}
                               multiline
                             />
-                          </div>
-                          <div
-                            className={`${styles.field} ${
-                              isBirthdayWindow ? styles.birthdayField : ""
-                            }`}
+                          </Field>
+                          <Field
+                            as="div"
+                            label="Birthdate"
+                            className={isBirthdayWindow ? styles.birthdayField : ""}
                           >
-                            <span className={styles.label}>Birthdate</span>
                             <CompactValue value={clientForm.birthdate} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Address</span>
+                          </Field>
+                          <Field as="div" label="Address">
                             <CompactValue
                               value={formatCompactAddress(clientForm)}
                               multiline
                             />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Email</span>
+                          </Field>
+                          <Field as="div" label="Email">
                             <CompactValue value={clientForm.email} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Referred By</span>
+                          </Field>
+                          <Field as="div" label="Referred By">
                             <CompactValue value={referredByDisplay} />
-                          </div>
+                          </Field>
                         </div>
                       )}
                     </>
                   ) : (
                     <form onSubmit={handleClientSave}>
                       <div className={`${styles.formGrid} ${styles.infoGrid}`}>
-                        <label className={styles.field}>
-                          <span className={styles.label}>Full Name</span>
+                        <Field label="Full Name">
                           <input
                             className={styles.input}
                             name="full_name"
@@ -4538,9 +4285,8 @@ export default function ClientsDashboard() {
                             required
                             disabled={loadingClientDetails}
                           />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.label}>Gender</span>
+                        </Field>
+                        <Field label="Gender">
                           <select
                             className={styles.select}
                             name="gender"
@@ -4552,9 +4298,8 @@ export default function ClientsDashboard() {
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
                           </select>
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.label}>Primary Phone</span>
+                        </Field>
+                        <Field label="Primary Phone">
                           <input
                             className={styles.input}
                             name="primary_phone"
@@ -4565,13 +4310,11 @@ export default function ClientsDashboard() {
                             onChange={handleClientChange}
                             disabled={loadingClientDetails}
                           />
-                        </label>
-                        <label
-                          className={`${styles.field} ${
-                            isBirthdayWindow ? styles.birthdayField : ""
-                          }`}
+                        </Field>
+                        <Field
+                          label="Birthdate"
+                          className={isBirthdayWindow ? styles.birthdayField : ""}
                         >
-                          <span className={styles.label}>Birthdate</span>
                           <div
                             className={`${styles.birthdayInputWrap} ${
                               isBirthdayWindow ? styles.birthdayInputWrapActive : ""
@@ -4587,9 +4330,8 @@ export default function ClientsDashboard() {
                               disabled={loadingClientDetails}
                             />
                           </div>
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.label}>Email</span>
+                        </Field>
+                        <Field label="Email">
                           <input
                             className={styles.input}
                             name="email"
@@ -4597,9 +4339,8 @@ export default function ClientsDashboard() {
                             onChange={handleClientChange}
                             disabled={loadingClientDetails}
                           />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.label}>Secondary Phone</span>
+                        </Field>
+                        <Field label="Secondary Phone">
                           <input
                             className={styles.input}
                             name="secondary_phone"
@@ -4609,9 +4350,8 @@ export default function ClientsDashboard() {
                             onChange={handleClientChange}
                             disabled={loadingClientDetails}
                           />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.label}>Address 1</span>
+                        </Field>
+                        <Field label="Address 1">
                           <input
                             className={styles.input}
                             name="address1"
@@ -4619,9 +4359,8 @@ export default function ClientsDashboard() {
                             onChange={handleClientChange}
                             disabled={loadingClientDetails}
                           />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.label}>Address 2</span>
+                        </Field>
+                        <Field label="Address 2">
                           <input
                             className={styles.input}
                             name="address2"
@@ -4629,9 +4368,8 @@ export default function ClientsDashboard() {
                             onChange={handleClientChange}
                             disabled={loadingClientDetails}
                           />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.label}>City</span>
+                        </Field>
+                        <Field label="City">
                           <input
                             className={styles.input}
                             name="city"
@@ -4639,9 +4377,8 @@ export default function ClientsDashboard() {
                             onChange={handleClientChange}
                             disabled={loadingClientDetails}
                           />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.label}>State</span>
+                        </Field>
+                        <Field label="State">
                           <input
                             className={styles.input}
                             name="state"
@@ -4649,9 +4386,8 @@ export default function ClientsDashboard() {
                             onChange={handleClientChange}
                             disabled={loadingClientDetails}
                           />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.label}>Zip</span>
+                        </Field>
+                        <Field label="Zip">
                           <input
                             className={styles.input}
                             name="zip"
@@ -4659,9 +4395,8 @@ export default function ClientsDashboard() {
                             onChange={handleClientChange}
                             disabled={loadingClientDetails}
                           />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.label}>Referred By</span>
+                        </Field>
+                        <Field label="Referred By">
                           <div className={styles.referredByField}>
                             {referredBySelected.trim() && (
                               <div className={styles.referredByTags}>
@@ -4690,128 +4425,67 @@ export default function ClientsDashboard() {
                               autoComplete="off"
                               disabled={loadingClientDetails}
                               onKeyDown={(event) => {
-                                if (event.key === "ArrowDown") {
-                                  event.preventDefault();
-                                  if (referredByMatches.length > 0) {
-                                    setReferredByActiveIndex((prev) => {
-                                      if (prev < 0) {
-                                        return 0;
-                                      }
-                                      return Math.min(
-                                        prev + 1,
-                                        referredByMatches.length - 1
-                                      );
-                                    });
-                                  }
-                                  return;
-                                }
-                                if (event.key === "ArrowUp") {
-                                  event.preventDefault();
-                                  if (referredByMatches.length > 0) {
-                                    setReferredByActiveIndex((prev) => {
-                                      if (prev <= 0) {
-                                        return 0;
-                                      }
-                                      return prev - 1;
-                                    });
-                                  }
+                                if (handleReferredByKeyDown(event)) {
                                   return;
                                 }
                                 if (event.key === "Enter") {
                                   event.preventDefault();
-                                  if (referredByMatches.length > 0) {
-                                    const nextIndex =
-                                      referredByActiveIndex >= 0
-                                        ? referredByActiveIndex
-                                        : 0;
-                                    const match = referredByMatches[nextIndex];
-                                    if (match) {
-                                      handleReferredBySelect(match);
-                                      return;
-                                    }
-                                    return;
-                                  }
                                   handleReferredByCommit();
                                 }
                               }}
                             />
-                            {referredByQuery.trim() !== "" && (
-                              <div className={styles.referredByResults}>
-                                {referredByMatches.length > 0 ? (
-                                  <ul className={styles.referredByList}>
-                                    {referredByMatches.map((client, index) => {
-                                      const isSelected =
-                                        parseReferredById(referredBySelected) ===
-                                        client.id;
-                                      const isActive =
-                                        index === referredByActiveIndex && !isSelected;
-                                      return (
-                                        <li key={client.id}>
-                                          <button
-                                            className={`${styles.referredByItem} ${
-                                              isSelected
-                                                ? styles.referredByItemSelected
-                                                : ""
-                                            } ${
-                                              isActive ? styles.referredByItemActive : ""
-                                            }`}
-                                            type="button"
-                                            onMouseEnter={() =>
-                                              setReferredByActiveIndex(index)
-                                            }
-                                            onMouseDown={(event) => {
-                                              event.preventDefault();
-                                              handleReferredBySelect(client);
-                                            }}
-                                            onKeyDown={(event) => {
-                                              if (event.key === "Enter" || event.key === " ") {
-                                                event.preventDefault();
-                                                handleReferredBySelect(client);
-                                              }
-                                            }}
-                                          >
-                                            <span className={styles.referredByName}>
-                                              {client.full_name}
-                                            </span>
-                                            {client.primary_phone && (
-                                              <span className={styles.referredByMeta}>
-                                                {client.primary_phone}
-                                              </span>
-                                            )}
-                                          </button>
-                                        </li>
-                                      );
-                                    })}
-                                  </ul>
-                                ) : (
-                                  <div className={styles.referredByEmpty}>
-                                    No results
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            <SearchMenu
+                              show={hasReferredByQuery}
+                              items={referredByMatches}
+                              emptyMessage="No results"
+                              activeIndex={referredByActiveIndex}
+                              onActiveIndexChange={setReferredByActiveIndex}
+                              selectedId={parseReferredById(referredBySelected)}
+                              getKey={(client) => client.id}
+                              getLabel={(client) => client.full_name}
+                              getMeta={(client) => client.primary_phone ?? ""}
+                              onSelect={handleReferredBySelect}
+                              containerClassName={styles.referredByResults}
+                              listClassName={styles.referredByList}
+                              itemClassName={styles.referredByItem}
+                              itemSelectedClassName={styles.referredByItemSelected}
+                              itemActiveClassName={styles.referredByItemActive}
+                              labelClassName={styles.referredByName}
+                              metaClassName={styles.referredByMeta}
+                              emptyClassName={styles.referredByEmpty}
+                              labelElement="span"
+                              metaElement="span"
+                            />
                           </div>
-                        </label>
+                        </Field>
                       </div>
-                      <div className={styles.buttonRow}>
-                        <button
-                          className={styles.button}
+                      <ButtonRow>
+                        <Button
                           type="submit"
                           disabled={loadingClientDetails}
                         >
                           {selectedClientId ? "Save Changes" : "Create Client"}
-                        </button>
+                        </Button>
                         {selectedClientId && (
-                          <button
-                            className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                          <Button
+                            className={styles.buttonRowEnd}
+                            danger
                             type="button"
-                            onClick={handleClientDelete}
+                            onClick={() =>
+                              openConfirmDialog({
+                                title: "Delete Client",
+                                message: "Delete this client and all associated data?",
+                                confirmLabel: "Delete",
+                                confirmDanger: true,
+                                onConfirm: handleClientDelete
+                              })
+                            }
                             disabled={loadingClientDetails}
                           >
                             Delete Client
-                          </button>
+                          </Button>
                         )}
-                      </div>
+                      </ButtonRow>
                     </form>
                   )}
                 </>
@@ -4822,50 +4496,41 @@ export default function ClientsDashboard() {
                   {overviewMode === "compact" ? (
                     <>
                       {!selectedClientId && (
-                        <p className={styles.notice}>
-                          Select a client to view health info.
-                        </p>
+                        <Notice>Select a client to view health info.</Notice>
                       )}
                       {selectedClientId && (
                         <div className={`${styles.formGrid} ${styles.compactGrid}`}>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Allergies</span>
+                          <Field as="div" label="Allergies">
                             <ExpandableValue value={healthForm.allergies} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Health Conditions</span>
+                          </Field>
+                          <Field as="div" label="Health Conditions">
                             <ExpandableValue value={healthForm.health_conditions} />
-                          </div>
-                          <div
-                            className={`${styles.field} ${styles.healthRiskField}`}
+                          </Field>
+                          <Field
+                            as="div"
+                            label="Health Risks"
+                            className={styles.healthRiskField}
                           >
-                            <span className={styles.label}>Health Risks</span>
                             <ExpandableValue value={healthForm.health_risks} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Medications</span>
+                          </Field>
+                          <Field as="div" label="Medications">
                             <ExpandableValue value={healthForm.medications} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Treatment Areas</span>
+                          </Field>
+                          <Field as="div" label="Treatment Areas">
                             <ExpandableValue value={healthForm.treatment_areas} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Current Products</span>
+                          </Field>
+                          <Field as="div" label="Current Products">
                             <ExpandableValue value={healthForm.current_products} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Skin Conditions</span>
+                          </Field>
+                          <Field as="div" label="Skin Conditions">
                             <ExpandableValue value={healthForm.skin_conditions} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Other Notes</span>
+                          </Field>
+                          <Field as="div" label="Other Notes">
                             <ExpandableValue value={healthForm.other_notes} />
-                          </div>
-                          <div className={styles.field}>
-                            <span className={styles.label}>Desired Improvement</span>
+                          </Field>
+                          <Field as="div" label="Desired Improvement">
                             <ExpandableValue value={healthForm.desired_improvement} />
-                          </div>
+                          </Field>
                         </div>
                       )}
                     </>
@@ -4876,98 +4541,88 @@ export default function ClientsDashboard() {
                         disabled={!selectedClientId}
                       >
                         <div className={styles.formGrid}>
-                          <label className={styles.field}>
-                            <span className={styles.label}>Allergies</span>
+                          <Field label="Allergies">
                             <textarea
                               className={styles.textarea}
                               name="allergies"
                               value={healthForm.allergies}
                               onChange={handleHealthChange}
                             />
-                          </label>
-                          <label className={styles.field}>
-                            <span className={styles.label}>Health Conditions</span>
+                          </Field>
+                          <Field label="Health Conditions">
                             <textarea
                               className={styles.textarea}
                               name="health_conditions"
                               value={healthForm.health_conditions}
                               onChange={handleHealthChange}
                             />
-                          </label>
-                          <label className={styles.field}>
-                            <span className={styles.label}>Health Risks</span>
+                          </Field>
+                          <Field label="Health Risks">
                             <textarea
                               className={styles.textarea}
                               name="health_risks"
                               value={healthForm.health_risks}
                               onChange={handleHealthChange}
                             />
-                          </label>
-                          <label className={styles.field}>
-                            <span className={styles.label}>Medications</span>
+                          </Field>
+                          <Field label="Medications">
                             <textarea
                               className={styles.textarea}
                               name="medications"
                               value={healthForm.medications}
                               onChange={handleHealthChange}
                             />
-                          </label>
-                          <label className={styles.field}>
-                            <span className={styles.label}>Treatment Areas</span>
+                          </Field>
+                          <Field label="Treatment Areas">
                             <textarea
                               className={styles.textarea}
                               name="treatment_areas"
                               value={healthForm.treatment_areas}
                               onChange={handleHealthChange}
                             />
-                          </label>
-                          <label className={styles.field}>
-                            <span className={styles.label}>Current Products</span>
+                          </Field>
+                          <Field label="Current Products">
                             <textarea
                               className={styles.textarea}
                               name="current_products"
                               value={healthForm.current_products}
                               onChange={handleHealthChange}
                             />
-                          </label>
-                          <label className={styles.field}>
-                            <span className={styles.label}>Skin Conditions</span>
+                          </Field>
+                          <Field label="Skin Conditions">
                             <textarea
                               className={styles.textarea}
                               name="skin_conditions"
                               value={healthForm.skin_conditions}
                               onChange={handleHealthChange}
                             />
-                          </label>
-                          <label className={styles.field}>
-                            <span className={styles.label}>Other Notes</span>
+                          </Field>
+                          <Field label="Other Notes">
                             <textarea
                               className={styles.textarea}
                               name="other_notes"
                               value={healthForm.other_notes}
                               onChange={handleHealthChange}
                             />
-                          </label>
-                          <label className={styles.field}>
-                            <span className={styles.label}>Desired Improvement</span>
+                          </Field>
+                          <Field label="Desired Improvement">
                             <textarea
                               className={styles.textarea}
                               name="desired_improvement"
                               value={healthForm.desired_improvement}
                               onChange={handleHealthChange}
                             />
-                          </label>
+                          </Field>
                         </div>
                       </fieldset>
-                      <div className={styles.buttonRow}>
-                        <button
-                          className={styles.button}
+                      <ButtonRow>
+                        <Button
                           type="submit"
                           disabled={!selectedClientId}
                         >
                           Save Health Info
-                        </button>
-                      </div>
+                        </Button>
+                      </ButtonRow>
                     </form>
                   )}
                 </>
@@ -4978,21 +4633,13 @@ export default function ClientsDashboard() {
         </section>
       </div>
 
-      <nav className={styles.sectionTabs}>
-        {WORKSPACE_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            className={`${styles.tabButton} ${
-              activeTab === tab.id ? styles.tabButtonActive : ""
-            }`}
-            type="button"
-            onClick={() => handleWorkspaceTabChange(tab.id)}
-            aria-pressed={activeTab === tab.id}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      <Tabs
+        as="nav"
+        className={styles.sectionTabs}
+        value={activeTab}
+        onChange={handleWorkspaceTabChange}
+        tabs={WORKSPACE_TABS}
+      />
 
       <section className={`${styles.panel} ${styles.workspacePanel}`}>
         {activeTab === "appointments" && (
@@ -5003,24 +4650,23 @@ export default function ClientsDashboard() {
               </div>
             )}
             {!selectedClientId && (
-              <p className={styles.notice}>Select a client to manage appointments.</p>
+              <Notice>Select a client to manage appointments.</Notice>
             )}
             {selectedClientId && (
               <div className={styles.appointmentsLayout}>
                 <div className={styles.appointmentsMain}>
                   <div className={styles.sectionHeaderRow}>
                     <h2 className={styles.sectionTitle}>Appointments</h2>
-                    <button
-                      className={styles.button}
+                    <Button
                       type="button"
                       onClick={handleAppointmentNew}
                       disabled={!selectedClientId}
                     >
                       Add Appointment
-                    </button>
+                    </Button>
                   </div>
                   {sortedAppointments.length === 0 && (
-                    <p className={styles.notice}>No appointments yet.</p>
+                    <Notice>No appointments yet.</Notice>
                   )}
                   {sortedAppointments.length > 0 && (
                     <table className={styles.appointmentsTable}>
@@ -5057,10 +4703,10 @@ export default function ClientsDashboard() {
                   )}
                   {!isAppointmentFormOpen && (
                     <div className={styles.appointmentFormPlaceholder}>
-                      <p className={styles.notice}>
+                      <Notice>
                         Double-click an appointment to edit or click Add Appointment
                         to create a new one.
-                      </p>
+                      </Notice>
                     </div>
                   )}
                   {isAppointmentFormOpen && (
@@ -5069,17 +4715,15 @@ export default function ClientsDashboard() {
                         className={styles.appointmentForm}
                         onSubmit={handleAppointmentSave}
                       >
-                      <button
-                        className={`${styles.iconButton} ${styles.appointmentFormClose}`}
-                        type="button"
+                      <IconButton
+                        className={styles.appointmentFormClose}
                         onClick={handleAppointmentFormClose}
                         aria-label="Close appointment form"
                         title="Close"
                       >
                         X
-                      </button>
-                      <div className={styles.field}>
-                        <span className={styles.label}>Date</span>
+                      </IconButton>
+                      <Field label="Date">
                         <input
                           className={styles.input}
                           name="date"
@@ -5088,9 +4732,8 @@ export default function ClientsDashboard() {
                           value={appointmentForm.date}
                           onChange={handleAppointmentChange}
                         />
-                      </div>
-                      <div className={styles.field}>
-                        <span className={styles.label}>Type</span>
+                      </Field>
+                      <Field label="Type">
                         <select
                           className={styles.select}
                           name="type"
@@ -5104,9 +4747,8 @@ export default function ClientsDashboard() {
                             </option>
                           ))}
                         </select>
-                      </div>
-                      <div className={styles.field}>
-                        <span className={styles.label}>Treatment</span>
+                      </Field>
+                      <Field label="Treatment">
                         <select
                           className={styles.select}
                           name="treatment"
@@ -5126,39 +4768,46 @@ export default function ClientsDashboard() {
                             </option>
                           ))}
                         </select>
-                      </div>
-                      <div className={styles.field}>
-                        <span className={styles.label}>Price</span>
+                      </Field>
+                      <Field label="Price">
                         <input
                           className={styles.input}
                           name="price"
                           value={appointmentForm.price}
                           onChange={handleAppointmentChange}
                         />
-                      </div>
-                      <div className={styles.field}>
-                        <span className={styles.label}>Treatment Notes</span>
+                      </Field>
+                      <Field label="Treatment Notes">
                         <textarea
                           className={styles.textarea}
                           name="treatment_notes"
                           value={appointmentForm.treatment_notes}
                           onChange={handleAppointmentChange}
                         />
-                      </div>
-                      <div className={styles.buttonRow}>
-                        <button className={styles.button} type="submit">
+                      </Field>
+                      <ButtonRow>
+                        <Button type="submit">
                           {selectedAppointmentId ? "Save Appointment" : "Add Appointment"}
-                        </button>
+                        </Button>
                         {selectedAppointmentId && (
-                          <button
-                            className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                          <Button
+                            className={styles.buttonRowEnd}
+                            danger
                             type="button"
-                            onClick={handleAppointmentDelete}
+                            onClick={() =>
+                              openConfirmDialog({
+                                title: "Delete Appointment",
+                                message: "Delete this appointment?",
+                                confirmLabel: "Delete",
+                                confirmDanger: true,
+                                onConfirm: handleAppointmentDelete
+                              })
+                            }
                           >
                             Delete
-                          </button>
-                          )}
-                      </div>
+                          </Button>
+                        )}
+                      </ButtonRow>
                       </form>
                     </div>
                   )}
@@ -5175,32 +4824,14 @@ export default function ClientsDashboard() {
                         </span>
                       )}
                     </div>
-                    <div className={styles.notesToggle}>
-                      <button
-                        className={`${styles.notesToggleButton} ${
-                          appointmentNotesMode === "all"
-                            ? styles.notesToggleButtonActive
-                            : ""
-                        }`}
-                        type="button"
-                        onClick={() => setAppointmentNotesMode("all")}
-                        aria-pressed={appointmentNotesMode === "all"}
-                      >
-                        All
-                      </button>
-                      <button
-                        className={`${styles.notesToggleButton} ${
-                          appointmentNotesMode === "selected"
-                            ? styles.notesToggleButtonActive
-                            : ""
-                        }`}
-                        type="button"
-                        onClick={() => setAppointmentNotesMode("selected")}
-                        aria-pressed={appointmentNotesMode === "selected"}
-                      >
-                        Selected
-                      </button>
-                    </div>
+                    <TogglePill
+                      className={styles.notesToggle}
+                      buttonClassName={styles.notesToggleButton}
+                      buttonActiveClassName={styles.notesToggleButtonActive}
+                      items={NOTES_TOGGLE_OPTIONS}
+                      value={appointmentNotesMode}
+                      onChange={setAppointmentNotesMode}
+                    />
                   </div>
                   <div className={styles.appointmentNotesBody}>
                     {appointmentNotesMode === "selected" && (
@@ -5243,13 +4874,11 @@ export default function ClientsDashboard() {
                         {appointmentsWithNotes.length > 0 && (
                           <div className={styles.appointmentNotesList}>
                             {appointmentsWithNotes.map((appointment) => (
-                              <button
+                              <ListRowButton
                                 key={appointment.id}
-                                className={`${styles.appointmentNoteCard} ${
-                                  selectedAppointmentId === appointment.id
-                                    ? styles.appointmentNoteCardSelected
-                                    : ""
-                                }`}
+                                baseClassName={styles.appointmentNoteCard}
+                                selected={selectedAppointmentId === appointment.id}
+                                selectedClassName={styles.appointmentNoteCardSelected}
                                 type="button"
                                 onClick={() => handleAppointmentSelect(appointment)}
                               >
@@ -5270,7 +4899,7 @@ export default function ClientsDashboard() {
                                   {appointment.treatment_notes?.trim() ||
                                     "No treatment notes yet."}
                                 </div>
-                              </button>
+                              </ListRowButton>
                             ))}
                           </div>
                         )}
@@ -5291,27 +4920,26 @@ export default function ClientsDashboard() {
               </div>
             )}
             {!selectedClientId && (
-              <p className={styles.notice}>Select a client to manage products.</p>
+              <Notice>Select a client to manage products.</Notice>
             )}
             {selectedClientId && (
               <div className={styles.appointmentsLayout}>
                 <div className={styles.appointmentsMain}>
                   <div className={styles.sectionHeaderRow}>
                     <h2 className={styles.sectionTitle}>Products</h2>
-                    <button
-                      className={styles.button}
+                    <Button
                       type="button"
                       onClick={handleProductNew}
                       disabled={!selectedClientId}
                     >
                       Add Product
-                    </button>
+                    </Button>
                   </div>
                   {loadingProducts && (
-                    <p className={styles.notice}>Loading products...</p>
+                    <Notice>Loading products...</Notice>
                   )}
                   {!loadingProducts && productGroups.length === 0 && (
-                    <p className={styles.notice}>No products yet.</p>
+                    <Notice>No products yet.</Notice>
                   )}
                   {!loadingProducts && productGroups.length > 0 && (
                     <table className={styles.appointmentsTable}>
@@ -5326,14 +4954,14 @@ export default function ClientsDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {productGroups.map((group) => {
-                          const isSelected = selectedProductGroupDate === group.date;
-                          const isCollapsed = collapsedProductDates[group.date] ?? false;
-                          if (group.items.length === 1) {
-                            const entry = group.items[0];
-                            if (!entry) {
-                              return null;
-                            }
+                        <TreeList<ClientProduct, ProductGroup>
+                          groups={productGroups}
+                          isCollapsed={(group) =>
+                            collapsedProductDates[group.date] ?? false
+                          }
+                          renderSingleRow={(group, entry) => {
+                            const isSelected =
+                              selectedProductGroupDate === group.date;
                             return (
                               <tr
                                 key={entry.id}
@@ -5351,75 +4979,77 @@ export default function ClientsDashboard() {
                                 <td>{entry.brand ?? ""}</td>
                               </tr>
                             );
-                          }
-
-                          return (
-                            <Fragment key={group.date}>
+                          }}
+                          renderGroupRow={(group, isCollapsed) => {
+                            const isSelected =
+                              selectedProductGroupDate === group.date;
+                            return (
                               <tr
+                                key={`group-${group.id}`}
                                 className={`${styles.productGroupRow} ${
                                   isSelected ? styles.appointmentRowSelected : ""
                                 }`}
                                 onClick={() => handleProductGroupSelect(group.date)}
                               >
                                 <td className={styles.productToggleCell}>
-                                  <button
-                                    className={styles.productGroupToggle}
-                                    type="button"
-                                    aria-label={
-                                      isCollapsed
-                                        ? "Expand product group"
-                                        : "Collapse product group"
-                                    }
-                                    aria-pressed={!isCollapsed}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      handleProductGroupSelect(group.date);
-                                      toggleProductGroupCollapsed(group.date);
-                                    }}
+                                  <div
+                                    onClick={(event) => event.stopPropagation()}
                                   >
-                                    {isCollapsed ? ">" : "v"}
-                                  </button>
+                                    <TreeToggle
+                                      className={styles.productGroupToggle}
+                                      collapsed={isCollapsed}
+                                      onToggle={() => {
+                                        handleProductGroupSelect(group.date);
+                                        toggleProductGroupCollapsed(group.date);
+                                      }}
+                                      collapsedLabel="Expand product group"
+                                      expandedLabel="Collapse product group"
+                                    />
+                                  </div>
                                 </td>
-                                <td>{group.date}</td>
+                                <td className={styles.productGroupDate}>
+                                  {group.date}
+                                </td>
                                 <td colSpan={4} className={styles.productGroupSummary}>
                                   {group.items.length} products
                                 </td>
                               </tr>
-                              {!isCollapsed &&
-                                group.items.map((entry) => (
-                                  <tr
-                                    key={entry.id}
-                                    className={
-                                      isSelected
-                                        ? styles.appointmentRowSelected
-                                        : undefined
-                                    }
-                                    onClick={() => handleProductGroupSelect(group.date)}
-                                    onDoubleClick={() => handleProductEdit(entry)}
-                                  >
-                                    <td className={styles.productToggleCell} />
-                                    <td
-                                      className={styles.productTreeDateCell}
-                                      aria-hidden="true"
-                                    />
-                                    <td>{entry.product}</td>
-                                    <td>{entry.size ?? ""}</td>
-                                    <td>{entry.cost ?? ""}</td>
-                                    <td>{entry.brand ?? ""}</td>
-                                  </tr>
-                                ))}
-                            </Fragment>
-                          );
-                        })}
+                            );
+                          }}
+                          renderItemRow={(group, entry) => {
+                            const isSelected =
+                              selectedProductGroupDate === group.date;
+                            return (
+                              <tr
+                                key={entry.id}
+                                className={
+                                  isSelected ? styles.appointmentRowSelected : undefined
+                                }
+                                onClick={() => handleProductGroupSelect(group.date)}
+                                onDoubleClick={() => handleProductEdit(entry)}
+                              >
+                                <td className={styles.productToggleCell} />
+                                <td
+                                  className={styles.productTreeDateCell}
+                                  aria-hidden="true"
+                                />
+                                <td>{entry.product}</td>
+                                <td>{entry.size ?? ""}</td>
+                                <td>{entry.cost ?? ""}</td>
+                                <td>{entry.brand ?? ""}</td>
+                              </tr>
+                            );
+                          }}
+                        />
                       </tbody>
                     </table>
                   )}
                   {!isProductFormOpen && (
                     <div className={styles.appointmentFormPlaceholder}>
-                      <p className={styles.notice}>
+                      <Notice>
                         Double-click a product to edit or click Add Product to
                         create a new one.
-                      </p>
+                      </Notice>
                     </div>
                   )}
                   {isProductFormOpen && (
@@ -5428,17 +5058,15 @@ export default function ClientsDashboard() {
                         className={styles.appointmentForm}
                         onSubmit={handleProductSave}
                       >
-                        <button
-                          className={`${styles.iconButton} ${styles.appointmentFormClose}`}
-                          type="button"
+                        <IconButton
+                          className={styles.appointmentFormClose}
                           onClick={handleProductFormClose}
                           aria-label="Close product form"
                           title="Close"
                         >
                           X
-                        </button>
-                        <div className={styles.field}>
-                          <span className={styles.label}>Date</span>
+                        </IconButton>
+                        <Field label="Date">
                           <input
                             className={styles.input}
                             name="date"
@@ -5447,9 +5075,8 @@ export default function ClientsDashboard() {
                             value={productForm.date}
                             onChange={handleProductChange}
                           />
-                        </div>
-                        <div className={styles.field}>
-                          <span className={styles.label}>Brand</span>
+                        </Field>
+                        <Field label="Brand">
                           <select
                             className={styles.select}
                             name="brand"
@@ -5468,9 +5095,8 @@ export default function ClientsDashboard() {
                               </option>
                             ))}
                           </select>
-                        </div>
-                        <div className={styles.field}>
-                          <span className={styles.label}>Product</span>
+                        </Field>
+                        <Field label="Product">
                           <select
                             className={styles.select}
                             name="product"
@@ -5495,39 +5121,46 @@ export default function ClientsDashboard() {
                               </option>
                             ))}
                           </select>
-                        </div>
-                        <div className={styles.field}>
-                          <span className={styles.label}>Size</span>
+                        </Field>
+                        <Field label="Size">
                           <input
                             className={styles.input}
                             name="size"
                             value={productForm.size}
                             onChange={handleProductChange}
                           />
-                        </div>
-                        <div className={styles.field}>
-                          <span className={styles.label}>Cost</span>
+                        </Field>
+                        <Field label="Cost">
                           <input
                             className={styles.input}
                             name="cost"
                             value={productForm.cost}
                             onChange={handleProductChange}
                           />
-                        </div>
-                        <div className={styles.buttonRow}>
-                          <button className={styles.button} type="submit">
+                        </Field>
+                        <ButtonRow>
+                          <Button type="submit">
                             {selectedProductId ? "Save Product" : "Add Product"}
-                          </button>
+                          </Button>
                           {selectedProductId && (
-                            <button
-                              className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                            <Button
+                              className={styles.buttonRowEnd}
+                              danger
                               type="button"
-                              onClick={handleProductDelete}
+                              onClick={() =>
+                                openConfirmDialog({
+                                  title: "Delete Product",
+                                  message: "Delete this product entry?",
+                                  confirmLabel: "Delete",
+                                  confirmDanger: true,
+                                  onConfirm: handleProductDelete
+                                })
+                              }
                             >
                               Delete
-                            </button>
+                            </Button>
                           )}
-                        </div>
+                        </ButtonRow>
                       </form>
                     </div>
                   )}
@@ -5547,58 +5180,39 @@ export default function ClientsDashboard() {
                       </p>
                     )}
                     {selectedProductReceipt && (
-                      <div className={styles.productReceipt}>
-                        <div className={styles.productReceiptHeader}>
-                          <span className={styles.productReceiptTitle}>
-                            Receipt
-                          </span>
-                          <span className={styles.productReceiptDate}>
-                            {selectedProductReceipt.date}
-                          </span>
-                        </div>
-                        {selectedProductReceipt.brands.map((group) => (
-                          <div
-                            key={group.brand}
-                            className={styles.productReceiptGroup}
-                          >
-                            <div className={styles.productReceiptBrand}>
-                              {group.brand}
-                            </div>
-                            <div className={styles.productReceiptItems}>
-                              {group.items.map((entry) => (
-                                <div
-                                  key={entry.id}
-                                  className={styles.productReceiptItem}
-                                >
-                                  <div>
-                                    <div className={styles.productReceiptName}>
-                                      {entry.product || "Product"}
-                                    </div>
-                                    <div className={styles.productReceiptMeta}>
-                                      {entry.size
-                                        ? `Size: ${entry.size}`
-                                        : "Size: —"}
-                                    </div>
-                                  </div>
-                                  <div className={styles.productReceiptCost}>
-                                    {entry.cost
-                                      ? formatCurrencyInput(entry.cost)
-                                      : "—"}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                        <div className={styles.productReceiptTotal}>
-                          <span>Total</span>
-                          <span>
-                            {formatCurrencyInput(
-                              selectedProductReceipt.total.toFixed(2)
-                            )}
-                          </span>
-                        </div>
-                      </div>
+                      <Receipt
+                        title="Receipt"
+                        date={selectedProductReceipt.date}
+                        groups={selectedProductReceipt.brands.map((group) => ({
+                          id: group.brand,
+                          label: group.brand,
+                          items: group.items.map((entry) => ({
+                            id: entry.id,
+                            name: entry.product || "Product",
+                            meta: entry.size ? `Size: ${entry.size}` : "Size: —",
+                            cost: entry.cost
+                              ? formatCurrencyInput(entry.cost)
+                              : "—"
+                          }))
+                        }))}
+                        totalValue={formatCurrencyInput(
+                          selectedProductReceipt.total.toFixed(2)
+                        )}
+                        classes={{
+                          root: styles.productReceipt,
+                          header: styles.productReceiptHeader,
+                          title: styles.productReceiptTitle,
+                          date: styles.productReceiptDate,
+                          group: styles.productReceiptGroup,
+                          groupLabel: styles.productReceiptBrand,
+                          items: styles.productReceiptItems,
+                          item: styles.productReceiptItem,
+                          itemName: styles.productReceiptName,
+                          itemMeta: styles.productReceiptMeta,
+                          itemCost: styles.productReceiptCost,
+                          total: styles.productReceiptTotal
+                        }}
+                      />
                     )}
                   </div>
                 </aside>
@@ -5611,212 +5225,136 @@ export default function ClientsDashboard() {
           <div className={styles.section}>
             <div className={styles.sectionHeaderRow}>
               <h2 className={styles.sectionTitle}>Client Photos</h2>
-              <div className={styles.photoCompareToggle}>
-                <button
-                  className={`${styles.photoCompareToggleButton} ${
-                    comparePickMode === "before"
-                      ? styles.photoCompareToggleButtonActive
-                      : ""
-                  }`}
-                  type="button"
-                  onClick={() => setComparePickMode("before")}
-                  aria-pressed={comparePickMode === "before"}
-                >
-                  Before
-                </button>
-                <button
-                  className={`${styles.photoCompareToggleButton} ${
-                    comparePickMode === "after"
-                      ? styles.photoCompareToggleButtonActive
-                      : ""
-                  }`}
-                  type="button"
-                  onClick={() => setComparePickMode("after")}
-                  aria-pressed={comparePickMode === "after"}
-                >
-                  After
-                </button>
-              </div>
+              <TogglePill
+                className={styles.photoCompareToggle}
+                buttonClassName={styles.photoCompareToggleButton}
+                buttonActiveClassName={styles.photoCompareToggleButtonActive}
+                items={PHOTO_COMPARE_OPTIONS}
+                value={comparePickMode}
+                onChange={setComparePickMode}
+              />
             </div>
             {!selectedClientId && (
-              <p className={styles.notice}>Select a client to view photos.</p>
+              <Notice>Select a client to view photos.</Notice>
             )}
             {selectedClientId && (
               <>
-                {isPhotoUploadOpen && portalTarget
-                  ? createPortal(
-                      <div
-                        className={styles.modalBackdrop}
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="photo-upload-title"
-                        onClick={() => {
-                          clearQrPhotoPolling();
-                          closePhotoUploadModal();
-                        }}
+                <Modal
+                  open={isPhotoUploadOpen}
+                  title="Upload Photos"
+                  onClose={closePhotoUploadModal}
+                  portalTarget={portalTarget}
+                >
+                  <div className={styles.modalSection}>
+                    <Notice>
+                      {clientForm.full_name
+                        ? `For ${clientForm.full_name}`
+                        : "Select a client to upload."}
+                    </Notice>
+                  </div>
+
+                  <div className={styles.modalSection}>
+                    <Field label="Appointment">
+                      <select
+                        className={styles.select}
+                        value={photoUploadAppointmentId}
+                        onChange={(event) =>
+                          setPhotoUploadAppointmentId(event.target.value)
+                        }
                       >
-                        <div
-                          className={styles.modal}
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <div className={styles.modalHeader}>
-                            <div>
-                              <h3
-                                id="photo-upload-title"
-                                className={styles.modalTitle}
-                              >
-                                Upload Photos
-                              </h3>
-                              <p className={styles.notice}>
-                                {clientForm.full_name
-                                  ? `For ${clientForm.full_name}`
-                                  : "Select a client to upload."}
-                              </p>
-                            </div>
-                            <button
-                              className={styles.iconButton}
-                              type="button"
-                              onClick={() => {
-                                clearQrPhotoPolling();
-                                closePhotoUploadModal();
-                              }}
-                              aria-label="Close"
-                              title="Close"
-                            >
-                              X
-                            </button>
-                          </div>
+                        <option value="">Select appointment</option>
+                        {sortedAppointments.map((appt) => (
+                          <option key={appt.id} value={String(appt.id)}>
+                            {appt.date} - {appt.type}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
 
-                          <div className={styles.modalSection}>
-                            <label className={styles.field}>
-                              <span className={styles.label}>Appointment</span>
-                              <select
-                                className={styles.select}
-                                value={photoUploadAppointmentId}
-                                onChange={(event) =>
-                                  setPhotoUploadAppointmentId(event.target.value)
-                                }
-                              >
-                                <option value="">Select appointment</option>
-                                {sortedAppointments.map((appt) => (
-                                  <option key={appt.id} value={String(appt.id)}>
-                                    {appt.date} - {appt.type}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          </div>
+                  <Tabs
+                    className={styles.overviewTabs}
+                    value={photoUploadMode}
+                    onChange={handlePhotoModeChange}
+                    tabs={UPLOAD_TABS}
+                  />
 
-                          <div className={styles.overviewTabs}>
-                            <button
-                              className={`${styles.tabButton} ${
-                                photoUploadMode === "qr"
-                                  ? styles.tabButtonActive
-                                  : ""
-                              }`}
-                              type="button"
-                              onClick={() => handlePhotoModeChange("qr")}
-                            >
-                              QR
-                            </button>
-                            <button
-                              className={`${styles.tabButton} ${
-                                photoUploadMode === "local"
-                                  ? styles.tabButtonActive
-                                  : ""
-                              }`}
-                              type="button"
-                              onClick={() => handlePhotoModeChange("local")}
-                            >
-                              Local
-                            </button>
-                          </div>
+                  {photoUploadMode === "local" && (
+                    <div className={styles.modalSection}>
+                      <input
+                        ref={photoFileInputRef}
+                        key={photoUploadKey}
+                        className={styles.hiddenInput}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(event) =>
+                          setPhotoUploadFiles(event.target.files)
+                        }
+                      />
+                      <div className={styles.uploadPanel}>
+                        <div className={styles.modalRow}>
+                          <Button
+                            variant="secondary"
+                            type="button"
+                            onClick={openPhotoLocalPicker}
+                          >
+                            Choose Files
+                          </Button>
+                          <Notice as="span">
+                            {photoUploadFiles?.length
+                              ? `${photoUploadFiles.length} file${
+                                  photoUploadFiles.length === 1 ? "" : "s"
+                                } selected`
+                              : "No files selected."}
+                          </Notice>
+                        </div>
+                        <ButtonRow>
+                          <Button
+                            type="button"
+                            onClick={() => void handlePhotoUpload()}
+                            disabled={
+                              !photoUploadFiles?.length ||
+                              !photoUploadAppointmentId
+                            }
+                          >
+                            Upload Photos
+                          </Button>
+                        </ButtonRow>
+                      </div>
+                    </div>
+                  )}
 
-                          {photoUploadMode === "local" && (
-                            <div className={styles.modalSection}>
-                              <input
-                                ref={photoFileInputRef}
-                                key={photoUploadKey}
-                                className={styles.hiddenInput}
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                onChange={(event) =>
-                                  setPhotoUploadFiles(event.target.files)
-                                }
-                              />
-                              <div className={styles.uploadPanel}>
-                                <div className={styles.modalRow}>
-                                  <button
-                                    className={styles.buttonSecondary}
-                                    type="button"
-                                    onClick={openPhotoLocalPicker}
-                                  >
-                                    Choose Files
-                                  </button>
-                                  <span className={styles.notice}>
-                                    {photoUploadFiles?.length
-                                      ? `${photoUploadFiles.length} file${
-                                          photoUploadFiles.length === 1 ? "" : "s"
-                                        } selected`
-                                      : "No files selected."}
-                                  </span>
-                                </div>
-                                <div className={styles.buttonRow}>
-                                  <button
-                                    className={styles.button}
-                                    type="button"
-                                    onClick={() => void handlePhotoUpload()}
-                                    disabled={
-                                      !photoUploadFiles?.length ||
-                                      !photoUploadAppointmentId
-                                    }
-                                  >
-                                    Upload Photos
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {photoUploadMode === "qr" && (
-                            <div className={styles.modalSection}>
-                              <div className={styles.qrPanel}>
-                                <div className={styles.qrHeader}>
-                                  <h3>Photo QR Upload</h3>
-                                  {photoQrLoading && (
-                                    <span className={styles.notice}>
-                                      Generating...
-                                    </span>
-                                  )}
-                                </div>
-                                {!photoUploadAppointmentId && (
-                                  <p className={styles.notice}>
-                                    Select an appointment to generate a QR code.
-                                  </p>
-                                )}
-                                {photoQrDataUrl && (
-                                  <div className={styles.qrContent}>
-                                    <img
-                                      className={styles.qrImage}
-                                      src={photoQrDataUrl}
-                                      alt="Photo upload QR code"
-                                    />
-                                    {photoQrUrl && (
-                                      <div className={styles.qrUrl}>
-                                        {photoQrUrl}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                  {photoUploadMode === "qr" && (
+                    <div className={styles.modalSection}>
+                      <div className={styles.qrPanel}>
+                        <div className={styles.qrHeader}>
+                          <h3>Photo QR Upload</h3>
+                          {photoQrLoading && (
+                            <Notice as="span">Generating...</Notice>
                           )}
                         </div>
-                      </div>,
-                      portalTarget
-                    )
-                  : null}
+                        {!photoUploadAppointmentId && (
+                          <Notice>
+                            Select an appointment to generate a QR code.
+                          </Notice>
+                        )}
+                        {photoQrDataUrl && (
+                          <div className={styles.qrContent}>
+                            <img
+                              className={styles.qrImage}
+                              src={photoQrDataUrl}
+                              alt="Photo upload QR code"
+                            />
+                            {photoQrUrl && (
+                              <div className={styles.qrUrl}>{photoQrUrl}</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </Modal>
 
                 <div className={styles.photoCompareArea}>
                   <div className={styles.photoCompareGrid}>
@@ -5862,13 +5400,13 @@ export default function ClientsDashboard() {
                               Comments
                             </span>
                             {!isBeforeCommentEditing && (
-                              <button
-                                className={styles.buttonSecondary}
+                              <Button
+                                variant="secondary"
                                 type="button"
                                 onClick={() => handlePhotoCommentEdit("before")}
                               >
                                 Edit
-                              </button>
+                              </Button>
                             )}
                           </div>
                           {!isBeforeCommentEditing && (
@@ -5886,9 +5424,8 @@ export default function ClientsDashboard() {
                                   setBeforeCommentDraft(event.target.value)
                                 }
                               />
-                              <div className={styles.buttonRow}>
-                                <button
-                                  className={styles.button}
+                              <ButtonRow>
+                                <Button
                                   type="button"
                                   onClick={() =>
                                     void handlePhotoCommentSave(
@@ -5899,24 +5436,32 @@ export default function ClientsDashboard() {
                                   }
                                 >
                                   Save Comment
-                                </button>
-                                <button
-                                  className={styles.buttonSecondary}
+                                </Button>
+                                <Button
+                                  variant="secondary"
                                   type="button"
                                   onClick={() => handlePhotoCommentCancel("before")}
                                 >
                                   Cancel
-                                </button>
-                                <button
-                                  className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                                </Button>
+                                <Button
+                                  className={styles.buttonRowEnd}
+                                  danger
                                   type="button"
                                   onClick={() =>
-                                    handlePhotoDelete(compareBeforePhoto)
+                                    openConfirmDialog({
+                                      title: "Delete Photo",
+                                      message: "Delete this photo?",
+                                      confirmLabel: "Delete",
+                                      confirmDanger: true,
+                                      onConfirm: () =>
+                                        handlePhotoDelete(compareBeforePhoto)
+                                    })
                                   }
                                 >
                                   Delete Photo
-                                </button>
-                              </div>
+                                </Button>
+                              </ButtonRow>
                             </>
                           )}
                         </div>
@@ -5965,13 +5510,13 @@ export default function ClientsDashboard() {
                               Comments
                             </span>
                             {!isAfterCommentEditing && (
-                              <button
-                                className={styles.buttonSecondary}
+                              <Button
+                                variant="secondary"
                                 type="button"
                                 onClick={() => handlePhotoCommentEdit("after")}
                               >
                                 Edit
-                              </button>
+                              </Button>
                             )}
                           </div>
                           {!isAfterCommentEditing && (
@@ -5989,9 +5534,8 @@ export default function ClientsDashboard() {
                                   setAfterCommentDraft(event.target.value)
                                 }
                               />
-                              <div className={styles.buttonRow}>
-                                <button
-                                  className={styles.button}
+                              <ButtonRow>
+                                <Button
                                   type="button"
                                   onClick={() =>
                                     void handlePhotoCommentSave(
@@ -6002,22 +5546,32 @@ export default function ClientsDashboard() {
                                   }
                                 >
                                   Save Comment
-                                </button>
-                                <button
-                                  className={styles.buttonSecondary}
+                                </Button>
+                                <Button
+                                  variant="secondary"
                                   type="button"
                                   onClick={() => handlePhotoCommentCancel("after")}
                                 >
                                   Cancel
-                                </button>
-                                <button
-                                  className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                                </Button>
+                                <Button
+                                  className={styles.buttonRowEnd}
+                                  danger
                                   type="button"
-                                  onClick={() => handlePhotoDelete(compareAfterPhoto)}
+                                  onClick={() =>
+                                    openConfirmDialog({
+                                      title: "Delete Photo",
+                                      message: "Delete this photo?",
+                                      confirmLabel: "Delete",
+                                      confirmDanger: true,
+                                      onConfirm: () =>
+                                        handlePhotoDelete(compareAfterPhoto)
+                                    })
+                                  }
                                 >
                                   Delete Photo
-                                </button>
-                              </div>
+                                </Button>
+                              </ButtonRow>
                             </>
                           )}
                         </div>
@@ -6027,21 +5581,18 @@ export default function ClientsDashboard() {
                 </div>
 
                 <div className={styles.photoUploadFooter}>
-                  <button
-                    className={styles.button}
+                  <Button
                     type="button"
                     onClick={openPhotoUploadModal}
                     disabled={!selectedClientId}
                   >
                     Upload Photos
-                  </button>
+                  </Button>
                 </div>
 
-                {loadingPhotos && (
-                  <p className={styles.notice}>Loading photos...</p>
-                )}
+                {loadingPhotos && <Notice>Loading photos...</Notice>}
                 {!loadingPhotos && photos.length === 0 && (
-                  <p className={styles.notice}>No photos yet.</p>
+                  <Notice>No photos yet.</Notice>
                 )}
 
                 {photos.length > 0 && (
@@ -6050,16 +5601,18 @@ export default function ClientsDashboard() {
                       const isBefore = compareBeforeId === photo.id;
                       const isAfter = compareAfterId === photo.id;
                       return (
-                        <button
+                        <ListRowButton
                           key={photo.id}
                           type="button"
-                          className={`${styles.photoCard} ${
-                            selectedPhotoId === photo.id
-                              ? styles.photoCardSelected
-                              : ""
-                          } ${isBefore ? styles.photoCardBefore : ""} ${
+                          baseClassName={styles.photoCard}
+                          selected={selectedPhotoId === photo.id}
+                          selectedClassName={styles.photoCardSelected}
+                          className={[
+                            isBefore ? styles.photoCardBefore : "",
                             isAfter ? styles.photoCardAfter : ""
-                          }`}
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
                           onClick={() => handlePhotoSelect(photo)}
                           onPointerDown={(event) =>
                             handlePhotoPointerDown(event, photo)
@@ -6095,7 +5648,7 @@ export default function ClientsDashboard() {
                               {photo.type ?? "Unknown type"}
                             </div>
                           </div>
-                        </button>
+                        </ListRowButton>
                       );
                     })}
                   </div>
@@ -6105,13 +5658,13 @@ export default function ClientsDashboard() {
                   <div
                     className={`${styles.photoUploadFooter} ${styles.photoLoadMoreFooter}`}
                   >
-                    <button
-                      className={styles.buttonSecondary}
+                    <Button
+                      variant="secondary"
                       type="button"
                       onClick={handleLoadMorePhotos}
                     >
                       Load More
-                    </button>
+                    </Button>
                   </div>
                 )}
 
@@ -6125,8 +5678,7 @@ export default function ClientsDashboard() {
             <div className={styles.sectionHeaderRow}>
               <h2 className={styles.sectionTitle}>Notes</h2>
               {selectedClientId && (
-                <button
-                  className={styles.button}
+                <Button
                   type={isNoteFormOpen ? "submit" : "button"}
                   form={isNoteFormOpen ? "note-create-form" : undefined}
                   onClick={() => {
@@ -6136,11 +5688,11 @@ export default function ClientsDashboard() {
                   }}
                 >
                   {isNoteFormOpen ? "Save Note" : "Add Note"}
-                </button>
+                </Button>
               )}
             </div>
             {!selectedClientId && (
-              <p className={styles.notice}>Select a client to add notes.</p>
+              <Notice>Select a client to add notes.</Notice>
             )}
             {selectedClientId && (
               <div className={styles.notesLayout}>
@@ -6151,8 +5703,7 @@ export default function ClientsDashboard() {
                     onSubmit={handleNoteCreate}
                   >
                     <div className={styles.notesRow}>
-                      <label className={styles.field}>
-                        <span className={styles.label}>Date last seen</span>
+                      <Field label="Date last seen">
                         <input
                           className={styles.input}
                           name="date_seen"
@@ -6161,9 +5712,8 @@ export default function ClientsDashboard() {
                           value={noteDraft.date_seen}
                           onChange={handleNoteDraftChange}
                         />
-                      </label>
-                      <label className={styles.field}>
-                        <span className={styles.label}>Notes</span>
+                      </Field>
+                      <Field label="Notes">
                         <textarea
                           className={`${styles.textarea} ${styles.notesTextarea}`}
                           name="notes"
@@ -6171,37 +5721,36 @@ export default function ClientsDashboard() {
                           value={noteDraft.notes}
                           onChange={handleNoteDraftChange}
                         />
-                      </label>
-                      <div className={styles.notesDoneField}>
-                        <span className={styles.label}>Done</span>
+                      </Field>
+                      <Field as="div" className={styles.notesDoneField} label="Done">
                         <label className={styles.notesDoneToggle}>
                           <input type="checkbox" disabled />
-                          <span className={styles.notesDoneLabel}>Not set</span>
                         </label>
-                      </div>
+                      </Field>
                     </div>
                   </form>
                 )}
 
-                {loadingNotes && (
-                  <p className={styles.notice}>Loading notes...</p>
-                )}
+                {loadingNotes && <Notice>Loading notes...</Notice>}
                 {!loadingNotes && sortedNotes.length === 0 && (
-                  <p className={styles.notice}>No notes yet.</p>
+                  <Notice>No notes yet.</Notice>
                 )}
                 {!loadingNotes && sortedNotes.length > 0 && (
-                  <div className={styles.notesList}>
+                  <List as="div" className={styles.notesList}>
                     {sortedNotes.map((note) => {
                       const isDone = Boolean(note.done_at);
                       const isEditing = editingNoteId === note.id;
                       const isUnlocked = unlockedNoteIds[note.id] ?? false;
                       const doneLocked = isDone && !isUnlocked;
                       return (
-                        <div key={note.id} className={styles.notesItem}>
+                        <ListRow
+                          key={note.id}
+                          as="div"
+                          className={styles.notesItem}
+                        >
                           {isEditing ? (
                             <div className={styles.notesRow}>
-                              <label className={styles.field}>
-                                <span className={styles.label}>Date last seen</span>
+                              <Field label="Date last seen">
                                 <input
                                   className={styles.input}
                                   name="date_seen"
@@ -6216,9 +5765,8 @@ export default function ClientsDashboard() {
                                     )
                                   }
                                 />
-                              </label>
-                              <label className={styles.field}>
-                                <span className={styles.label}>Notes</span>
+                              </Field>
+                              <Field label="Notes">
                                 <textarea
                                   className={`${styles.textarea} ${styles.notesTextarea}`}
                                   name="notes"
@@ -6232,44 +5780,32 @@ export default function ClientsDashboard() {
                                     )
                                   }
                                 />
-                              </label>
-                              <div className={styles.notesDoneField}>
-                                <span className={styles.label}>Done</span>
-                                <label className={styles.notesDoneToggle}>
-                                  <input
-                                    type="checkbox"
-                                    checked={isDone}
-                                    disabled={doneLocked}
-                                    onChange={(event) =>
-                                      handleNoteToggleDone(note, event.target.checked)
-                                    }
-                                  />
-                                  <span className={styles.notesDoneLabel}>
-                                    {note.done_at ? note.done_at : "Not set"}
-                                  </span>
-                                  {note.done_at && (
-                                    <button
-                                      className={`${styles.notesLockButton} ${
-                                        isUnlocked
-                                          ? styles.notesLockButtonUnlocked
-                                          : ""
-                                      }`}
-                                      type="button"
-                                      onClick={() => toggleNoteLock(note.id)}
-                                      aria-label={
-                                        isUnlocked
-                                          ? "Lock done status"
-                                          : "Unlock done status"
-                                      }
-                                    >
-                                      <span
-                                        className={styles.notesLockIcon}
-                                        aria-hidden="true"
-                                      />
-                                    </button>
-                                  )}
-                                </label>
-                              </div>
+                              </Field>
+                              <Field as="div" className={styles.notesDoneField} label="Done">
+                                <LockableCheckbox
+                                  checked={isDone}
+                                  disabled={doneLocked}
+                                  label={note.done_at ?? ""}
+                                  onChange={(checked) =>
+                                    handleNoteToggleDone(note, checked)
+                                  }
+                                  lockVisible={Boolean(note.done_at)}
+                                  lockActive={isUnlocked}
+                                  onToggleLock={() => toggleNoteLock(note.id)}
+                                  lockAriaLabel={
+                                    isUnlocked
+                                      ? "Lock done status"
+                                      : "Unlock done status"
+                                  }
+                                  className={styles.notesDoneToggle}
+                                  labelClassName={styles.notesDoneLabel}
+                                  lockButtonClassName={styles.notesLockButton}
+                                  lockButtonActiveClassName={
+                                    styles.notesLockButtonUnlocked
+                                  }
+                                  lockIconClassName={styles.notesLockIcon}
+                                />
+                              </Field>
                             </div>
                           ) : (
                             <div className={styles.notesView}>
@@ -6290,77 +5826,72 @@ export default function ClientsDashboard() {
                                 </div>
                                 <div className={styles.notesDoneField}>
                                   <div className={styles.notesViewLabel}>Done</div>
-                                  <label className={styles.notesDoneToggle}>
-                                    <input
-                                      type="checkbox"
-                                      checked={isDone}
-                                      disabled={doneLocked}
-                                      onChange={(event) =>
-                                        handleNoteToggleDone(
-                                          note,
-                                          event.target.checked
-                                        )
-                                      }
-                                    />
-                                    <span className={styles.notesDoneLabel}>
-                                      {note.done_at ? note.done_at : "Not set"}
-                                    </span>
-                                    {note.done_at && (
-                                      <button
-                                        className={`${styles.notesLockButton} ${
-                                          isUnlocked
-                                            ? styles.notesLockButtonUnlocked
-                                            : ""
-                                        }`}
-                                        type="button"
-                                        onClick={() => toggleNoteLock(note.id)}
-                                        aria-label={
-                                          isUnlocked
-                                            ? "Lock done status"
-                                            : "Unlock done status"
-                                        }
-                                      >
-                                        <span
-                                          className={styles.notesLockIcon}
-                                          aria-hidden="true"
-                                        />
-                                      </button>
-                                    )}
-                                  </label>
+                                  <LockableCheckbox
+                                    checked={isDone}
+                                    disabled={doneLocked}
+                                    label={note.done_at ?? ""}
+                                    onChange={(checked) =>
+                                      handleNoteToggleDone(note, checked)
+                                    }
+                                    lockVisible={Boolean(note.done_at)}
+                                    lockActive={isUnlocked}
+                                    onToggleLock={() => toggleNoteLock(note.id)}
+                                    lockAriaLabel={
+                                      isUnlocked
+                                        ? "Lock done status"
+                                        : "Unlock done status"
+                                    }
+                                    className={styles.notesDoneToggle}
+                                    labelClassName={styles.notesDoneLabel}
+                                    lockButtonClassName={styles.notesLockButton}
+                                    lockButtonActiveClassName={
+                                      styles.notesLockButtonUnlocked
+                                    }
+                                    lockIconClassName={styles.notesLockIcon}
+                                  />
                                 </div>
                               </div>
                             </div>
                           )}
                           <div className={styles.notesActions}>
                             {isEditing ? (
-                              <button
-                                className={styles.buttonSecondary}
+                              <Button
+                                variant="secondary"
                                 type="button"
                                 onClick={() => handleNoteSave(note)}
                               >
                                 Save
-                              </button>
+                              </Button>
                             ) : (
-                              <button
-                                className={styles.buttonSecondary}
+                              <Button
+                                variant="secondary"
                                 type="button"
                                 onClick={() => handleNoteEdit(note.id)}
                               >
                                 Edit
-                              </button>
+                              </Button>
                             )}
-                            <button
-                              className={`${styles.buttonSecondary} ${styles.buttonDanger}`}
+                            <Button
+                              variant="secondary"
+                              danger
                               type="button"
-                              onClick={() => handleNoteDelete(note)}
+                              onClick={() =>
+                                openConfirmDialog({
+                                  title: "Delete Note",
+                                  message: "Delete this note?",
+                                  confirmLabel: "Delete",
+                                  confirmDanger: true,
+                                  onConfirm: () => handleNoteDelete(note)
+                                })
+                              }
                             >
                               Delete
-                            </button>
+                            </Button>
                           </div>
-                        </div>
+                        </ListRow>
                       );
                     })}
-                  </div>
+                  </List>
                 )}
               </div>
             )}
@@ -6371,160 +5902,179 @@ export default function ClientsDashboard() {
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>Prescriptions</h2>
             {!selectedClientId && (
-              <p className={styles.notice}>
-                Select a client to manage prescriptions.
-              </p>
+              <Notice>Select a client to manage prescriptions.</Notice>
             )}
             {selectedClientId && (
               <div className={styles.prescriptionsLayout}>
                 <div className={styles.prescriptionsList}>
                   <div className={styles.headerRow}>
                     <h3>Saved Prescriptions</h3>
-                    <button
-                      className={styles.buttonSecondary}
+                    <Button
+                      variant="secondary"
                       type="button"
                       onClick={handlePrescriptionNew}
                     >
                       New
-                    </button>
+                    </Button>
                   </div>
                   {loadingPrescriptions && (
-                    <p className={styles.notice}>Loading prescriptions...</p>
+                    <Notice>Loading prescriptions...</Notice>
                   )}
                   {!loadingPrescriptions && prescriptions.length === 0 && (
-                    <p className={styles.notice}>No prescriptions yet.</p>
+                    <Notice>No prescriptions yet.</Notice>
                   )}
-                  <ul className={styles.prescriptionList}>
+                  <List className={styles.prescriptionList}>
                     {prescriptions.map((prescription) => (
-                      <li
+                      <ListRow
                         key={prescription.id}
-                        className={`${styles.prescriptionItem} ${
-                          selectedPrescriptionId === prescription.id
-                            ? styles.prescriptionItemSelected
-                            : ""
-                        } ${
-                          prescription.is_current
-                            ? styles.prescriptionItemCurrent
-                            : ""
-                        }`}
+                        className={styles.prescriptionItem}
+                        selected={selectedPrescriptionId === prescription.id}
+                        selectedClassName={styles.prescriptionItemSelected}
+                        active={Boolean(prescription.is_current)}
+                        activeClassName={styles.prescriptionItemCurrent}
                         onClick={() => handlePrescriptionSelect(prescription)}
                         onDoubleClick={() => setIsPrescriptionEditing(true)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            handlePrescriptionSelect(prescription);
+                          }
+                        }}
                       >
                         <div className={styles.prescriptionItemHeader}>
                           <div className={styles.clientItemName}>
                             {prescription.start_date ?? "Unknown"}
                           </div>
                           {prescription.is_current ? (
-                            <span className={styles.prescriptionCurrentBadge}>
+                            <Badge baseClassName={styles.prescriptionCurrentBadge}>
                               Current
-                            </span>
+                            </Badge>
                           ) : null}
                         </div>
-                        <div className={styles.notice}>
+                        <Notice as="div">
                           {prescription.form_type ?? "Unknown"}
-                        </div>
-                      </li>
+                        </Notice>
+                      </ListRow>
                     ))}
-                  </ul>
+                  </List>
                   {selectedPrescription && (
                     <>
-                      <div className={styles.buttonRow}>
-                        <a
-                          className={styles.buttonSecondary}
+                      <ButtonRow>
+                        <ButtonLink
+                          external
                           href={`/api/prescriptions/${selectedPrescription.id}/file`}
                           target="_blank"
                           rel="noreferrer"
                         >
                           Open
-                        </a>
-                        <button
-                          className={styles.buttonSecondary}
+                        </ButtonLink>
+                        <Button
+                          variant="secondary"
                           type="button"
                           onClick={() => setIsPrescriptionEditing(true)}
                         >
                           Edit
-                        </button>
-                        <button
-                          className={styles.buttonSecondary}
+                        </Button>
+                        <Button
+                          variant="secondary"
                           type="button"
                           onClick={handlePrescriptionMarkCurrent}
                           disabled={isCurrentPrescription}
                         >
                           {isCurrentPrescription ? "Current" : "Mark Current"}
-                        </button>
-                      </div>
+                        </Button>
+                      </ButtonRow>
                       <div className={styles.copyPanel}>
                         <span className={styles.label}>Copy To Client</span>
-                      <div className={styles.copyRow}>
+                        <div className={styles.copyRow}>
                           <div className={styles.copyColumn}>
-                            <select
-                              className={styles.select}
-                              value={copyTargetClientId}
-                              onChange={(event) =>
-                                setCopyTargetClientId(event.target.value)
-                              }
-                            >
-                              <option value="">Select client</option>
-                              {clientOptions.map((client) => (
-                                <option
-                                  key={client.id}
-                                  value={String(client.id)}
-                                >
-                                  {client.full_name}
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              className={styles.buttonSecondary}
-                              type="button"
-                              onClick={handlePrescriptionCopy}
-                            >
-                              Copy
-                            </button>
+                            <div className={styles.referredByField}>
+                              {selectedCopyClient ? (
+                                <div className={styles.referredByTags}>
+                                  <span className={styles.referredByTag}>
+                                    <span className={styles.referredByTagLabel}>
+                                      {selectedCopyClient.full_name}
+                                    </span>
+                                    <button
+                                      className={styles.referredByTagRemove}
+                                      type="button"
+                                      onClick={handleCopyClientClear}
+                                      aria-label="Remove client"
+                                      title="Remove client"
+                                    >
+                                      X
+                                    </button>
+                                  </span>
+                                </div>
+                              ) : null}
+                              {!selectedCopyClient && (
+                                <>
+                                  <input
+                                    className={styles.input}
+                                    placeholder="Search client name"
+                                    value={copyClientQuery}
+                                    onChange={handleCopyClientChange}
+                                    autoComplete="off"
+                                    onKeyDown={(event) => {
+                                      if (handleCopyClientKeyDown(event)) {
+                                        return;
+                                      }
+                                    }}
+                                  />
+                                  <SearchMenu
+                                    show={hasCopyClientQuery}
+                                    items={copyClientMatches}
+                                    emptyMessage="No results"
+                                    activeIndex={copyClientActiveIndex}
+                                    onActiveIndexChange={setCopyClientActiveIndex}
+                                    selectedId={null}
+                                    getKey={(client) => client.id}
+                                    getLabel={(client) => client.full_name}
+                                    getMeta={(client) => client.primary_phone ?? ""}
+                                    onSelect={handleCopyClientSelect}
+                                    containerClassName={styles.referredByResults}
+                                    listClassName={styles.referredByList}
+                                    itemClassName={styles.referredByItem}
+                                    itemSelectedClassName={styles.referredByItemSelected}
+                                    itemActiveClassName={styles.referredByItemActive}
+                                    labelClassName={styles.referredByName}
+                                    metaClassName={styles.referredByMeta}
+                                    emptyClassName={styles.referredByEmpty}
+                                    labelElement="span"
+                                    metaElement="span"
+                                  />
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <input
-                            className={styles.input}
-                            placeholder="MM/DD/YYYY"
-                            value={copyStartDate}
-                            onChange={(event) => setCopyStartDate(event.target.value)}
-                          />
-                      </div>
+                          {copyTargetClientId && (
+                            <>
+                              <input
+                                className={styles.input}
+                                placeholder="MM/DD/YYYY"
+                                value={copyStartDate}
+                                onChange={(event) =>
+                                  setCopyStartDate(event.target.value)
+                                }
+                              />
+                              <Button
+                                className={styles.copyActionButton}
+                                variant="secondary"
+                                type="button"
+                                onClick={handlePrescriptionCopy}
+                              >
+                                Copy
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </>
                   )}
                   <div className={styles.templatePanel}>
                     <div className={styles.qrHeader}>
                       <h3>Templates</h3>
-                    </div>
-                    <div className={styles.templateRow}>
-                      <select
-                        className={styles.select}
-                        value={selectedTemplateId}
-                        onChange={(event) =>
-                          setSelectedTemplateId(event.target.value)
-                        }
-                      >
-                        <option value="">Select template</option>
-                        {prescriptionTemplates.map((template) => (
-                          <option key={template.id} value={template.id}>
-                            {template.name} ({template.column_count} col)
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        className={styles.buttonSecondary}
-                        type="button"
-                        onClick={handleTemplateApply}
-                      >
-                        Apply
-                      </button>
-                      <button
-                        className={styles.buttonSecondary}
-                        type="button"
-                        onClick={handleTemplateDelete}
-                      >
-                        Delete
-                      </button>
                     </div>
                     <form
                       className={styles.templateRow}
@@ -6535,11 +6085,54 @@ export default function ClientsDashboard() {
                         placeholder="Template name"
                         value={templateName}
                         onChange={(event) => setTemplateName(event.target.value)}
+                        disabled={!canSaveTemplate}
                       />
-                      <button className={styles.buttonSecondary} type="submit">
+                      <Button
+                        variant="secondary"
+                        type="submit"
+                        disabled={!canSaveTemplate}
+                      >
                         Save Template
-                      </button>
+                      </Button>
                     </form>
+                    <div className={styles.templateSelectRow}>
+                      <SelectMenu
+                        value={selectedTemplateId}
+                        placeholder="Select template"
+                        options={prescriptionTemplates.map((template) => ({
+                          value: template.id,
+                          label: `${template.name} (${template.column_count} col)`
+                        }))}
+                        onChange={setSelectedTemplateId}
+                      />
+                      {hasSelectedTemplate && (
+                        <ButtonRow className={styles.templateActionsRow}>
+                          <Button
+                            variant="secondary"
+                            type="button"
+                            onClick={handleTemplateApply}
+                          >
+                            New From Template
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            danger
+                            type="button"
+                            onClick={() => {
+                              openConfirmDialog({
+                                title: "Delete Template",
+                                message: "Delete this template?",
+                                confirmLabel: "Delete",
+                                confirmDanger: true,
+                                onConfirm: handleTemplateDelete
+                              });
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </ButtonRow>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -6547,8 +6140,7 @@ export default function ClientsDashboard() {
                   {isPrescriptionEditing ? (
                     <form onSubmit={handlePrescriptionSave}>
                       <div className={styles.formGrid}>
-                        <label className={styles.field}>
-                          <span className={styles.label}>Start Date</span>
+                        <Field label="Start Date">
                           <input
                             className={styles.input}
                             name="start_date"
@@ -6556,9 +6148,8 @@ export default function ClientsDashboard() {
                             value={prescriptionDraft.start_date}
                             onChange={handlePrescriptionStartDateChange}
                           />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.label}>Columns</span>
+                        </Field>
+                        <Field label="Columns">
                           <select
                             className={styles.select}
                             value={prescriptionColumnCount}
@@ -6572,32 +6163,32 @@ export default function ClientsDashboard() {
                             <option value={3}>3 Columns</option>
                             <option value={4}>4 Columns</option>
                           </select>
-                        </label>
+                        </Field>
                       </div>
 
-                    <div className={styles.buttonRow}>
-                      <button
-                        className={styles.buttonSecondary}
+                    <ButtonRow>
+                      <Button
+                        variant="secondary"
                         type="button"
                         onClick={handlePrescriptionAddRow}
                       >
                         Add Row
-                      </button>
-                      <button
-                        className={styles.buttonSecondary}
+                      </Button>
+                      <Button
+                        variant="secondary"
                         type="button"
                         onClick={handlePrescriptionRemoveRow}
                       >
                         Remove Row
-                      </button>
-                      <button
-                        className={styles.buttonSecondary}
+                      </Button>
+                      <Button
+                        variant="secondary"
                         type="button"
                         onClick={handlePrescriptionHighlight}
                       >
                         Highlight
-                      </button>
-                    </div>
+                      </Button>
+                    </ButtonRow>
 
                       <div
                         className={styles.prescriptionGrid}
@@ -6610,8 +6201,7 @@ export default function ClientsDashboard() {
                             className={styles.prescriptionColumn}
                             key={`col-${colIndex}`}
                           >
-                            <label className={styles.field}>
-                              <span className={styles.label}>Header</span>
+                            <Field label="Header">
                               <input
                                 className={styles.input}
                                 value={column.header}
@@ -6622,7 +6212,7 @@ export default function ClientsDashboard() {
                                   )
                                 }
                               />
-                            </label>
+                            </Field>
                             {column.rows.map((row, rowIndex) => (
                               <div
                                 className={styles.prescriptionRow}
@@ -6679,29 +6269,38 @@ export default function ClientsDashboard() {
                         ))}
                       </div>
 
-                      <div className={styles.buttonRow}>
-                        <button className={styles.button} type="submit">
+                      <ButtonRow>
+                        <Button type="submit">
                           {selectedPrescriptionId
                             ? "Save Prescription"
                             : "Create Prescription"}
-                        </button>
-                        <button
-                          className={styles.buttonSecondary}
+                        </Button>
+                        <Button
+                          variant="secondary"
                           type="button"
                           onClick={handlePrescriptionCancel}
                         >
                           Cancel
-                        </button>
+                        </Button>
                         {selectedPrescriptionId && (
-                          <button
-                            className={`${styles.button} ${styles.buttonDanger} ${styles.buttonRowEnd}`}
+                          <Button
+                            className={styles.buttonRowEnd}
+                            danger
                             type="button"
-                            onClick={handlePrescriptionDelete}
+                            onClick={() =>
+                              openConfirmDialog({
+                                title: "Delete Prescription",
+                                message: "Delete this prescription?",
+                                confirmLabel: "Delete",
+                                confirmDanger: true,
+                                onConfirm: handlePrescriptionDelete
+                              })
+                            }
                           >
                             Delete
-                          </button>
+                          </Button>
                         )}
-                      </div>
+                      </ButtonRow>
                     </form>
                   ) : prescriptionPreviewUrl ? (
                     <div className={styles.prescriptionPreview}>
@@ -6711,9 +6310,7 @@ export default function ClientsDashboard() {
                       />
                     </div>
                   ) : (
-                    <p className={styles.notice}>
-                      Select a prescription to preview.
-                    </p>
+                    <Notice>Select a prescription to preview.</Notice>
                   )}
                 </div>
               </div>
@@ -6721,6 +6318,17 @@ export default function ClientsDashboard() {
           </div>
         )}
       </section>
+
+      <ConfirmDialog
+        open={Boolean(confirmDialog)}
+        title={confirmDialog?.title}
+        message={confirmDialog?.message ?? ""}
+        confirmLabel={confirmDialog?.confirmLabel}
+        confirmDanger={confirmDialog?.confirmDanger}
+        onCancel={handleConfirmDialogCancel}
+        onConfirm={handleConfirmDialogConfirm}
+        portalTarget={portalTarget}
+      />
 
       <UploadSuccessModal
         portalTarget={portalTarget}
@@ -6770,8 +6378,8 @@ export default function ClientsDashboard() {
           )
         : null}
 
-      {status && <p className={styles.status}>{status}</p>}
-      {error && <p className={styles.status}>Error: {error}</p>}
+      {status && <StatusMessage>{status}</StatusMessage>}
+      {error && <StatusMessage>Error: {error}</StatusMessage>}
     </div>
   );
 }

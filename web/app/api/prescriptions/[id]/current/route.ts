@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { ensureCurrentPrescriptionColumn } from "../../utils";
+import { ensureCurrentPrescriptionColumn } from "@/lib/api/ensureTables";
 
 export const runtime = "nodejs";
 

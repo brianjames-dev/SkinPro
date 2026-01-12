@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { loadSkinproPaths } from "@/lib/skinproPaths";
 import { safeClientName } from "@/lib/clientAssets";
 import { normalizeImageOrientation } from "@/lib/imageProcessing";
+import { PHOTO_UPLOAD_LIMITS, validateImageFiles } from "@/lib/uploadValidation";
 import {
   ensureDir,
   guessExtension,
@@ -93,9 +94,11 @@ export async function POST(request: Request) {
     }
 
     const files = formData.getAll("photos");
-    if (!files.length) {
+    const fileEntries = files.filter((entry): entry is File => entry instanceof File);
+    const validation = validateImageFiles(fileEntries, PHOTO_UPLOAD_LIMITS);
+    if (!validation.ok) {
       return NextResponse.json(
-        { error: "No files uploaded" },
+        { error: validation.error },
         { status: 400 }
       );
     }
@@ -141,10 +144,8 @@ export async function POST(request: Request) {
 
     const inserted: Record<string, unknown>[] = [];
 
-    for (const entry of files) {
-      if (!(entry instanceof File)) {
-        continue;
-      }
+    let failedCount = 0;
+    for (const entry of fileEntries) {
 
       const ext = guessExtension(entry.name, entry.type);
       const base = sanitizeFileName(path.basename(entry.name, ext) || "photo");
@@ -152,7 +153,13 @@ export async function POST(request: Request) {
 
       const arrayBuffer = await entry.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      const rotated = await normalizeImageOrientation(buffer);
+      let rotated: Buffer;
+      try {
+        rotated = await normalizeImageOrientation(buffer, { strict: true });
+      } catch {
+        failedCount += 1;
+        continue;
+      }
 
       await fs.promises.writeFile(targetPath, rotated);
 
@@ -177,13 +184,24 @@ export async function POST(request: Request) {
       });
     }
 
+    if (inserted.length === 0) {
+      return NextResponse.json(
+        { error: "No supported files were detected." },
+        { status: 400 }
+      );
+    }
+
     if (inserted.length > 0) {
       db.prepare("UPDATE appointments SET photos_taken = 'Yes' WHERE id = ?").run(
         appointmentId
       );
     }
 
-    return NextResponse.json({ uploaded: inserted.length, photos: inserted });
+    return NextResponse.json({
+      uploaded: inserted.length,
+      failed: failedCount,
+      photos: inserted
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unexpected error" },

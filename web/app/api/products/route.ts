@@ -1,22 +1,8 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { ensureProductsTable } from "@/lib/api/ensureTables";
 
 export const runtime = "nodejs";
-
-const ensureProductsTable = () => {
-  const db = getDb();
-  db.prepare(
-    "CREATE TABLE IF NOT EXISTS client_products (" +
-      "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-      "client_id INTEGER NOT NULL, " +
-      "date TEXT NOT NULL, " +
-      "product TEXT NOT NULL, " +
-      "size TEXT, " +
-      "cost TEXT, " +
-      "brand TEXT" +
-      ")"
-  ).run();
-};
 
 export async function GET(request: Request) {
   try {

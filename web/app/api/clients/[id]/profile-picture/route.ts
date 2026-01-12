@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { loadSkinproPaths } from "@/lib/skinproPaths";
 import { safeClientName } from "@/lib/clientAssets";
 import { normalizeImageOrientation } from "@/lib/imageProcessing";
+import { PROFILE_UPLOAD_LIMITS, validateImageFiles } from "@/lib/uploadValidation";
 import {
   ensureDir,
   getContentType,
@@ -151,6 +152,11 @@ export async function POST(
       );
     }
 
+    const validation = validateImageFiles([file], PROFILE_UPLOAD_LIMITS);
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
     const db = getDb();
     const client = db
       .prepare("SELECT full_name, profile_picture FROM clients WHERE id = ?")
@@ -171,7 +177,15 @@ export async function POST(
     const targetPath = path.join(paths.profilePicturesDir, `${baseName}${ext}`);
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const rotated = await normalizeImageOrientation(buffer);
+    let rotated: Buffer;
+    try {
+      rotated = await normalizeImageOrientation(buffer, { strict: true });
+    } catch {
+      return NextResponse.json(
+        { error: "Unsupported or corrupted image file." },
+        { status: 400 }
+      );
+    }
     await fs.promises.writeFile(targetPath, rotated);
 
     if (

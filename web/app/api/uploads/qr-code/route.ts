@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { getLocalIp } from "@/lib/network";
+import { issueUploadToken } from "@/lib/qrTokens";
 
 export const runtime = "nodejs";
 
@@ -16,9 +17,16 @@ function resolveBaseUrl(request: Request, hostOverride?: string) {
 
   const hostHeader = request.headers.get("host") ?? "";
   const [, port] = hostHeader.split(":");
-  const localIp = getLocalIp() ?? "127.0.0.1";
   const resolvedPort = port || "3000";
+  const lanEnabled = ["1", "true", "yes"].includes(
+    (process.env.SKINPRO_QR_LAN ?? "").toLowerCase()
+  );
 
+  if (!lanEnabled) {
+    return `http://127.0.0.1:${resolvedPort}`;
+  }
+
+  const localIp = getLocalIp() ?? "127.0.0.1";
   return `http://${localIp}:${resolvedPort}`;
 }
 
@@ -44,14 +52,24 @@ export async function GET(request: Request) {
       );
     }
 
+    const issued = issueUploadToken(
+      mode === "profile" ? "profile" : "photo",
+      clientId,
+      mode === "profile" ? null : appointmentId
+    );
     const baseUrl = resolveBaseUrl(request, hostOverride);
     const uploadUrl =
       mode === "profile"
-        ? `${baseUrl}/api/uploads/profile?cid=${clientId}`
-        : `${baseUrl}/api/uploads/qr?cid=${clientId}&aid=${appointmentId}`;
+        ? `${baseUrl}/api/uploads/profile?token=${issued.token}`
+        : `${baseUrl}/api/uploads/qr?token=${issued.token}`;
 
     const qrDataUrl = await QRCode.toDataURL(uploadUrl, { margin: 1, width: 260 });
-    return NextResponse.json({ upload_url: uploadUrl, qr_data_url: qrDataUrl });
+    return NextResponse.json({
+      upload_url: uploadUrl,
+      qr_data_url: qrDataUrl,
+      expires_at: issued.expiresAt,
+      ttl_minutes: issued.ttlMinutes
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unexpected error" },
