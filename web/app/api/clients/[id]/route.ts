@@ -143,6 +143,15 @@ export async function DELETE(
         "created_at TEXT NOT NULL" +
         ")"
     ).run();
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS maintenance (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+        "client_id INTEGER NOT NULL, " +
+        "last_talked_date TEXT NOT NULL, " +
+        "notes TEXT, " +
+        "FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE" +
+        ")"
+    ).run();
     const client = db
       .prepare("SELECT full_name, profile_picture FROM clients WHERE id = ?")
       .get(clientId) as { full_name?: string; profile_picture?: string | null } | undefined;
@@ -158,6 +167,7 @@ export async function DELETE(
       db.prepare("DELETE FROM client_products WHERE client_id = ?").run(clientId);
       db.prepare("DELETE FROM client_notes WHERE client_id = ?").run(clientId);
       db.prepare("DELETE FROM alerts WHERE client_id = ?").run(clientId);
+      db.prepare("DELETE FROM maintenance WHERE client_id = ?").run(clientId);
       db.prepare("DELETE FROM client_health_info WHERE client_id = ?").run(clientId);
       db.prepare("DELETE FROM client_images WHERE client_id = ?").run(clientId);
       db.prepare("DELETE FROM clients WHERE id = ?").run(clientId);

@@ -26,14 +26,15 @@ import {
   parseMonthDay
 } from "@/lib/parse";
 import useQueryTabSync from "@/lib/hooks/useQueryTabSync";
+import { applyHighlightToRaw } from "@/lib/highlightText";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
-import ButtonLink from "../ui/ButtonLink";
 import ButtonRow from "../ui/ButtonRow";
 import SelectMenu from "../ui/SelectMenu";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import Field from "../ui/Field";
-import IconButton from "../ui/IconButton";
+import HighlightTextarea from "../ui/HighlightTextarea";
+import CloseButton from "../ui/CloseButton";
 import List from "../ui/List";
 import ListRow from "../ui/ListRow";
 import ListRowButton from "../ui/ListRowButton";
@@ -43,6 +44,9 @@ import Notice from "../ui/Notice";
 import Receipt from "../ui/Receipt";
 import SearchMenu from "../ui/SearchMenu";
 import StatusMessage from "../ui/StatusMessage";
+import UnsavedChangesPrompt from "../ui/UnsavedChangesPrompt";
+import { useUnsavedChangesRegistry } from "../ui/UnsavedChangesContext";
+import useUnsavedChangesGuard from "../ui/useUnsavedChangesGuard";
 import TreeToggle from "../ui/TreeToggle";
 import TogglePill from "../ui/TogglePill";
 import Tabs from "../ui/Tabs";
@@ -175,12 +179,12 @@ type PrescriptionTemplate = {
 
 type PrescriptionStep = {
   product: string;
-  product2: string;
   directions: string;
 };
 
 type PrescriptionColumn = {
   header: string;
+  header2: string;
   rows: PrescriptionStep[];
 };
 
@@ -258,8 +262,8 @@ const WORKSPACE_TABS: { id: WorkspaceTab; label: string }[] = [
 const WORKSPACE_TAB_IDS = WORKSPACE_TABS.map((tab) => tab.id);
 
 const OVERVIEW_TABS: { id: OverviewTab; label: string }[] = [
-  { id: "info", label: "Info" },
-  { id: "health", label: "Health" }
+  { id: "health", label: "Health" },
+  { id: "info", label: "Info" }
 ];
 
 const OVERVIEW_TAB_IDS = OVERVIEW_TABS.map((tab) => tab.id);
@@ -324,7 +328,9 @@ const EMPTY_PRODUCT: ProductForm = {
 };
 
 const MAX_PRESCRIPTION_ROWS = 10;
-const PRESCRIPTION_PRODUCT_MAX_LENGTH = 22;
+const PRESCRIPTION_PRODUCT_MAX_LENGTH = 44;
+const PRESCRIPTION_PRODUCT_WRAP_THRESHOLD = 22;
+const PRESCRIPTION_HEADER_MAX_LENGTH = 18;
 const PHOTO_PAGE_SIZE = 14;
 const BIRTHDAY_WINDOW_BEFORE_DAYS = 14;
 const BIRTHDAY_WINDOW_AFTER_DAYS = 7;
@@ -336,8 +342,9 @@ const BALLOON_COLORS = ["#f7a2b6", "#f9d270", "#8fd2ff", "#b4ef9a", "#f2a2f5"];
 
 const createPrescriptionDraft = (columnCount: number): PrescriptionDraft => {
   const columns: PrescriptionColumn[] = Array.from({ length: columnCount }, (_, index) => ({
-    header: `Column ${index + 1}`,
-    rows: [{ product: "", product2: "", directions: "" }]
+    header: "",
+    header2: "",
+    rows: [{ product: "", directions: "" }]
   }));
   return {
     start_date: "",
@@ -359,12 +366,12 @@ const normalizePrescriptionDraft = (
       const row = existing?.rows[rowIndex];
       return {
         product: row?.product ?? "",
-        product2: row?.product2 ?? "",
         directions: row?.directions ?? ""
       };
     });
     return {
-      header: existing?.header ?? `Column ${index + 1}`,
+      header: existing?.header ?? "",
+      header2: existing?.header2 ?? "",
       rows
     };
   });
@@ -378,10 +385,10 @@ const normalizePrescriptionDraft = (
 const draftToStepsDict = (draft: PrescriptionDraft) => {
   const steps: Record<string, unknown> = {};
   draft.columns.forEach((column, index) => {
-    steps[`Col${index + 1}_Header`] = column.header.trim() || `Column ${index + 1}`;
+    steps[`Col${index + 1}_Header`] = column.header.trim();
+    steps[`Col${index + 1}_Header2`] = column.header2.trim();
     steps[`Col${index + 1}`] = column.rows.map((row) => ({
       product: row.product,
-      product2: row.product2,
       directions: row.directions
     }));
   });
@@ -406,15 +413,19 @@ const stepsDictToDraft = (steps: Record<string, unknown>): PrescriptionDraft => 
       typeof steps[`Col${i}_Header`] === "string"
         ? (steps[`Col${i}_Header`] as string)
         : "";
-    const header = headerRaw.trim() || `Column ${i}`;
+    const header2Raw =
+      typeof steps[`Col${i}_Header2`] === "string"
+        ? (steps[`Col${i}_Header2`] as string)
+        : "";
+    const header = headerRaw.trim() || "";
     const rowsRaw = Array.isArray(steps[`Col${i}`])
-      ? (steps[`Col${i}`] as PrescriptionStep[])
+      ? (steps[`Col${i}`] as { product?: string; product2?: string; directions?: string }[])
       : [];
     columns.push({
       header,
+      header2: header2Raw.trim(),
       rows: rowsRaw.map((row) => ({
-        product: row.product ?? "",
-        product2: row.product2 ?? "",
+        product: row.product ?? row.product2 ?? "",
         directions: row.directions ?? ""
       }))
     });
@@ -471,7 +482,8 @@ const isWithinBirthdayWindow = (value: string, now = new Date()) => {
 
 const formatCompactValue = (value: string) => {
   const trimmed = value.trim();
-  return trimmed ? trimmed : "—";
+  const stripped = trimmed.replace(/\[h\]|\[\/h\]/g, "").trim();
+  return stripped ? trimmed : "—";
 };
 
 const formatCompactAddress = (form: ClientForm) => {
@@ -602,12 +614,38 @@ const CompactValue = ({
   );
 };
 
+const renderHighlightedValue = (value: string) => {
+  const tokens = value.split(/(\[h\]|\[\/h\])/);
+  const nodes: React.ReactNode[] = [];
+  let isHighlighted = false;
+  tokens.forEach((token, index) => {
+    if (token === "[h]") {
+      isHighlighted = true;
+      return;
+    }
+    if (token === "[/h]") {
+      isHighlighted = false;
+      return;
+    }
+    if (!token) {
+      return;
+    }
+    nodes.push(
+      <span className={isHighlighted ? styles.highlightText : undefined} key={index}>
+        {token}
+      </span>
+    );
+  });
+  return nodes;
+};
+
 const ExpandableValue = ({ value }: { value: string }) => {
   const displayValue = formatCompactValue(value);
+  const nodes = renderHighlightedValue(displayValue);
 
   return (
     <div className={styles.expandableValue}>
-      <div className={styles.expandableText}>{displayValue}</div>
+      <div className={styles.expandableText}>{nodes}</div>
     </div>
   );
 };
@@ -786,10 +824,18 @@ export default function ClientsDashboard() {
   const [prescriptionColumnCount, setPrescriptionColumnCount] = useState(2);
   const [prescriptionPreviewUrl, setPrescriptionPreviewUrl] = useState<string | null>(null);
   const [isPrescriptionEditing, setIsPrescriptionEditing] = useState(false);
+  const [isPrescriptionExitPromptOpen, setIsPrescriptionExitPromptOpen] =
+    useState(false);
   const [highlightTarget, setHighlightTarget] = useState<{
     colIndex: number;
     rowIndex: number;
   } | null>(null);
+  const prescriptionEditorRef = useRef<HTMLDivElement | null>(null);
+  const [healthHighlightField, setHealthHighlightField] =
+    useState<keyof HealthForm | null>(null);
+  const copyPanelRef = useRef<HTMLDivElement | null>(null);
+  const copyInputRef = useRef<HTMLInputElement | null>(null);
+  const [isCopyPanelOpen, setIsCopyPanelOpen] = useState(false);
   const [showBirthdayCelebration, setShowBirthdayCelebration] = useState(false);
   const [celebrationKey, setCelebrationKey] = useState(0);
   const celebrationTimeoutRef = useRef<number | null>(null);
@@ -806,6 +852,10 @@ export default function ClientsDashboard() {
   >([]);
   const [notes, setNotes] = useState<ClientNote[]>([]);
   const [noteDraft, setNoteDraft] = useState({ date_seen: "", notes: "" });
+  const [notesHighlightTarget, setNotesHighlightTarget] = useState<
+    { kind: "draft" } | { kind: "note"; noteId: number } | null
+  >(null);
+  const noteEditSnapshotRef = useRef<Record<number, ClientNote>>({});
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [isNoteFormOpen, setIsNoteFormOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
@@ -819,6 +869,15 @@ export default function ClientsDashboard() {
   const [copyStartDate, setCopyStartDate] = useState(getTodayDateString());
   const [printUrl, setPrintUrl] = useState<string | null>(null);
   const printFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const prescriptionEditSnapshotRef = useRef<string | null>(null);
+  const pendingPrescriptionExitRef = useRef<null | (() => void)>(null);
+  const [isPrescriptionShareOpen, setIsPrescriptionShareOpen] = useState(false);
+  const [prescriptionShareQrDataUrl, setPrescriptionShareQrDataUrl] =
+    useState<string | null>(null);
+  const [prescriptionShareUrl, setPrescriptionShareUrl] = useState<string | null>(
+    null
+  );
+  const [prescriptionShareLoading, setPrescriptionShareLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [referredByQuery, setReferredByQuery] = useState("");
   const [referredByValue, setReferredByValue] = useState("");
@@ -840,7 +899,7 @@ export default function ClientsDashboard() {
     replaceValue: replaceOverviewTab
   } = useQueryTabSync<OverviewTab>({
     key: "overview",
-    defaultValue: "info",
+    defaultValue: "health",
     values: OVERVIEW_TAB_IDS
   });
   const [overviewMode, setOverviewMode] = useState<OverviewMode>("compact");
@@ -968,7 +1027,39 @@ export default function ClientsDashboard() {
     );
   }, [productGroups, selectedProductGroupDate]);
 
+  const selectedAppointment = useMemo(() => {
+    if (!selectedAppointmentId) {
+      return null;
+    }
+    return (
+      sortedAppointments.find(
+        (appointment) => appointment.id === selectedAppointmentId
+      ) ?? null
+    );
+  }, [sortedAppointments, selectedAppointmentId]);
+
+  const selectedProductEntry = useMemo(() => {
+    if (!selectedProductId) {
+      return null;
+    }
+    return sortedProducts.find((entry) => entry.id === selectedProductId) ?? null;
+  }, [sortedProducts, selectedProductId]);
+
   const selectedProductReceipt = useMemo(() => {
+    if (selectedProductEntry) {
+      const brandKey = selectedProductEntry.brand?.trim() || "Unbranded";
+      return {
+        date: selectedProductEntry.date ?? "No date",
+        brands: [
+          {
+            brand: brandKey,
+            items: [selectedProductEntry]
+          }
+        ],
+        total: parseCurrencyValue(selectedProductEntry.cost)
+      };
+    }
+
     if (!selectedProductGroup) {
       return null;
     }
@@ -994,18 +1085,7 @@ export default function ClientsDashboard() {
       brands,
       total
     };
-  }, [selectedProductGroup]);
-
-  const selectedAppointment = useMemo(() => {
-    if (!selectedAppointmentId) {
-      return null;
-    }
-    return (
-      sortedAppointments.find(
-        (appointment) => appointment.id === selectedAppointmentId
-      ) ?? null
-    );
-  }, [sortedAppointments, selectedAppointmentId]);
+  }, [selectedProductEntry, selectedProductGroup]);
 
   const appointmentsWithNotes = useMemo(() => {
     return sortedAppointments.filter(
@@ -1203,6 +1283,29 @@ export default function ClientsDashboard() {
       null
     );
   }, [prescriptions, selectedPrescriptionId]);
+  const serializePrescriptionDraft = useCallback(
+    (draft: PrescriptionDraft, columnCount: number) =>
+      JSON.stringify({
+        columnCount,
+        draft: normalizePrescriptionDraft(draft, columnCount)
+      }),
+    []
+  );
+
+  const isPrescriptionDirty = useCallback(() => {
+    if (!isPrescriptionEditing || !prescriptionEditSnapshotRef.current) {
+      return false;
+    }
+    return (
+      prescriptionEditSnapshotRef.current !==
+      serializePrescriptionDraft(prescriptionDraft, prescriptionColumnCount)
+    );
+  }, [
+    isPrescriptionEditing,
+    prescriptionDraft,
+    prescriptionColumnCount,
+    serializePrescriptionDraft
+  ]);
   const isCurrentPrescription = Boolean(selectedPrescription?.is_current);
   const sortedNotes = useMemo(() => {
     return [...notes].sort((a, b) => {
@@ -1268,14 +1371,7 @@ export default function ClientsDashboard() {
     }
     initialNewClientRef.current = key;
 
-    handleNewClient();
-    setOverviewMode("edit");
-
-    if (trimmedName) {
-      const nextForm = { ...EMPTY_CLIENT, full_name: trimmedName };
-      lastSavedClientFormRef.current = nextForm;
-      setClientForm(nextForm);
-    }
+    handleNewClient(trimmedName);
 
     const params = new URLSearchParams(searchParams.toString());
     params.delete("newClient");
@@ -1726,6 +1822,7 @@ export default function ClientsDashboard() {
       setNoteDraft({ date_seen: "", notes: "" });
       setIsNoteFormOpen(false);
       setEditingNoteId(null);
+      noteEditSnapshotRef.current = {};
       setUnlockedNoteIds({});
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Failed to load notes", true);
@@ -1737,12 +1834,12 @@ export default function ClientsDashboard() {
   const loadAlerts = async () => {
     setLoadingAlerts(true);
     try {
-      const response = await fetch("/api/alerts");
-      const data = (await response.json()) as { alerts?: Alert[]; error?: string };
-      if (!response.ok) {
-        throw new Error(data.error ?? "Failed to load alerts");
-      }
-      setAlerts(data.alerts ?? []);
+        const response = await fetch("/api/alerts");
+        const data = (await response.json()) as { alerts?: Alert[]; error?: string };
+        if (!response.ok) {
+          throw new Error(data.error ?? "Failed to load alerts");
+        }
+        setAlerts(data.alerts ?? []);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Failed to load alerts", true);
     } finally {
@@ -1770,7 +1867,7 @@ export default function ClientsDashboard() {
     await loadNotes(clientId);
   };
 
-  const handleNewClient = () => {
+  const handleNewClient = (initialName = "") => {
     selectedClientIdRef.current = null;
     clientFormMutationIdRef.current = 0;
     clientDetailsAbortRef.current?.abort();
@@ -1778,13 +1875,15 @@ export default function ClientsDashboard() {
     setLoadingClientDetails(false);
     setSelectedClientId(null);
     syncClientRoute(null);
-    setOverviewMode("edit");
     replaceOverviewTab("info");
-    setClientForm(EMPTY_CLIENT);
+    const nextClientForm = initialName
+      ? { ...EMPTY_CLIENT, full_name: initialName }
+      : EMPTY_CLIENT;
+    setClientForm(nextClientForm);
     setReferredByQuery("");
     setReferredByValue("");
     setHealthForm(EMPTY_HEALTH);
-    lastSavedClientFormRef.current = EMPTY_CLIENT;
+    lastSavedClientFormRef.current = nextClientForm;
     lastSavedHealthFormRef.current = EMPTY_HEALTH;
     lastSavedReferredByValueRef.current = "";
     setAppointments([]);
@@ -1823,6 +1922,7 @@ export default function ClientsDashboard() {
     setPrescriptionColumnCount(2);
     setPrescriptionPreviewUrl(null);
     setNotice("Creating a new client.");
+    enterOverviewEdit();
   };
 
   const handleClientChange = (
@@ -1841,6 +1941,11 @@ export default function ClientsDashboard() {
     }
     clientFormMutationIdRef.current += 1;
     setClientForm((prev) => ({ ...prev, [field]: nextValue }));
+  };
+
+  const handleClientSelectChange = (field: keyof ClientForm, value: string) => {
+    clientFormMutationIdRef.current += 1;
+    setClientForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleReferredByChange = (
@@ -1915,7 +2020,46 @@ export default function ClientsDashboard() {
     setCopyClientActiveIndex(-1);
   };
 
+  useEffect(() => {
+    if (!isCopyPanelOpen) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      copyInputRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isCopyPanelOpen]);
+
+  useEffect(() => {
+    if (!selectedPrescriptionId) {
+      setIsCopyPanelOpen(false);
+    }
+  }, [selectedPrescriptionId]);
+
+  const handleCopyPanelBlur = () => {
+    window.setTimeout(() => {
+      const active = document.activeElement;
+      if (copyPanelRef.current?.contains(active)) {
+        return;
+      }
+      if (!copyClientQuery.trim() && !selectedCopyClient) {
+        setIsCopyPanelOpen(false);
+      }
+    }, 0);
+  };
+
   const handleOverviewEditCancel = () => {
+    if (!selectedClientId) {
+      setClientForm({ ...EMPTY_CLIENT });
+      setHealthForm({ ...EMPTY_HEALTH });
+      setReferredByValue("");
+      setReferredByQuery("");
+      lastSavedClientFormRef.current = EMPTY_CLIENT;
+      lastSavedHealthFormRef.current = EMPTY_HEALTH;
+      lastSavedReferredByValueRef.current = "";
+      setOverviewMode("compact");
+      return;
+    }
     const savedClient = lastSavedClientFormRef.current;
     const savedHealth = lastSavedHealthFormRef.current;
     const savedReferred = lastSavedReferredByValueRef.current;
@@ -1926,12 +2070,39 @@ export default function ClientsDashboard() {
     setOverviewMode("compact");
   };
 
-  const handleHealthChange = (
-    event: React.ChangeEvent<HTMLTextAreaElement>
-  ) => {
-    const { name, value } = event.target;
-    const field = name as keyof HealthForm;
+
+  const handleHealthFieldChange = (field: keyof HealthForm, value: string) => {
     setHealthForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleHealthHighlight = () => {
+    if (!healthHighlightField) {
+      setNotice("Select text to highlight.", true);
+      return;
+    }
+    const textarea = document.getElementById(
+      `health-${healthHighlightField}`
+    ) as HTMLTextAreaElement | null;
+    if (!textarea) {
+      setNotice("Select text to highlight.", true);
+      return;
+    }
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? start;
+    if (start === end) {
+      setNotice("Select text to highlight.", true);
+      textarea.focus();
+      return;
+    }
+    const raw = healthForm[healthHighlightField] ?? "";
+    const nextRaw = applyHighlightToRaw(raw, start, end);
+    if (nextRaw === raw) {
+      return;
+    }
+    handleHealthFieldChange(healthHighlightField, nextRaw);
+    setTimeout(() => {
+      textarea.focus();
+    }, 0);
   };
 
   const handleAppointmentChange = (
@@ -1949,10 +2120,7 @@ export default function ClientsDashboard() {
     setAppointmentForm((prev) => ({ ...prev, [field]: nextValue }));
   };
 
-  const handleAppointmentTypeChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    const value = event.target.value;
+  const handleAppointmentTypeChange = (value: string) => {
     setAppointmentForm((prev) => {
       const next = { ...prev, type: value };
       const options = APPOINTMENT_TREATMENTS[value] ?? [];
@@ -1963,17 +2131,20 @@ export default function ClientsDashboard() {
     });
   };
 
-  const handleClientSave = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleAppointmentTreatmentChange = (value: string) => {
+    setAppointmentForm((prev) => ({ ...prev, treatment: value }));
+  };
+
+  const saveClientInfo = async () => {
     setNotice(null);
 
     if (!clientForm.full_name.trim()) {
       setNotice("Client name is required.", true);
-      return;
+      return false;
     }
     if (!selectedClientId && !clientForm.primary_phone.trim()) {
       setNotice("Primary phone is required for new clients.", true);
-      return;
+      return false;
     }
 
     try {
@@ -2002,6 +2173,7 @@ export default function ClientsDashboard() {
           await loadAlerts();
           setNotice("Client updated.");
           setOverviewMode("compact");
+          return true;
         }
       } else {
         const response = await fetch("/api/clients", {
@@ -2020,10 +2192,18 @@ export default function ClientsDashboard() {
         await handleSelectClient(data.client.id);
         setNotice("Client created.");
         setOverviewMode("compact");
+        return true;
       }
+      return false;
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Save failed", true);
+      return false;
     }
+  };
+
+  const handleClientSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await saveClientInfo();
   };
 
   const handleClientDelete = async () => {
@@ -2050,11 +2230,10 @@ export default function ClientsDashboard() {
     }
   };
 
-  const handleHealthSave = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const saveHealthInfo = async () => {
     if (!selectedClientId) {
       setNotice("Select a client before saving health info.", true);
-      return;
+      return false;
     }
 
     try {
@@ -2070,12 +2249,289 @@ export default function ClientsDashboard() {
       setNotice("Health info saved.");
       lastSavedHealthFormRef.current = { ...healthForm };
       setOverviewMode("compact");
+      return true;
     } catch (err) {
       setNotice(
         err instanceof Error ? err.message : "Failed to save health info",
         true
       );
+      return false;
     }
+  };
+
+  const handleHealthSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await saveHealthInfo();
+  };
+
+  const overviewGuard = useUnsavedChangesGuard({
+    isEnabled: overviewMode === "edit",
+    getSnapshot: () =>
+      JSON.stringify({
+        overviewTab,
+        clientForm,
+        healthForm,
+        referredByValue
+      }),
+    onSave: async () =>
+      overviewTab === "health" ? saveHealthInfo() : saveClientInfo(),
+    onDiscard: handleOverviewEditCancel
+  });
+
+  const appointmentGuard = useUnsavedChangesGuard({
+    isEnabled: isAppointmentFormOpen,
+    getSnapshot: () =>
+      JSON.stringify({
+        selectedAppointmentId,
+        appointmentForm
+      }),
+    onSave: saveAppointment,
+    onDiscard: handleAppointmentFormClose
+  });
+
+  const productGuard = useUnsavedChangesGuard({
+    isEnabled: isProductFormOpen,
+    getSnapshot: () =>
+      JSON.stringify({
+        selectedProductId,
+        productForm
+      }),
+    onSave: saveProduct,
+    onDiscard: handleProductFormClose
+  });
+
+  const notesGuard = useUnsavedChangesGuard({
+    isEnabled: isNoteFormOpen || editingNoteId !== null,
+    getSnapshot: () =>
+      JSON.stringify({
+        mode: isNoteFormOpen ? "create" : editingNoteId ? "edit" : "idle",
+        noteDraft,
+        editingNoteId,
+        editingNote:
+          editingNoteId !== null
+            ? notes.find((note) => note.id === editingNoteId) ?? null
+            : null
+      }),
+    onSave: async () => {
+      if (isNoteFormOpen) {
+        return saveNoteCreate();
+      }
+      if (editingNoteId !== null) {
+        const note = notes.find((item) => item.id === editingNoteId);
+        if (!note) {
+          return false;
+        }
+        return saveNoteEdit(note);
+      }
+      return true;
+    },
+    onDiscard: () => {
+      if (isNoteFormOpen) {
+        handleNoteFormCancel();
+      }
+      if (editingNoteId !== null) {
+        handleNoteEditCancel(editingNoteId);
+      }
+    }
+  });
+
+  const enterOverviewEdit = () => {
+    setOverviewMode("edit");
+    window.setTimeout(() => overviewGuard.markSnapshot(), 0);
+  };
+
+  useEffect(() => {
+    if (isAppointmentFormOpen) {
+      appointmentGuard.markSnapshot();
+    }
+  }, [isAppointmentFormOpen, selectedAppointmentId]);
+
+  useEffect(() => {
+    if (isProductFormOpen) {
+      productGuard.markSnapshot();
+    }
+  }, [isProductFormOpen, selectedProductId]);
+
+  useEffect(() => {
+    if (isNoteFormOpen || editingNoteId !== null) {
+      notesGuard.markSnapshot();
+    }
+  }, [isNoteFormOpen, editingNoteId]);
+
+  const handleOverviewTabSelect = (tab: OverviewTab) => {
+    if (overviewMode === "edit") {
+      if (overviewGuard.isDirty()) {
+        overviewGuard.requestExit(() => handleOverviewTabChange(tab));
+        return;
+      }
+      handleOverviewEditCancel();
+    }
+    handleOverviewTabChange(tab);
+  };
+
+  const cancelPrescriptionEdit = () => {
+    if (selectedPrescriptionId) {
+      const selected = prescriptions.find(
+        (prescription) => prescription.id === selectedPrescriptionId
+      );
+      if (selected) {
+        void handlePrescriptionSelect(selected, true, true);
+        prescriptionEditSnapshotRef.current = null;
+        return;
+      }
+    }
+    setIsPrescriptionEditing(false);
+    prescriptionEditSnapshotRef.current = null;
+  };
+
+  const requestPrescriptionExit = useCallback(
+    (action: () => void) => {
+      if (!isPrescriptionEditing || !isPrescriptionDirty()) {
+        action();
+        return;
+      }
+      pendingPrescriptionExitRef.current = action;
+      setIsPrescriptionExitPromptOpen(true);
+    },
+    [isPrescriptionEditing, isPrescriptionDirty]
+  );
+
+  const isClientsDirty = useCallback(() => {
+    if (overviewMode === "edit" && overviewGuard.isDirty()) {
+      return true;
+    }
+    if (isPrescriptionEditing && isPrescriptionDirty()) {
+      return true;
+    }
+    if (isAppointmentFormOpen && appointmentGuard.isDirty()) {
+      return true;
+    }
+    if (isProductFormOpen && productGuard.isDirty()) {
+      return true;
+    }
+    if (
+      (isNoteFormOpen || editingNoteId !== null) &&
+      notesGuard.isDirty()
+    ) {
+      return true;
+    }
+    return false;
+  }, [
+    overviewMode,
+    overviewGuard,
+    isPrescriptionEditing,
+    isPrescriptionDirty,
+    isAppointmentFormOpen,
+    appointmentGuard,
+    isProductFormOpen,
+    productGuard,
+    isNoteFormOpen,
+    editingNoteId,
+    notesGuard
+  ]);
+
+  const requestClientsExit = useCallback(
+    (action: () => void) => {
+      if (overviewMode === "edit" && overviewGuard.isDirty()) {
+        overviewGuard.requestExit(action);
+        return;
+      }
+      if (isPrescriptionEditing && isPrescriptionDirty()) {
+        requestPrescriptionExit(action);
+        return;
+      }
+      if (isAppointmentFormOpen && appointmentGuard.isDirty()) {
+        appointmentGuard.requestExit(action);
+        return;
+      }
+      if (isProductFormOpen && productGuard.isDirty()) {
+        productGuard.requestExit(action);
+        return;
+      }
+      if (
+        (isNoteFormOpen || editingNoteId !== null) &&
+        notesGuard.isDirty()
+      ) {
+        notesGuard.requestExit(action);
+        return;
+      }
+      action();
+    },
+    [
+      overviewMode,
+      overviewGuard,
+      isPrescriptionEditing,
+      isPrescriptionDirty,
+      requestPrescriptionExit,
+      isAppointmentFormOpen,
+      appointmentGuard,
+      isProductFormOpen,
+      productGuard,
+      isNoteFormOpen,
+      editingNoteId,
+      notesGuard
+    ]
+  );
+
+  useUnsavedChangesRegistry("clients", {
+    isDirty: isClientsDirty,
+    requestExit: requestClientsExit
+  });
+
+  const runWorkspaceTabChange = (tab: WorkspaceTab) => {
+    if (tab !== activeTab) {
+      if (isAppointmentFormOpen) {
+        handleAppointmentFormClose();
+      }
+      if (isProductFormOpen) {
+        handleProductFormClose();
+      }
+      if (isPhotoUploadOpen) {
+        closePhotoUploadModal();
+      }
+      if (isPrescriptionEditing) {
+        cancelPrescriptionEdit();
+      }
+      if (isPrescriptionShareOpen) {
+        closePrescriptionShareModal();
+      }
+      if (isNoteFormOpen) {
+        handleNoteFormCancel();
+      }
+      if (editingNoteId !== null) {
+        handleNoteEditCancel(editingNoteId);
+      }
+    }
+    handleWorkspaceTabChange(tab);
+  };
+
+  const handleWorkspaceTabSelect = (tab: WorkspaceTab) => {
+    if (tab !== activeTab) {
+      if (overviewMode === "edit" && overviewGuard.isDirty()) {
+        overviewGuard.requestExit(() => runWorkspaceTabChange(tab));
+        return;
+      }
+      if (isPrescriptionEditing && isPrescriptionDirty()) {
+        requestPrescriptionExit(() => runWorkspaceTabChange(tab));
+        return;
+      }
+      if (isAppointmentFormOpen && appointmentGuard.isDirty()) {
+        appointmentGuard.requestExit(() => runWorkspaceTabChange(tab));
+        return;
+      }
+      if (isProductFormOpen && productGuard.isDirty()) {
+        productGuard.requestExit(() => runWorkspaceTabChange(tab));
+        return;
+      }
+      if (
+        (isNoteFormOpen || editingNoteId !== null) &&
+        notesGuard.isDirty()
+      ) {
+        notesGuard.requestExit(() => runWorkspaceTabChange(tab));
+        return;
+      }
+    }
+    runWorkspaceTabChange(tab);
   };
 
   const handleProfileFileChange = (
@@ -2724,12 +3180,14 @@ export default function ClientsDashboard() {
 
   const handlePrescriptionHeaderChange = (
     index: number,
+    field: "header" | "header2",
     value: string
   ) => {
+    const nextValue = value.slice(0, PRESCRIPTION_HEADER_MAX_LENGTH);
     setPrescriptionDraft((prev) => {
       const next = normalizePrescriptionDraft(prev, prescriptionColumnCount);
       const columns = next.columns.map((column, colIndex) =>
-        colIndex === index ? { ...column, header: value } : column
+        colIndex === index ? { ...column, [field]: nextValue } : column
       );
       return { ...next, columns };
     });
@@ -2738,13 +3196,11 @@ export default function ClientsDashboard() {
   const handlePrescriptionRowChange = (
     colIndex: number,
     rowIndex: number,
-    field: "product" | "product2" | "directions",
+    field: "product",
     value: string
   ) => {
     const nextValue =
-      field === "product" || field === "product2"
-        ? value.slice(0, PRESCRIPTION_PRODUCT_MAX_LENGTH)
-        : value;
+      value.slice(0, PRESCRIPTION_PRODUCT_MAX_LENGTH);
     setPrescriptionDraft((prev) => {
       const next = normalizePrescriptionDraft(prev, prescriptionColumnCount);
       const columns = next.columns.map((column, columnIndex) => {
@@ -2753,6 +3209,26 @@ export default function ClientsDashboard() {
         }
         const rows = column.rows.map((row, index) =>
           index === rowIndex ? { ...row, [field]: nextValue } : row
+        );
+        return { ...column, rows };
+      });
+      return { ...next, columns };
+    });
+  };
+
+  const handlePrescriptionDirectionsChange = (
+    colIndex: number,
+    rowIndex: number,
+    value: string
+  ) => {
+    setPrescriptionDraft((prev) => {
+      const next = normalizePrescriptionDraft(prev, prescriptionColumnCount);
+      const columns = next.columns.map((column, columnIndex) => {
+        if (columnIndex !== colIndex) {
+          return column;
+        }
+        const rows = column.rows.map((row, index) =>
+          index === rowIndex ? { ...row, directions: value } : row
         );
         return { ...column, rows };
       });
@@ -2769,7 +3245,7 @@ export default function ClientsDashboard() {
       }
       const columns = next.columns.map((column) => ({
         ...column,
-        rows: [...column.rows, { product: "", product2: "", directions: "" }]
+        rows: [...column.rows, { product: "", directions: "" }]
       }));
       return { ...next, columns };
     });
@@ -2787,6 +3263,14 @@ export default function ClientsDashboard() {
       }));
       return { ...next, columns };
     });
+  };
+
+  const handlePrescriptionOpenFile = (prescription: Prescription) => {
+    window.open(
+      `/api/prescriptions/${prescription.id}/file`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   };
 
   const handlePrescriptionHighlight = () => {
@@ -2811,30 +3295,129 @@ export default function ClientsDashboard() {
       textarea.focus();
       return;
     }
-    const value = textarea.value;
-    const nextValue =
-      value.slice(0, start) +
-      `[h]${value.slice(start, end)}[/h]` +
-      value.slice(end);
-
-    handlePrescriptionRowChange(colIndex, rowIndex, "directions", nextValue);
+    const raw =
+      prescriptionDraft.columns[colIndex]?.rows[rowIndex]?.directions ?? "";
+    const nextRaw = applyHighlightToRaw(raw, start, end);
+    if (nextRaw === raw) {
+      return;
+    }
+    handlePrescriptionDirectionsChange(colIndex, rowIndex, nextRaw);
     setTimeout(() => {
       textarea.focus();
     }, 0);
   };
 
+  const syncPrescriptionDirectionHeights = useCallback(() => {
+    const root = prescriptionEditorRef.current;
+    if (!root) {
+      return;
+    }
+    const productAreas = Array.from(
+      root.querySelectorAll<HTMLTextAreaElement>("[data-prescription-row='product']")
+    );
+    const directionAreas = Array.from(
+      root.querySelectorAll<HTMLTextAreaElement>("[data-prescription-row='direction']")
+    );
+    const rows = new Map<
+      string,
+      Map<string, { product?: HTMLTextAreaElement; direction?: HTMLTextAreaElement }>
+    >();
+
+    const registerArea = (
+      area: HTMLTextAreaElement,
+      kind: "product" | "direction"
+    ) => {
+      const rowIndex = area.dataset.rowIndex ?? "0";
+      const colIndex = area.dataset.colIndex ?? "0";
+      if (!rows.has(rowIndex)) {
+        rows.set(rowIndex, new Map());
+      }
+      const cols = rows.get(rowIndex);
+      if (!cols) {
+        return;
+      }
+      if (!cols.has(colIndex)) {
+        cols.set(colIndex, {});
+      }
+      const entry = cols.get(colIndex);
+      if (!entry) {
+        return;
+      }
+      entry[kind] = area;
+    };
+
+    productAreas.forEach((area) => registerArea(area, "product"));
+    directionAreas.forEach((area) => registerArea(area, "direction"));
+
+    rows.forEach((cols) => {
+      let maxTotal = 0;
+      const heights = new Map<
+        string,
+        { productHeight: number; directionHeight: number }
+      >();
+
+      cols.forEach((areas, colIndex) => {
+        const product = areas.product;
+        const direction = areas.direction;
+        let productHeight = 0;
+        let directionHeight = 0;
+        if (product) {
+          product.style.height = "auto";
+          product.style.overflowY = "hidden";
+          productHeight = product.scrollHeight;
+        }
+        if (direction) {
+          direction.style.height = "auto";
+          direction.style.overflowY = "hidden";
+          directionHeight = direction.scrollHeight;
+        }
+        heights.set(colIndex, { productHeight, directionHeight });
+        maxTotal = Math.max(maxTotal, productHeight + directionHeight);
+      });
+
+      cols.forEach((areas, colIndex) => {
+        const entry = heights.get(colIndex);
+        if (!entry) {
+          return;
+        }
+        const { productHeight, directionHeight } = entry;
+        if (areas.product) {
+          areas.product.style.height = `${productHeight}px`;
+        }
+        if (areas.direction) {
+          const target = Math.max(directionHeight, maxTotal - productHeight);
+          areas.direction.style.height = `${target}px`;
+        }
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isPrescriptionEditing) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(syncPrescriptionDirectionHeights);
+    return () => window.cancelAnimationFrame(frame);
+  }, [isPrescriptionEditing, prescriptionDraft, syncPrescriptionDirectionHeights]);
+
   const handlePrescriptionSelect = async (
     prescription: Prescription,
-    forceReload = false
+    forceReload = false,
+    skipPrompt = false
   ) => {
+    if (!skipPrompt && isPrescriptionEditing && isPrescriptionDirty()) {
+      requestPrescriptionExit(() =>
+        handlePrescriptionSelect(prescription, forceReload, true)
+      );
+      return;
+    }
     if (selectedPrescriptionId === prescription.id && !forceReload) {
       return;
     }
     setSelectedPrescriptionId(prescription.id);
-    setPrescriptionPreviewUrl(
-      `/api/prescriptions/${prescription.id}/file?ts=${Date.now()}`
-    );
+    setPrescriptionPreviewUrl(`/api/prescriptions/${prescription.id}/file`);
     setIsPrescriptionEditing(false);
+    closePrescriptionShareModal();
 
     try {
       const response = await fetch(`/api/prescriptions/${prescription.id}`);
@@ -2863,35 +3446,34 @@ export default function ClientsDashboard() {
     setSelectedPrescriptionId(null);
     setPrescriptionPreviewUrl(null);
     setIsPrescriptionEditing(false);
+    prescriptionEditSnapshotRef.current = null;
   };
 
   const handlePrescriptionCancel = () => {
-    if (selectedPrescriptionId) {
-      const selected = prescriptions.find(
-        (prescription) => prescription.id === selectedPrescriptionId
-      );
-      if (selected) {
-        void handlePrescriptionSelect(selected, true);
-        return;
-      }
-    }
-    setIsPrescriptionEditing(false);
+    requestPrescriptionExit(cancelPrescriptionEdit);
   };
 
-  const handlePrescriptionNew = () => {
+  const handlePrescriptionNew = (skipPrompt = false) => {
+    if (!skipPrompt && isPrescriptionEditing && isPrescriptionDirty()) {
+      requestPrescriptionExit(() => handlePrescriptionNew(true));
+      return;
+    }
     setSelectedPrescriptionId(null);
     const draft = createPrescriptionDraft(prescriptionColumnCount);
     draft.start_date = getTodayDateString();
     setPrescriptionDraft(draft);
     setPrescriptionPreviewUrl(null);
+    prescriptionEditSnapshotRef.current = serializePrescriptionDraft(
+      draft,
+      prescriptionColumnCount
+    );
     setIsPrescriptionEditing(true);
   };
 
-  const handlePrescriptionSave = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const savePrescription = async () => {
     if (!selectedClientId) {
       setNotice("Select a client before saving a prescription.", true);
-      return;
+      return false;
     }
 
     const draft = normalizePrescriptionDraft(
@@ -2926,6 +3508,7 @@ export default function ClientsDashboard() {
           `/api/prescriptions/${selectedPrescriptionId}/file?ts=${Date.now()}`
         );
         setIsPrescriptionEditing(false);
+        prescriptionEditSnapshotRef.current = null;
         setNotice("Prescription updated.");
       } else {
         const response = await fetch("/api/prescriptions", {
@@ -2950,14 +3533,46 @@ export default function ClientsDashboard() {
           `/api/prescriptions/${data.prescription.id}/file?ts=${Date.now()}`
         );
         setIsPrescriptionEditing(false);
+        prescriptionEditSnapshotRef.current = null;
         setNotice("Prescription created.");
       }
+      return true;
     } catch (err) {
       setNotice(
         err instanceof Error ? err.message : "Failed to save prescription",
         true
       );
+      return false;
     }
+  };
+
+  const handlePrescriptionSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await savePrescription();
+  };
+
+  const handlePrescriptionExitStay = () => {
+    pendingPrescriptionExitRef.current = null;
+    setIsPrescriptionExitPromptOpen(false);
+  };
+
+  const handlePrescriptionExitDiscard = () => {
+    const action = pendingPrescriptionExitRef.current;
+    pendingPrescriptionExitRef.current = null;
+    setIsPrescriptionExitPromptOpen(false);
+    cancelPrescriptionEdit();
+    action?.();
+  };
+
+  const handlePrescriptionExitSave = async () => {
+    const action = pendingPrescriptionExitRef.current;
+    pendingPrescriptionExitRef.current = null;
+    setIsPrescriptionExitPromptOpen(false);
+    const saved = await savePrescription();
+    if (!saved) {
+      return;
+    }
+    action?.();
   };
 
   const handlePrescriptionDelete = async () => {
@@ -3027,22 +3642,82 @@ export default function ClientsDashboard() {
     setNoteDraft((prev) => ({ ...prev, [name]: nextValue }));
   };
 
-  const handleNoteFormToggle = () => {
-    setIsNoteFormOpen(true);
+  const handleNoteDraftNotesChange = (value: string) => {
+    setNoteDraft((prev) => ({ ...prev, notes: value }));
   };
 
-  const handleNoteCreate = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleNoteFormToggle = () => {
+    notesGuard.requestExit(() => {
+      setIsNoteFormOpen(true);
+    });
+  };
+
+  const handleNoteFormCancel = () => {
+    setNoteDraft({ date_seen: "", notes: "" });
+    setIsNoteFormOpen(false);
+    setNotesHighlightTarget(null);
+  };
+
+  const handleNotesHighlight = () => {
+    if (!notesHighlightTarget) {
+      setNotice("Select text to highlight.", true);
+      return;
+    }
+
+    const textareaId =
+      notesHighlightTarget.kind === "draft"
+        ? "note-draft"
+        : `note-${notesHighlightTarget.noteId}`;
+    const textarea = document.getElementById(
+      textareaId
+    ) as HTMLTextAreaElement | null;
+    if (!textarea) {
+      setNotice("Select text to highlight.", true);
+      return;
+    }
+
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? start;
+    if (start === end) {
+      setNotice("Select text to highlight.", true);
+      textarea.focus();
+      return;
+    }
+
+    if (notesHighlightTarget.kind === "draft") {
+      const raw = noteDraft.notes ?? "";
+      const nextRaw = applyHighlightToRaw(raw, start, end);
+      if (nextRaw !== raw) {
+        handleNoteDraftNotesChange(nextRaw);
+      }
+      setTimeout(() => textarea.focus(), 0);
+      return;
+    }
+
+    const note = notes.find((item) => item.id === notesHighlightTarget.noteId);
+    if (!note) {
+      setNotice("Select text to highlight.", true);
+      return;
+    }
+    const raw = note.notes ?? "";
+    const nextRaw = applyHighlightToRaw(raw, start, end);
+    if (nextRaw !== raw) {
+      handleNoteFieldChange(note.id, "notes", nextRaw);
+    }
+    setTimeout(() => textarea.focus(), 0);
+  };
+
+  async function saveNoteCreate() {
     if (!selectedClientId) {
       setNotice("Select a client before adding a note.", true);
-      return;
+      return false;
     }
 
     const trimmedDate = noteDraft.date_seen.trim();
     const trimmedNotes = noteDraft.notes.trim();
     if (!trimmedDate || !trimmedNotes) {
       setNotice("Date last seen and notes are required.", true);
-      return;
+      return false;
     }
 
     try {
@@ -3066,9 +3741,16 @@ export default function ClientsDashboard() {
       setNoteDraft({ date_seen: "", notes: "" });
       setIsNoteFormOpen(false);
       setNotice("Note added.");
+      return true;
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Failed to add note", true);
+      return false;
     }
+  }
+
+  const handleNoteCreate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await saveNoteCreate();
   };
 
   const handleNoteFieldChange = (
@@ -3085,15 +3767,35 @@ export default function ClientsDashboard() {
   };
 
   const handleNoteEdit = (noteId: number) => {
-    setEditingNoteId(noteId);
+    notesGuard.requestExit(() => {
+      if (!noteEditSnapshotRef.current[noteId]) {
+        const note = notes.find((item) => item.id === noteId);
+        if (note) {
+          noteEditSnapshotRef.current[noteId] = { ...note };
+        }
+      }
+      setEditingNoteId(noteId);
+    });
   };
 
-  const handleNoteSave = async (note: ClientNote) => {
+  const handleNoteEditCancel = (noteId: number) => {
+    const snapshot = noteEditSnapshotRef.current[noteId];
+    if (snapshot) {
+      setNotes((prev) =>
+        prev.map((note) => (note.id === noteId ? snapshot : note))
+      );
+      delete noteEditSnapshotRef.current[noteId];
+    }
+    setEditingNoteId(null);
+    setNotesHighlightTarget(null);
+  };
+
+  async function saveNoteEdit(note: ClientNote) {
     const trimmedDate = note.date_seen.trim();
     const trimmedNotes = note.notes.trim();
     if (!trimmedDate || !trimmedNotes) {
       setNotice("Date last seen and notes are required.", true);
-      return;
+      return false;
     }
 
     try {
@@ -3109,11 +3811,18 @@ export default function ClientsDashboard() {
       if (!response.ok) {
         throw new Error(data.error ?? "Failed to save note");
       }
+      delete noteEditSnapshotRef.current[note.id];
       setEditingNoteId(null);
       setNotice("Note updated.");
+      return true;
     } catch (err) {
       setNotice(err instanceof Error ? err.message : "Failed to save note", true);
+      return false;
     }
+  }
+
+  const handleNoteSave = async (note: ClientNote) => {
+    await saveNoteEdit(note);
   };
 
   const handleNoteToggleDone = async (note: ClientNote, checked: boolean) => {
@@ -3168,6 +3877,7 @@ export default function ClientsDashboard() {
       }
       setNotes((prev) => prev.filter((item) => item.id !== note.id));
       setEditingNoteId((prev) => (prev === note.id ? null : prev));
+      delete noteEditSnapshotRef.current[note.id];
       setUnlockedNoteIds((prev) => {
         if (!prev[note.id]) {
           return prev;
@@ -3187,6 +3897,47 @@ export default function ClientsDashboard() {
       return;
     }
     setPrintUrl(`/api/prescriptions/${selectedPrescriptionId}/file?ts=${Date.now()}`);
+  };
+
+  const openPrescriptionShareModal = async () => {
+    if (!selectedPrescriptionId) {
+      setNotice("Select a prescription to share.", true);
+      return;
+    }
+    setIsPrescriptionShareOpen(true);
+    setPrescriptionShareLoading(true);
+    setPrescriptionShareQrDataUrl(null);
+    setPrescriptionShareUrl(null);
+    try {
+      const response = await fetch(
+        `/api/prescriptions/${selectedPrescriptionId}/share-qr`
+      );
+      const data = (await response.json()) as {
+        share_url?: string;
+        qr_data_url?: string;
+        error?: string;
+      };
+      if (!response.ok || !data.share_url || !data.qr_data_url) {
+        throw new Error(data.error ?? "Failed to generate share QR");
+      }
+      setPrescriptionShareUrl(data.share_url);
+      setPrescriptionShareQrDataUrl(data.qr_data_url);
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : "Failed to generate share QR",
+        true
+      );
+      setIsPrescriptionShareOpen(false);
+    } finally {
+      setPrescriptionShareLoading(false);
+    }
+  };
+
+  const closePrescriptionShareModal = () => {
+    setIsPrescriptionShareOpen(false);
+    setPrescriptionShareQrDataUrl(null);
+    setPrescriptionShareUrl(null);
+    setPrescriptionShareLoading(false);
   };
 
   const handlePrintFrameLoad = () => {
@@ -3252,6 +4003,10 @@ export default function ClientsDashboard() {
         setIsPrescriptionEditing(false);
       }
 
+      setIsCopyPanelOpen(false);
+      setCopyClientQuery("");
+      setCopyTargetClientId("");
+      setCopyClientActiveIndex(-1);
       setNotice("Prescription copied.");
     } catch (err) {
       setNotice(
@@ -3261,7 +4016,11 @@ export default function ClientsDashboard() {
     }
   };
 
-  const handleTemplateApply = () => {
+  const handleTemplateApply = (skipPrompt = false) => {
+    if (!skipPrompt && isPrescriptionEditing && isPrescriptionDirty()) {
+      requestPrescriptionExit(() => handleTemplateApply(true));
+      return;
+    }
     if (!selectedTemplateId) {
       setNotice("Select a template to apply.", true);
       return;
@@ -3281,6 +4040,10 @@ export default function ClientsDashboard() {
     setPrescriptionDraft(draft);
     setSelectedPrescriptionId(null);
     setPrescriptionPreviewUrl(null);
+    prescriptionEditSnapshotRef.current = serializePrescriptionDraft(
+      draft,
+      draft.columns.length
+    );
     setIsPrescriptionEditing(true);
     setNotice(`Template "${template.name}" loaded.`);
   };
@@ -3365,31 +4128,33 @@ export default function ClientsDashboard() {
   };
 
   const handleAppointmentEdit = (appointment: Appointment) => {
-    handleAppointmentSelect(appointment);
-    setIsAppointmentFormOpen(true);
+    appointmentGuard.requestExit(() => {
+      handleAppointmentSelect(appointment);
+      setIsAppointmentFormOpen(true);
+    });
   };
 
   const handleAppointmentNew = () => {
-    setSelectedAppointmentId(null);
-    setAppointmentForm(EMPTY_APPOINTMENT);
-    setIsAppointmentFormOpen(true);
+    appointmentGuard.requestExit(() => {
+      setSelectedAppointmentId(null);
+      setAppointmentForm(EMPTY_APPOINTMENT);
+      setIsAppointmentFormOpen(true);
+    });
   };
 
-  const handleAppointmentFormClose = () => {
+  function handleAppointmentFormClose() {
     setIsAppointmentFormOpen(false);
-  };
+  }
 
-  const handleAppointmentSave = async (event: React.FormEvent) => {
-    event.preventDefault();
-
+  async function saveAppointment() {
     if (!selectedClientId) {
       setNotice("Select a client before saving an appointment.", true);
-      return;
+      return false;
     }
 
     if (!appointmentForm.date.trim() || !appointmentForm.type.trim()) {
       setNotice("Date and type are required for appointments.", true);
-      return;
+      return false;
     }
 
     try {
@@ -3421,29 +4186,36 @@ export default function ClientsDashboard() {
         await loadAppointments(selectedClientId);
         setNotice("Appointment updated.");
         setIsAppointmentFormOpen(false);
-      } else {
-        const response = await fetch("/api/appointments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            client_id: selectedClientId,
-            ...payload
-          })
-        });
-        const data = (await response.json()) as { error?: string };
-        if (!response.ok) {
-          throw new Error(data.error ?? "Failed to create appointment");
-        }
-        await loadAppointments(selectedClientId);
-        setNotice("Appointment created.");
-        setIsAppointmentFormOpen(false);
+        return true;
       }
+      const response = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: selectedClientId,
+          ...payload
+        })
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to create appointment");
+      }
+      await loadAppointments(selectedClientId);
+      setNotice("Appointment created.");
+      setIsAppointmentFormOpen(false);
+      return true;
     } catch (err) {
       setNotice(
         err instanceof Error ? err.message : "Failed to save appointment",
         true
       );
+      return false;
     }
+  }
+
+  const handleAppointmentSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await saveAppointment();
   };
 
   const handleAppointmentDelete = async () => {
@@ -3486,10 +4258,7 @@ export default function ClientsDashboard() {
     setProductForm((prev) => ({ ...prev, [field]: nextValue }));
   };
 
-  const handleProductSelectChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    const value = event.target.value;
+  const handleProductSelectChange = (value: string) => {
     if (!value) {
       setProductForm((prev) => ({
         ...prev,
@@ -3513,10 +4282,7 @@ export default function ClientsDashboard() {
     }));
   };
 
-  const handleProductBrandChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    const nextBrand = event.target.value;
+  const handleProductBrandChange = (nextBrand: string) => {
     setProductForm((prev) => {
       if (!nextBrand) {
         return { ...prev, brand: "", product: "", size: "", cost: "" };
@@ -3533,6 +4299,8 @@ export default function ClientsDashboard() {
 
   const handleProductGroupSelect = (groupDate: string) => {
     setSelectedProductGroupDate(groupDate);
+    setSelectedProductId(null);
+    setIsProductFormOpen(false);
   };
 
   const toggleProductGroupCollapsed = (groupDate: string) => {
@@ -3557,27 +4325,29 @@ export default function ClientsDashboard() {
   };
 
   const handleProductEdit = (entry: ClientProduct) => {
-    handleProductSelect(entry);
-    setIsProductFormOpen(true);
+    productGuard.requestExit(() => {
+      handleProductSelect(entry);
+      setIsProductFormOpen(true);
+    });
   };
 
   const handleProductNew = () => {
-    setSelectedProductId(null);
-    setSelectedProductGroupDate(null);
-    setProductForm(EMPTY_PRODUCT);
-    setIsProductFormOpen(true);
+    productGuard.requestExit(() => {
+      setSelectedProductId(null);
+      setSelectedProductGroupDate(null);
+      setProductForm(EMPTY_PRODUCT);
+      setIsProductFormOpen(true);
+    });
   };
 
-  const handleProductFormClose = () => {
+  function handleProductFormClose() {
     setIsProductFormOpen(false);
-  };
+  }
 
-  const handleProductSave = async (event: React.FormEvent) => {
-    event.preventDefault();
-
+  async function saveProduct() {
     if (!selectedClientId) {
       setNotice("Select a client before saving a product.", true);
-      return;
+      return false;
     }
 
     if (
@@ -3586,7 +4356,7 @@ export default function ClientsDashboard() {
       !productForm.product.trim()
     ) {
       setNotice("Date, brand, and product are required.", true);
-      return;
+      return false;
     }
 
     try {
@@ -3611,29 +4381,36 @@ export default function ClientsDashboard() {
         await loadProducts(selectedClientId);
         setNotice("Product updated.");
         setIsProductFormOpen(false);
-      } else {
-        const response = await fetch("/api/products", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            client_id: selectedClientId,
-            ...payload
-          })
-        });
-        const data = (await response.json()) as { error?: string };
-        if (!response.ok) {
-          throw new Error(data.error ?? "Failed to create product");
-        }
-        await loadProducts(selectedClientId);
-        setNotice("Product saved.");
-        setIsProductFormOpen(false);
+        return true;
       }
+      const response = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: selectedClientId,
+          ...payload
+        })
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to create product");
+      }
+      await loadProducts(selectedClientId);
+      setNotice("Product saved.");
+      setIsProductFormOpen(false);
+      return true;
     } catch (err) {
       setNotice(
         err instanceof Error ? err.message : "Failed to save product",
         true
       );
+      return false;
     }
+  }
+
+  const handleProductSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await saveProduct();
   };
 
   const handleProductDelete = async () => {
@@ -3671,12 +4448,7 @@ export default function ClientsDashboard() {
 
   const handleAddClientFromSearch = () => {
     const trimmedName = searchQuery.trim();
-    handleNewClient();
-    if (trimmedName) {
-      const nextForm = { ...EMPTY_CLIENT, full_name: trimmedName };
-      lastSavedClientFormRef.current = nextForm;
-      setClientForm(nextForm);
-    }
+    handleNewClient(trimmedName);
     setSearchQuery("");
     setSearchActiveIndex(-1);
     window.requestAnimationFrame(() => {
@@ -3991,7 +4763,12 @@ export default function ClientsDashboard() {
               <Button variant="secondary" type="button" onClick={handleSearch}>
                 Search
               </Button>
-              <Button variant="secondary" type="button" onClick={handleSearchClear}>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={handleSearchClear}
+                className={styles.cancelButton}
+              >
                 Clear
               </Button>
               <Button type="button" onClick={handleAddClientFromSearch}>
@@ -4052,9 +4829,13 @@ export default function ClientsDashboard() {
           </div>
 
           <div
-            className={`${styles.overviewGrid} ${
-              overviewMode === "compact" ? styles.overviewGridCompact : ""
-            }`}
+            className={[
+              styles.overviewGrid,
+              overviewMode === "compact" ? styles.overviewGridCompact : "",
+              overviewMode === "edit" ? styles.overviewGridEdit : ""
+            ]
+              .filter(Boolean)
+              .join(" ")}
           >
             <div
               className={`${styles.profileCard} ${
@@ -4062,43 +4843,63 @@ export default function ClientsDashboard() {
               }`}
             >
               {!selectedClientId && (
-                <Notice>Select a client to manage profile photos.</Notice>
+                <div
+                  className={`${styles.profileStack} ${styles.profileStackCompact}`}
+                >
+                  <div
+                    className={`${styles.profilePlaceholder} ${styles.profilePlaceholderCompact}`}
+                  >
+                    No profile picture yet.
+                  </div>
+                </div>
               )}
               {selectedClientId && (
                 <>
                   <div
-                    className={`${styles.profileStack} ${
-                      overviewMode === "compact" ? styles.profileStackCompact : ""
-                    }`}
+                    className={[
+                      styles.profileStack,
+                      overviewMode === "compact" ? styles.profileStackCompact : "",
+                      overviewMode === "edit" ? styles.profileStackEdit : ""
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                   >
                     {profilePictureUrl ? (
-                      <img
-                        className={`${styles.profileImage} ${
-                          overviewMode === "compact"
-                            ? styles.profileImageCompact
-                            : ""
-                        }`}
-                        src={profilePictureUrl}
-                        alt="Profile"
-                        onError={() => setProfilePictureUrl(null)}
-                      />
-                    ) : (
-                      <div
-                        className={`${styles.profilePlaceholder} ${
-                          overviewMode === "compact"
-                            ? styles.profilePlaceholderCompact
-                            : ""
-                        }`}
+                      <button
+                        type="button"
+                        className={styles.profileImageButton}
+                        onClick={openProfileUploadModal}
                       >
-                        No profile picture yet.
-                      </div>
+                        <img
+                          className={`${styles.profileImage} ${
+                            styles.profileImageCompact
+                          }`}
+                          src={profilePictureUrl}
+                          alt="Profile"
+                          onError={() => setProfilePictureUrl(null)}
+                        />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`${styles.profilePlaceholderButton} ${styles.profilePlaceholderCompact}`}
+                        onClick={openProfileUploadModal}
+                      >
+                        <span
+                          className={`${styles.profilePlaceholder} ${
+                            styles.profilePlaceholderCompact
+                          }`}
+                        >
+                          No profile picture yet.
+                        </span>
+                      </button>
                     )}
                     {overviewMode === "edit" && (
-                      <ButtonRow>
+                      <div className={styles.profileUploadActions}>
                         <Button type="button" onClick={openProfileUploadModal}>
-                          Upload
+                          Upload Picture
                         </Button>
-                      </ButtonRow>
+                      </div>
                     )}
                   </div>
 
@@ -4107,6 +4908,7 @@ export default function ClientsDashboard() {
                     title="Upload Profile Photo"
                     onClose={closeProfileUploadModal}
                     portalTarget={portalTarget}
+                    className={styles.uploadModal}
                   >
                     <div className={styles.modalSection}>
                       <Notice>
@@ -4156,6 +4958,14 @@ export default function ClientsDashboard() {
                             >
                               Upload
                             </Button>
+                            <Button
+                              variant="secondary"
+                              type="button"
+                              onClick={closeProfileUploadModal}
+                              className={styles.cancelButton}
+                            >
+                              Cancel
+                            </Button>
                           </ButtonRow>
                         </div>
                       </div>
@@ -4183,6 +4993,16 @@ export default function ClientsDashboard() {
                             </div>
                           )}
                         </div>
+                        <ButtonRow>
+                          <Button
+                            variant="secondary"
+                            type="button"
+                            onClick={closeProfileUploadModal}
+                            className={styles.cancelButton}
+                          >
+                            Cancel
+                          </Button>
+                        </ButtonRow>
                       </div>
                     )}
                   </Modal>
@@ -4195,15 +5015,15 @@ export default function ClientsDashboard() {
                 <Tabs
                   className={styles.overviewTabs}
                   value={overviewTab}
-                  onChange={handleOverviewTabChange}
+                  onChange={handleOverviewTabSelect}
                   tabs={OVERVIEW_TABS}
                 />
-                {overviewMode === "compact" && (
+                {overviewMode === "compact" && selectedClientId && (
                   <Button
                     variant="secondary"
                     type="button"
                     disabled={loadingClientDetails}
-                    onClick={() => setOverviewMode("edit")}
+                    onClick={enterOverviewEdit}
                     aria-label="Edit client"
                     title="Edit"
                   >
@@ -4218,15 +5038,13 @@ export default function ClientsDashboard() {
                 }`}
               >
               {overviewMode === "edit" && (
-                <IconButton
+                <CloseButton
                   className={`${styles.editToggleIcon} ${styles.editToggleFloatingCard}`}
                   disabled={loadingClientDetails}
-                  onClick={handleOverviewEditCancel}
+                  onClick={() => overviewGuard.requestExit(handleOverviewEditCancel)}
                   aria-label="Exit edit mode"
                   title="Close edit"
-                >
-                  X
-                </IconButton>
+                />
               )}
               {overviewTab === "info" && (
                 <>
@@ -4287,17 +5105,18 @@ export default function ClientsDashboard() {
                           />
                         </Field>
                         <Field label="Gender">
-                          <select
-                            className={styles.select}
-                            name="gender"
+                          <SelectMenu
                             value={clientForm.gender}
-                            onChange={handleClientChange}
+                            placeholder="Select"
+                            options={[
+                              { value: "Male", label: "Male" },
+                              { value: "Female", label: "Female" }
+                            ]}
+                            onChange={(value) =>
+                              handleClientSelectChange("gender", value)
+                            }
                             disabled={loadingClientDetails}
-                          >
-                            <option value="">Select</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                          </select>
+                          />
                         </Field>
                         <Field label="Primary Phone">
                           <input
@@ -4466,6 +5285,15 @@ export default function ClientsDashboard() {
                         >
                           {selectedClientId ? "Save Changes" : "Create Client"}
                         </Button>
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          onClick={() => overviewGuard.requestExit(handleOverviewEditCancel)}
+                          disabled={loadingClientDetails}
+                          className={styles.cancelButton}
+                        >
+                          Cancel
+                        </Button>
                         {selectedClientId && (
                           <Button
                             className={styles.buttonRowEnd}
@@ -4504,32 +5332,46 @@ export default function ClientsDashboard() {
                             <ExpandableValue value={healthForm.allergies} />
                           </Field>
                           <Field as="div" label="Health Conditions">
-                            <ExpandableValue value={healthForm.health_conditions} />
+                            <ExpandableValue
+                              value={healthForm.health_conditions}
+                            />
                           </Field>
                           <Field
                             as="div"
                             label="Health Risks"
                             className={styles.healthRiskField}
                           >
-                            <ExpandableValue value={healthForm.health_risks} />
+                            <ExpandableValue
+                              value={healthForm.health_risks}
+                            />
                           </Field>
                           <Field as="div" label="Medications">
                             <ExpandableValue value={healthForm.medications} />
                           </Field>
                           <Field as="div" label="Treatment Areas">
-                            <ExpandableValue value={healthForm.treatment_areas} />
+                            <ExpandableValue
+                              value={healthForm.treatment_areas}
+                            />
                           </Field>
                           <Field as="div" label="Current Products">
-                            <ExpandableValue value={healthForm.current_products} />
+                            <ExpandableValue
+                              value={healthForm.current_products}
+                            />
                           </Field>
                           <Field as="div" label="Skin Conditions">
-                            <ExpandableValue value={healthForm.skin_conditions} />
+                            <ExpandableValue
+                              value={healthForm.skin_conditions}
+                            />
                           </Field>
                           <Field as="div" label="Other Notes">
-                            <ExpandableValue value={healthForm.other_notes} />
+                            <ExpandableValue
+                              value={healthForm.other_notes}
+                            />
                           </Field>
                           <Field as="div" label="Desired Improvement">
-                            <ExpandableValue value={healthForm.desired_improvement} />
+                            <ExpandableValue
+                              value={healthForm.desired_improvement}
+                            />
                           </Field>
                         </div>
                       )}
@@ -4542,75 +5384,112 @@ export default function ClientsDashboard() {
                       >
                         <div className={styles.formGrid}>
                           <Field label="Allergies">
-                            <textarea
-                              className={styles.textarea}
-                              name="allergies"
+                            <HighlightTextarea
                               value={healthForm.allergies}
-                              onChange={handleHealthChange}
+                              placeholder=""
+                              onChange={(value) =>
+                                handleHealthFieldChange("allergies", value)
+                              }
+                              onFocus={() => setHealthHighlightField("allergies")}
+                              textareaProps={{ id: "health-allergies" }}
                             />
                           </Field>
                           <Field label="Health Conditions">
-                            <textarea
-                              className={styles.textarea}
-                              name="health_conditions"
+                            <HighlightTextarea
                               value={healthForm.health_conditions}
-                              onChange={handleHealthChange}
+                              placeholder=""
+                              onChange={(value) =>
+                                handleHealthFieldChange("health_conditions", value)
+                              }
+                              onFocus={() =>
+                                setHealthHighlightField("health_conditions")
+                              }
+                              textareaProps={{ id: "health-health_conditions" }}
                             />
                           </Field>
                           <Field label="Health Risks">
-                            <textarea
-                              className={styles.textarea}
-                              name="health_risks"
+                            <HighlightTextarea
                               value={healthForm.health_risks}
-                              onChange={handleHealthChange}
+                              placeholder=""
+                              onChange={(value) =>
+                                handleHealthFieldChange("health_risks", value)
+                              }
+                              onFocus={() => setHealthHighlightField("health_risks")}
+                              textareaProps={{ id: "health-health_risks" }}
                             />
                           </Field>
                           <Field label="Medications">
-                            <textarea
-                              className={styles.textarea}
-                              name="medications"
+                            <HighlightTextarea
                               value={healthForm.medications}
-                              onChange={handleHealthChange}
+                              placeholder=""
+                              onChange={(value) =>
+                                handleHealthFieldChange("medications", value)
+                              }
+                              onFocus={() => setHealthHighlightField("medications")}
+                              textareaProps={{ id: "health-medications" }}
                             />
                           </Field>
                           <Field label="Treatment Areas">
-                            <textarea
-                              className={styles.textarea}
-                              name="treatment_areas"
+                            <HighlightTextarea
                               value={healthForm.treatment_areas}
-                              onChange={handleHealthChange}
+                              placeholder=""
+                              onChange={(value) =>
+                                handleHealthFieldChange("treatment_areas", value)
+                              }
+                              onFocus={() =>
+                                setHealthHighlightField("treatment_areas")
+                              }
+                              textareaProps={{ id: "health-treatment_areas" }}
                             />
                           </Field>
                           <Field label="Current Products">
-                            <textarea
-                              className={styles.textarea}
-                              name="current_products"
+                            <HighlightTextarea
                               value={healthForm.current_products}
-                              onChange={handleHealthChange}
+                              placeholder=""
+                              onChange={(value) =>
+                                handleHealthFieldChange("current_products", value)
+                              }
+                              onFocus={() =>
+                                setHealthHighlightField("current_products")
+                              }
+                              textareaProps={{ id: "health-current_products" }}
                             />
                           </Field>
                           <Field label="Skin Conditions">
-                            <textarea
-                              className={styles.textarea}
-                              name="skin_conditions"
+                            <HighlightTextarea
                               value={healthForm.skin_conditions}
-                              onChange={handleHealthChange}
+                              placeholder=""
+                              onChange={(value) =>
+                                handleHealthFieldChange("skin_conditions", value)
+                              }
+                              onFocus={() =>
+                                setHealthHighlightField("skin_conditions")
+                              }
+                              textareaProps={{ id: "health-skin_conditions" }}
                             />
                           </Field>
                           <Field label="Other Notes">
-                            <textarea
-                              className={styles.textarea}
-                              name="other_notes"
+                            <HighlightTextarea
                               value={healthForm.other_notes}
-                              onChange={handleHealthChange}
+                              placeholder=""
+                              onChange={(value) =>
+                                handleHealthFieldChange("other_notes", value)
+                              }
+                              onFocus={() => setHealthHighlightField("other_notes")}
+                              textareaProps={{ id: "health-other_notes" }}
                             />
                           </Field>
                           <Field label="Desired Improvement">
-                            <textarea
-                              className={styles.textarea}
-                              name="desired_improvement"
+                            <HighlightTextarea
                               value={healthForm.desired_improvement}
-                              onChange={handleHealthChange}
+                              placeholder=""
+                              onChange={(value) =>
+                                handleHealthFieldChange("desired_improvement", value)
+                              }
+                              onFocus={() =>
+                                setHealthHighlightField("desired_improvement")
+                              }
+                              textareaProps={{ id: "health-desired_improvement" }}
                             />
                           </Field>
                         </div>
@@ -4621,6 +5500,24 @@ export default function ClientsDashboard() {
                           disabled={!selectedClientId}
                         >
                           Save Health Info
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          disabled={!selectedClientId}
+                          onClick={() => overviewGuard.requestExit(handleOverviewEditCancel)}
+                          className={styles.cancelButton}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          disabled={!selectedClientId}
+                          onClick={handleHealthHighlight}
+                          className={styles.highlightButton}
+                        >
+                          Highlight
                         </Button>
                       </ButtonRow>
                     </form>
@@ -4633,38 +5530,44 @@ export default function ClientsDashboard() {
         </section>
       </div>
 
-      <Tabs
-        as="nav"
-        className={styles.sectionTabs}
-        value={activeTab}
-        onChange={handleWorkspaceTabChange}
-        tabs={WORKSPACE_TABS}
-      />
-
       <section className={`${styles.panel} ${styles.workspacePanel}`}>
         {activeTab === "appointments" && (
           <div className={styles.section}>
-            {!selectedClientId && (
-              <div className={styles.sectionHeaderRow}>
-                <h2 className={styles.sectionTitle}>Appointments</h2>
-              </div>
-            )}
+            <div className={styles.sectionHeaderRow}>
+              <Tabs
+                as="nav"
+                className={styles.sectionTabs}
+                value={activeTab}
+                onChange={handleWorkspaceTabSelect}
+                tabs={WORKSPACE_TABS}
+              />
+              {selectedClientId && (
+                <div className={styles.sectionHeaderActions}>
+                  {selectedAppointment && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => handleAppointmentEdit(selectedAppointment)}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    onClick={handleAppointmentNew}
+                    disabled={!selectedClientId}
+                  >
+                    Add Appointment
+                  </Button>
+                </div>
+              )}
+            </div>
             {!selectedClientId && (
               <Notice>Select a client to manage appointments.</Notice>
             )}
             {selectedClientId && (
               <div className={styles.appointmentsLayout}>
                 <div className={styles.appointmentsMain}>
-                  <div className={styles.sectionHeaderRow}>
-                    <h2 className={styles.sectionTitle}>Appointments</h2>
-                    <Button
-                      type="button"
-                      onClick={handleAppointmentNew}
-                      disabled={!selectedClientId}
-                    >
-                      Add Appointment
-                    </Button>
-                  </div>
                   {sortedAppointments.length === 0 && (
                     <Notice>No appointments yet.</Notice>
                   )}
@@ -4715,14 +5618,14 @@ export default function ClientsDashboard() {
                         className={styles.appointmentForm}
                         onSubmit={handleAppointmentSave}
                       >
-                      <IconButton
+                      <CloseButton
                         className={styles.appointmentFormClose}
-                        onClick={handleAppointmentFormClose}
+                        onClick={() =>
+                          appointmentGuard.requestExit(handleAppointmentFormClose)
+                        }
                         aria-label="Close appointment form"
                         title="Close"
-                      >
-                        X
-                      </IconButton>
+                      />
                       <Field label="Date">
                         <input
                           className={styles.input}
@@ -4734,40 +5637,39 @@ export default function ClientsDashboard() {
                         />
                       </Field>
                       <Field label="Type">
-                        <select
-                          className={styles.select}
-                          name="type"
+                        <SelectMenu
                           value={appointmentForm.type}
+                          placeholder="Select type"
+                          options={[
+                            ...APPOINTMENT_TYPES.map((typeOption) => ({
+                              value: typeOption,
+                              label: typeOption
+                            }))
+                          ]}
                           onChange={handleAppointmentTypeChange}
-                        >
-                          <option value="">Select type</option>
-                          {APPOINTMENT_TYPES.map((typeOption) => (
-                            <option key={typeOption} value={typeOption}>
-                              {typeOption}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </Field>
                       <Field label="Treatment">
-                        <select
-                          className={styles.select}
-                          name="treatment"
+                        <SelectMenu
                           value={appointmentForm.treatment}
-                          onChange={handleAppointmentChange}
+                          placeholder="Select treatment"
+                          options={[
+                            ...(hasCustomTreatment
+                              ? [
+                                  {
+                                    value: appointmentForm.treatment,
+                                    label: appointmentForm.treatment
+                                  }
+                                ]
+                              : []),
+                            ...treatmentOptions.map((treatmentOption) => ({
+                              value: treatmentOption,
+                              label: treatmentOption
+                            }))
+                          ]}
+                          onChange={handleAppointmentTreatmentChange}
                           disabled={!appointmentForm.type}
-                        >
-                          <option value="">Select treatment</option>
-                          {hasCustomTreatment && (
-                            <option value={appointmentForm.treatment}>
-                              {appointmentForm.treatment}
-                            </option>
-                          )}
-                          {treatmentOptions.map((treatmentOption) => (
-                            <option key={treatmentOption} value={treatmentOption}>
-                              {treatmentOption}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </Field>
                       <Field label="Price">
                         <input
@@ -4788,6 +5690,16 @@ export default function ClientsDashboard() {
                       <ButtonRow>
                         <Button type="submit">
                           {selectedAppointmentId ? "Save Appointment" : "Add Appointment"}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          onClick={() =>
+                            appointmentGuard.requestExit(handleAppointmentFormClose)
+                          }
+                          className={styles.cancelButton}
+                        >
+                          Cancel
                         </Button>
                         {selectedAppointmentId && (
                           <Button
@@ -4914,27 +5826,41 @@ export default function ClientsDashboard() {
 
         {activeTab === "products" && (
           <div className={styles.section}>
-            {!selectedClientId && (
-              <div className={styles.sectionHeaderRow}>
-                <h2 className={styles.sectionTitle}>Products</h2>
-              </div>
-            )}
+            <div className={styles.sectionHeaderRow}>
+              <Tabs
+                as="nav"
+                className={styles.sectionTabs}
+                value={activeTab}
+                onChange={handleWorkspaceTabSelect}
+                tabs={WORKSPACE_TABS}
+              />
+              {selectedClientId && (
+                <div className={styles.sectionHeaderActions}>
+                  {selectedProductEntry && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => handleProductEdit(selectedProductEntry)}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    onClick={handleProductNew}
+                    disabled={!selectedClientId}
+                  >
+                    Add Product
+                  </Button>
+                </div>
+              )}
+            </div>
             {!selectedClientId && (
               <Notice>Select a client to manage products.</Notice>
             )}
             {selectedClientId && (
               <div className={styles.appointmentsLayout}>
                 <div className={styles.appointmentsMain}>
-                  <div className={styles.sectionHeaderRow}>
-                    <h2 className={styles.sectionTitle}>Products</h2>
-                    <Button
-                      type="button"
-                      onClick={handleProductNew}
-                      disabled={!selectedClientId}
-                    >
-                      Add Product
-                    </Button>
-                  </div>
                   {loadingProducts && (
                     <Notice>Loading products...</Notice>
                   )}
@@ -4960,15 +5886,14 @@ export default function ClientsDashboard() {
                             collapsedProductDates[group.date] ?? false
                           }
                           renderSingleRow={(group, entry) => {
-                            const isSelected =
-                              selectedProductGroupDate === group.date;
+                            const isSelected = selectedProductId === entry.id;
                             return (
                               <tr
                                 key={entry.id}
                                 className={
                                   isSelected ? styles.appointmentRowSelected : undefined
                                 }
-                                onClick={() => handleProductGroupSelect(group.date)}
+                                onClick={() => handleProductSelect(entry)}
                                 onDoubleClick={() => handleProductEdit(entry)}
                               >
                                 <td className={styles.productToggleCell} />
@@ -4982,7 +5907,8 @@ export default function ClientsDashboard() {
                           }}
                           renderGroupRow={(group, isCollapsed) => {
                             const isSelected =
-                              selectedProductGroupDate === group.date;
+                              selectedProductGroupDate === group.date &&
+                              selectedProductId === null;
                             return (
                               <tr
                                 key={`group-${group.id}`}
@@ -5017,15 +5943,14 @@ export default function ClientsDashboard() {
                             );
                           }}
                           renderItemRow={(group, entry) => {
-                            const isSelected =
-                              selectedProductGroupDate === group.date;
+                            const isSelected = selectedProductId === entry.id;
                             return (
                               <tr
                                 key={entry.id}
                                 className={
                                   isSelected ? styles.appointmentRowSelected : undefined
                                 }
-                                onClick={() => handleProductGroupSelect(group.date)}
+                                onClick={() => handleProductSelect(entry)}
                                 onDoubleClick={() => handleProductEdit(entry)}
                               >
                                 <td className={styles.productToggleCell} />
@@ -5058,14 +5983,14 @@ export default function ClientsDashboard() {
                         className={styles.appointmentForm}
                         onSubmit={handleProductSave}
                       >
-                        <IconButton
+                        <CloseButton
                           className={styles.appointmentFormClose}
-                          onClick={handleProductFormClose}
+                          onClick={() =>
+                            productGuard.requestExit(handleProductFormClose)
+                          }
                           aria-label="Close product form"
                           title="Close"
-                        >
-                          X
-                        </IconButton>
+                        />
                         <Field label="Date">
                           <input
                             className={styles.input}
@@ -5077,50 +6002,48 @@ export default function ClientsDashboard() {
                           />
                         </Field>
                         <Field label="Brand">
-                          <select
-                            className={styles.select}
-                            name="brand"
-                            value={productForm.brand}
+                        <SelectMenu
+                          value={productForm.brand}
+                          placeholder="Select brand"
+                          options={[
+                            ...(hasCustomBrand
+                              ? [{ value: productForm.brand, label: productForm.brand }]
+                              : []),
+                            ...productBrands.map((brand) => ({
+                              value: brand,
+                                label: brand
+                              }))
+                            ]}
                             onChange={handleProductBrandChange}
-                          >
-                            <option value="">Select brand</option>
-                            {hasCustomBrand && (
-                              <option value={productForm.brand}>
-                                {productForm.brand}
-                              </option>
-                            )}
-                            {productBrands.map((brand) => (
-                              <option key={brand} value={brand}>
-                                {brand}
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </Field>
                         <Field label="Product">
-                          <select
-                            className={styles.select}
-                            name="product"
-                            value={productForm.product}
+                        <SelectMenu
+                          value={productForm.product}
+                          placeholder={
+                            productForm.brand
+                              ? "Select product"
+                              : "Select brand first"
+                          }
+                          options={[
+                            ...(hasCustomProduct
+                              ? [
+                                  {
+                                    value: productForm.product,
+                                    label: productForm.product
+                                    }
+                                  ]
+                                : []),
+                              ...filteredCatalogProducts.map((item) => ({
+                                value: item.name,
+                                label: `${item.name} (${item.size}, ${formatCurrencyInput(
+                                  String(item.price)
+                                )})`
+                              }))
+                            ]}
                             onChange={handleProductSelectChange}
                             disabled={!productForm.brand}
-                          >
-                            <option value="">
-                              {productForm.brand
-                                ? "Select product"
-                                : "Select brand first"}
-                            </option>
-                            {hasCustomProduct && (
-                              <option value={productForm.product}>
-                                {productForm.product}
-                              </option>
-                            )}
-                            {filteredCatalogProducts.map((item) => (
-                              <option key={item.name} value={item.name}>
-                                {item.name} ({item.size},{" "}
-                                {formatCurrencyInput(String(item.price))})
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </Field>
                         <Field label="Size">
                           <input
@@ -5141,6 +6064,16 @@ export default function ClientsDashboard() {
                         <ButtonRow>
                           <Button type="submit">
                             {selectedProductId ? "Save Product" : "Add Product"}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            type="button"
+                            onClick={() =>
+                              productGuard.requestExit(handleProductFormClose)
+                            }
+                            className={styles.cancelButton}
+                          >
+                            Cancel
                           </Button>
                           {selectedProductId && (
                             <Button
@@ -5224,7 +6157,24 @@ export default function ClientsDashboard() {
         {activeTab === "photos" && (
           <div className={styles.section}>
             <div className={styles.sectionHeaderRow}>
-              <h2 className={styles.sectionTitle}>Client Photos</h2>
+              <Tabs
+                as="nav"
+                className={styles.sectionTabs}
+                value={activeTab}
+                onChange={handleWorkspaceTabSelect}
+                tabs={WORKSPACE_TABS}
+              />
+              <div className={styles.sectionHeaderActions}>
+                <Button
+                  type="button"
+                  onClick={openPhotoUploadModal}
+                  disabled={!selectedClientId}
+                >
+                  Upload Photos
+                </Button>
+              </div>
+            </div>
+            <div className={styles.photoCompareHeader}>
               <TogglePill
                 className={styles.photoCompareToggle}
                 buttonClassName={styles.photoCompareToggleButton}
@@ -5244,6 +6194,7 @@ export default function ClientsDashboard() {
                   title="Upload Photos"
                   onClose={closePhotoUploadModal}
                   portalTarget={portalTarget}
+                  className={styles.uploadModal}
                 >
                   <div className={styles.modalSection}>
                     <Notice>
@@ -5255,20 +6206,17 @@ export default function ClientsDashboard() {
 
                   <div className={styles.modalSection}>
                     <Field label="Appointment">
-                      <select
-                        className={styles.select}
+                      <SelectMenu
                         value={photoUploadAppointmentId}
-                        onChange={(event) =>
-                          setPhotoUploadAppointmentId(event.target.value)
-                        }
-                      >
-                        <option value="">Select appointment</option>
-                        {sortedAppointments.map((appt) => (
-                          <option key={appt.id} value={String(appt.id)}>
-                            {appt.date} - {appt.type}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="Select appointment"
+                        options={[
+                          ...sortedAppointments.map((appt) => ({
+                            value: String(appt.id),
+                            label: `${appt.date} - ${appt.type}`
+                          }))
+                        ]}
+                        onChange={setPhotoUploadAppointmentId}
+                      />
                     </Field>
                   </div>
 
@@ -5320,6 +6268,14 @@ export default function ClientsDashboard() {
                           >
                             Upload Photos
                           </Button>
+                          <Button
+                            variant="secondary"
+                            type="button"
+                            onClick={closePhotoUploadModal}
+                            className={styles.cancelButton}
+                          >
+                            Cancel
+                          </Button>
                         </ButtonRow>
                       </div>
                     </div>
@@ -5352,6 +6308,16 @@ export default function ClientsDashboard() {
                           </div>
                         )}
                       </div>
+                      <ButtonRow>
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          onClick={closePhotoUploadModal}
+                          className={styles.cancelButton}
+                        >
+                          Cancel
+                        </Button>
+                      </ButtonRow>
                     </div>
                   )}
                 </Modal>
@@ -5441,6 +6407,7 @@ export default function ClientsDashboard() {
                                   variant="secondary"
                                   type="button"
                                   onClick={() => handlePhotoCommentCancel("before")}
+                                  className={styles.cancelButton}
                                 >
                                   Cancel
                                 </Button>
@@ -5551,6 +6518,7 @@ export default function ClientsDashboard() {
                                   variant="secondary"
                                   type="button"
                                   onClick={() => handlePhotoCommentCancel("after")}
+                                  className={styles.cancelButton}
                                 >
                                   Cancel
                                 </Button>
@@ -5578,16 +6546,6 @@ export default function ClientsDashboard() {
                       )}
                     </div>
                   </div>
-                </div>
-
-                <div className={styles.photoUploadFooter}>
-                  <Button
-                    type="button"
-                    onClick={openPhotoUploadModal}
-                    disabled={!selectedClientId}
-                  >
-                    Upload Photos
-                  </Button>
                 </div>
 
                 {loadingPhotos && <Notice>Loading photos...</Notice>}
@@ -5676,19 +6634,48 @@ export default function ClientsDashboard() {
         {activeTab === "notes" && (
           <div className={styles.section}>
             <div className={styles.sectionHeaderRow}>
-              <h2 className={styles.sectionTitle}>Notes</h2>
+              <Tabs
+                as="nav"
+                className={styles.sectionTabs}
+                value={activeTab}
+                onChange={handleWorkspaceTabSelect}
+                tabs={WORKSPACE_TABS}
+              />
               {selectedClientId && (
-                <Button
-                  type={isNoteFormOpen ? "submit" : "button"}
-                  form={isNoteFormOpen ? "note-create-form" : undefined}
-                  onClick={() => {
-                    if (!isNoteFormOpen) {
-                      handleNoteFormToggle();
-                    }
-                  }}
-                >
-                  {isNoteFormOpen ? "Save Note" : "Add Note"}
-                </Button>
+                <div className={styles.headerActions}>
+                  {(isNoteFormOpen || editingNoteId !== null) && (
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      onClick={handleNotesHighlight}
+                      className={styles.highlightButton}
+                    >
+                      Highlight
+                    </Button>
+                  )}
+                  <Button
+                    type={isNoteFormOpen ? "submit" : "button"}
+                    form={isNoteFormOpen ? "note-create-form" : undefined}
+                    disabled={editingNoteId !== null}
+                    onClick={() => {
+                      if (!isNoteFormOpen) {
+                        handleNoteFormToggle();
+                      }
+                    }}
+                  >
+                    {isNoteFormOpen ? "Save Note" : "Add Note"}
+                  </Button>
+                  {isNoteFormOpen && (
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      onClick={() => notesGuard.requestExit(handleNoteFormCancel)}
+                      className={styles.cancelButton}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
             {!selectedClientId && (
@@ -5702,6 +6689,12 @@ export default function ClientsDashboard() {
                     className={styles.notesForm}
                     onSubmit={handleNoteCreate}
                   >
+                    <CloseButton
+                      className={styles.notesCreateClose}
+                      onClick={() => notesGuard.requestExit(handleNoteFormCancel)}
+                      aria-label="Cancel new note"
+                      title="Cancel"
+                    />
                     <div className={styles.notesRow}>
                       <Field label="Date last seen">
                         <input
@@ -5714,12 +6707,13 @@ export default function ClientsDashboard() {
                         />
                       </Field>
                       <Field label="Notes">
-                        <textarea
-                          className={`${styles.textarea} ${styles.notesTextarea}`}
-                          name="notes"
-                          placeholder="Add appointment notes..."
+                        <HighlightTextarea
                           value={noteDraft.notes}
-                          onChange={handleNoteDraftChange}
+                          placeholder="Add appointment notes..."
+                          onChange={handleNoteDraftNotesChange}
+                          onFocus={() => setNotesHighlightTarget({ kind: "draft" })}
+                          textareaClassName={styles.notesTextarea}
+                          textareaProps={{ id: "note-draft", name: "notes" }}
                         />
                       </Field>
                       <Field as="div" className={styles.notesDoneField} label="Done">
@@ -5746,10 +6740,22 @@ export default function ClientsDashboard() {
                         <ListRow
                           key={note.id}
                           as="div"
-                          className={styles.notesItem}
+                          className={`${styles.notesItem} ${
+                            isEditing ? styles.notesItemEditing : ""
+                          }`}
                         >
                           {isEditing ? (
-                            <div className={styles.notesRow}>
+                            <div className={`${styles.notesRow} ${styles.notesRowEditing}`}>
+                              <CloseButton
+                                className={styles.notesEditClose}
+                                onClick={() =>
+                                  notesGuard.requestExit(() =>
+                                    handleNoteEditCancel(note.id)
+                                  )
+                                }
+                                aria-label="Cancel note edit"
+                                title="Cancel"
+                              />
                               <Field label="Date last seen">
                                 <input
                                   className={styles.input}
@@ -5767,18 +6773,23 @@ export default function ClientsDashboard() {
                                 />
                               </Field>
                               <Field label="Notes">
-                                <textarea
-                                  className={`${styles.textarea} ${styles.notesTextarea}`}
-                                  name="notes"
-                                  placeholder="Add appointment notes..."
+                                <HighlightTextarea
                                   value={note.notes}
-                                  onChange={(event) =>
-                                    handleNoteFieldChange(
-                                      note.id,
-                                      "notes",
-                                      event.target.value
-                                    )
+                                  placeholder="Add appointment notes..."
+                                  onChange={(value) =>
+                                    handleNoteFieldChange(note.id, "notes", value)
                                   }
+                                  onFocus={() =>
+                                    setNotesHighlightTarget({
+                                      kind: "note",
+                                      noteId: note.id
+                                    })
+                                  }
+                                  textareaClassName={styles.notesTextarea}
+                                  textareaProps={{
+                                    id: `note-${note.id}`,
+                                    name: "notes"
+                                  }}
                                 />
                               </Field>
                               <Field as="div" className={styles.notesDoneField} label="Done">
@@ -5821,7 +6832,9 @@ export default function ClientsDashboard() {
                                 <div className={styles.notesViewBlock}>
                                   <div className={styles.notesViewLabel}>Notes</div>
                                   <div className={styles.notesViewText}>
-                                    {note.notes || "—"}
+                                    {renderHighlightedValue(
+                                      formatCompactValue(note.notes ?? "")
+                                    )}
                                   </div>
                                 </div>
                                 <div className={styles.notesDoneField}>
@@ -5853,41 +6866,57 @@ export default function ClientsDashboard() {
                               </div>
                             </div>
                           )}
-                          <div className={styles.notesActions}>
-                            {isEditing ? (
+                          {!isNoteFormOpen && (
+                            <div className={styles.notesActions}>
+                              {isEditing ? (
+                                <>
+                                  <Button
+                                    variant="secondary"
+                                    type="button"
+                                    onClick={() => handleNoteSave(note)}
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    variant="secondary"
+                                    type="button"
+                                    onClick={() =>
+                                      notesGuard.requestExit(() =>
+                                        handleNoteEditCancel(note.id)
+                                      )
+                                    }
+                                    className={styles.cancelButton}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  variant="secondary"
+                                  type="button"
+                                  onClick={() => handleNoteEdit(note.id)}
+                                >
+                                  Edit
+                                </Button>
+                              )}
                               <Button
                                 variant="secondary"
+                                danger
                                 type="button"
-                                onClick={() => handleNoteSave(note)}
+                                onClick={() =>
+                                  openConfirmDialog({
+                                    title: "Delete Note",
+                                    message: "Delete this note?",
+                                    confirmLabel: "Delete",
+                                    confirmDanger: true,
+                                    onConfirm: () => handleNoteDelete(note)
+                                  })
+                                }
                               >
-                                Save
+                                Delete
                               </Button>
-                            ) : (
-                              <Button
-                                variant="secondary"
-                                type="button"
-                                onClick={() => handleNoteEdit(note.id)}
-                              >
-                                Edit
-                              </Button>
-                            )}
-                            <Button
-                              variant="secondary"
-                              danger
-                              type="button"
-                              onClick={() =>
-                                openConfirmDialog({
-                                  title: "Delete Note",
-                                  message: "Delete this note?",
-                                  confirmLabel: "Delete",
-                                  confirmDanger: true,
-                                  onConfirm: () => handleNoteDelete(note)
-                                })
-                              }
-                            >
-                              Delete
-                            </Button>
-                          </div>
+                            </div>
+                          )}
                         </ListRow>
                       );
                     })}
@@ -5900,19 +6929,35 @@ export default function ClientsDashboard() {
 
         {activeTab === "prescriptions" && (
           <div className={styles.section}>
-            <h2 className={styles.sectionTitle}>Prescriptions</h2>
+            <div className={styles.sectionHeaderRow}>
+              <Tabs
+                as="nav"
+                className={styles.sectionTabs}
+                value={activeTab}
+                onChange={handleWorkspaceTabSelect}
+                tabs={WORKSPACE_TABS}
+              />
+            </div>
             {!selectedClientId && (
               <Notice>Select a client to manage prescriptions.</Notice>
             )}
             {selectedClientId && (
-              <div className={styles.prescriptionsLayout}>
-                <div className={styles.prescriptionsList}>
+              <div
+                className={[
+                  styles.prescriptionsLayout,
+                  isPrescriptionEditing ? styles.prescriptionsLayoutEditing : ""
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                {!isPrescriptionEditing && (
+                  <div className={styles.prescriptionsList}>
                   <div className={styles.headerRow}>
                     <h3>Saved Prescriptions</h3>
                     <Button
                       variant="secondary"
                       type="button"
-                      onClick={handlePrescriptionNew}
+                      onClick={() => handlePrescriptionNew()}
                     >
                       New
                     </Button>
@@ -5933,7 +6978,7 @@ export default function ClientsDashboard() {
                         active={Boolean(prescription.is_current)}
                         activeClassName={styles.prescriptionItemCurrent}
                         onClick={() => handlePrescriptionSelect(prescription)}
-                        onDoubleClick={() => setIsPrescriptionEditing(true)}
+                        onDoubleClick={() => handlePrescriptionOpenFile(prescription)}
                         role="button"
                         tabIndex={0}
                         onKeyDown={(event) => {
@@ -5961,121 +7006,48 @@ export default function ClientsDashboard() {
                   {selectedPrescription && (
                     <>
                       <ButtonRow>
-                        <ButtonLink
-                          external
-                          href={`/api/prescriptions/${selectedPrescription.id}/file`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Open
-                        </ButtonLink>
                         <Button
                           variant="secondary"
                           type="button"
-                          onClick={() => setIsPrescriptionEditing(true)}
+                          onClick={() => {
+                            prescriptionEditSnapshotRef.current =
+                              serializePrescriptionDraft(
+                                prescriptionDraft,
+                                prescriptionColumnCount
+                              );
+                            setIsPrescriptionEditing(true);
+                          }}
                         >
                           Edit
                         </Button>
                         <Button
                           variant="secondary"
                           type="button"
-                          onClick={handlePrescriptionMarkCurrent}
-                          disabled={isCurrentPrescription}
+                          onClick={() => setIsCopyPanelOpen(true)}
                         >
-                          {isCurrentPrescription ? "Current" : "Mark Current"}
+                          Copy
                         </Button>
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          onClick={openPrescriptionShareModal}
+                        >
+                          Send
+                        </Button>
+                        {!isCurrentPrescription && (
+                          <Button
+                            variant="secondary"
+                            type="button"
+                            onClick={handlePrescriptionMarkCurrent}
+                          >
+                            Mark
+                          </Button>
+                        )}
                       </ButtonRow>
-                      <div className={styles.copyPanel}>
-                        <span className={styles.label}>Copy To Client</span>
-                        <div className={styles.copyRow}>
-                          <div className={styles.copyColumn}>
-                            <div className={styles.referredByField}>
-                              {selectedCopyClient ? (
-                                <div className={styles.referredByTags}>
-                                  <span className={styles.referredByTag}>
-                                    <span className={styles.referredByTagLabel}>
-                                      {selectedCopyClient.full_name}
-                                    </span>
-                                    <button
-                                      className={styles.referredByTagRemove}
-                                      type="button"
-                                      onClick={handleCopyClientClear}
-                                      aria-label="Remove client"
-                                      title="Remove client"
-                                    >
-                                      X
-                                    </button>
-                                  </span>
-                                </div>
-                              ) : null}
-                              {!selectedCopyClient && (
-                                <>
-                                  <input
-                                    className={styles.input}
-                                    placeholder="Search client name"
-                                    value={copyClientQuery}
-                                    onChange={handleCopyClientChange}
-                                    autoComplete="off"
-                                    onKeyDown={(event) => {
-                                      if (handleCopyClientKeyDown(event)) {
-                                        return;
-                                      }
-                                    }}
-                                  />
-                                  <SearchMenu
-                                    show={hasCopyClientQuery}
-                                    items={copyClientMatches}
-                                    emptyMessage="No results"
-                                    activeIndex={copyClientActiveIndex}
-                                    onActiveIndexChange={setCopyClientActiveIndex}
-                                    selectedId={null}
-                                    getKey={(client) => client.id}
-                                    getLabel={(client) => client.full_name}
-                                    getMeta={(client) => client.primary_phone ?? ""}
-                                    onSelect={handleCopyClientSelect}
-                                    containerClassName={styles.referredByResults}
-                                    listClassName={styles.referredByList}
-                                    itemClassName={styles.referredByItem}
-                                    itemSelectedClassName={styles.referredByItemSelected}
-                                    itemActiveClassName={styles.referredByItemActive}
-                                    labelClassName={styles.referredByName}
-                                    metaClassName={styles.referredByMeta}
-                                    emptyClassName={styles.referredByEmpty}
-                                    labelElement="span"
-                                    metaElement="span"
-                                  />
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          {copyTargetClientId && (
-                            <>
-                              <input
-                                className={styles.input}
-                                placeholder="MM/DD/YYYY"
-                                value={copyStartDate}
-                                onChange={(event) =>
-                                  setCopyStartDate(event.target.value)
-                                }
-                              />
-                              <Button
-                                className={styles.copyActionButton}
-                                variant="secondary"
-                                type="button"
-                                onClick={handlePrescriptionCopy}
-                              >
-                                Copy
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
                     </>
                   )}
-                  <div className={styles.templatePanel}>
-                    <div className={styles.qrHeader}>
-                      <h3>Templates</h3>
-                    </div>
+                  <div className={`${styles.templatePanel} ${styles.templatePanelSeparated}`}>
+                    <span className={styles.label}>Templates</span>
                     <form
                       className={styles.templateRow}
                       onSubmit={handleTemplateSave}
@@ -6110,7 +7082,7 @@ export default function ClientsDashboard() {
                           <Button
                             variant="secondary"
                             type="button"
-                            onClick={handleTemplateApply}
+                            onClick={() => handleTemplateApply()}
                           >
                             New From Template
                           </Button>
@@ -6134,11 +7106,119 @@ export default function ClientsDashboard() {
                       )}
                     </div>
                   </div>
-                </div>
+                  {selectedPrescription && isCopyPanelOpen && (
+                    <div
+                      ref={copyPanelRef}
+                      className={`${styles.copyPanel} ${styles.templatePanelSeparated}`}
+                      onBlurCapture={handleCopyPanelBlur}
+                    >
+                      <span className={styles.label}>Copy To Client</span>
+                      <div className={styles.copyRow}>
+                        <div className={styles.copyColumn}>
+                          <div className={styles.referredByField}>
+                            {selectedCopyClient ? (
+                              <div className={styles.referredByTags}>
+                                <span className={styles.referredByTag}>
+                                  <span className={styles.referredByTagLabel}>
+                                    {selectedCopyClient.full_name}
+                                  </span>
+                                  <button
+                                    className={styles.referredByTagRemove}
+                                    type="button"
+                                    onClick={handleCopyClientClear}
+                                    aria-label="Remove client"
+                                    title="Remove client"
+                                  >
+                                    X
+                                  </button>
+                                </span>
+                              </div>
+                            ) : null}
+                            {!selectedCopyClient && (
+                              <>
+                                <input
+                                  ref={copyInputRef}
+                                  className={styles.input}
+                                  placeholder="Search client name"
+                                  value={copyClientQuery}
+                                  onChange={handleCopyClientChange}
+                                  autoComplete="off"
+                                  onKeyDown={(event) => {
+                                    if (handleCopyClientKeyDown(event)) {
+                                      return;
+                                    }
+                                  }}
+                                />
+                                <SearchMenu
+                                  show={hasCopyClientQuery}
+                                  items={copyClientMatches}
+                                  emptyMessage="No results"
+                                  activeIndex={copyClientActiveIndex}
+                                  onActiveIndexChange={setCopyClientActiveIndex}
+                                  selectedId={null}
+                                  getKey={(client) => client.id}
+                                  getLabel={(client) => client.full_name}
+                                  getMeta={(client) => client.primary_phone ?? ""}
+                                  onSelect={handleCopyClientSelect}
+                                  containerClassName={styles.referredByResults}
+                                  listClassName={styles.referredByList}
+                                  itemClassName={styles.referredByItem}
+                                  itemSelectedClassName={styles.referredByItemSelected}
+                                  itemActiveClassName={styles.referredByItemActive}
+                                  labelClassName={styles.referredByName}
+                                  metaClassName={styles.referredByMeta}
+                                  emptyClassName={styles.referredByEmpty}
+                                  labelElement="span"
+                                  metaElement="span"
+                                />
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {copyTargetClientId && (
+                          <>
+                            <input
+                              className={styles.input}
+                              placeholder="MM/DD/YYYY"
+                              value={copyStartDate}
+                              onChange={(event) => setCopyStartDate(event.target.value)}
+                            />
+                            <Button
+                              className={styles.copyActionButton}
+                              variant="secondary"
+                              type="button"
+                              onClick={handlePrescriptionCopy}
+                            >
+                              Copy
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  </div>
+                )}
 
-                <div className={styles.prescriptionsEditor}>
+                <div
+                  ref={prescriptionEditorRef}
+                  className={[
+                    styles.prescriptionsEditor,
+                    isPrescriptionEditing ? styles.prescriptionsEditorFull : ""
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
                   {isPrescriptionEditing ? (
-                    <form onSubmit={handlePrescriptionSave}>
+                    <form
+                      className={styles.prescriptionEditForm}
+                      onSubmit={handlePrescriptionSave}
+                    >
+                      <CloseButton
+                        className={styles.prescriptionEditClose}
+                        onClick={handlePrescriptionCancel}
+                        aria-label="Cancel prescription edit"
+                        title="Cancel"
+                      />
                       <div className={styles.formGrid}>
                         <Field label="Start Date">
                           <input
@@ -6150,19 +7230,17 @@ export default function ClientsDashboard() {
                           />
                         </Field>
                         <Field label="Columns">
-                          <select
-                            className={styles.select}
-                            value={prescriptionColumnCount}
-                            onChange={(event) =>
-                              handlePrescriptionColumnCountChange(
-                                Number(event.target.value)
-                              )
+                          <SelectMenu
+                            value={String(prescriptionColumnCount)}
+                            options={[
+                              { value: "2", label: "2 Columns" },
+                              { value: "3", label: "3 Columns" },
+                              { value: "4", label: "4 Columns" }
+                            ]}
+                            onChange={(value) =>
+                              handlePrescriptionColumnCountChange(Number(value))
                             }
-                          >
-                            <option value={2}>2 Columns</option>
-                            <option value={3}>3 Columns</option>
-                            <option value={4}>4 Columns</option>
-                          </select>
+                          />
                         </Field>
                       </div>
 
@@ -6185,87 +7263,135 @@ export default function ClientsDashboard() {
                         variant="secondary"
                         type="button"
                         onClick={handlePrescriptionHighlight}
+                        className={styles.highlightButton}
                       >
                         Highlight
                       </Button>
                     </ButtonRow>
 
-                      <div
-                        className={styles.prescriptionGrid}
-                        style={{
-                          gridTemplateColumns: `repeat(${prescriptionColumnCount}, minmax(0, 1fr))`
-                        }}
-                      >
-                        {prescriptionDraft.columns.map((column, colIndex) => (
-                          <div
-                            className={styles.prescriptionColumn}
-                            key={`col-${colIndex}`}
-                          >
-                            <Field label="Header">
+                      <div className={styles.prescriptionFinalLayout}>
+                        <div
+                          className={styles.prescriptionFinalHeaderRow}
+                          style={{
+                            gridTemplateColumns: `60px repeat(${prescriptionColumnCount}, minmax(0, 1fr))`
+                          }}
+                        >
+                          <div className={styles.prescriptionFinalHeaderLabel}>
+                            HEADER
+                          </div>
+                          {prescriptionDraft.columns.map((column, colIndex) => (
+                            <div
+                              className={styles.prescriptionFinalHeaderCell}
+                              key={`header-${colIndex}`}
+                            >
                               <input
                                 className={styles.input}
                                 value={column.header}
+                                placeholder="Header line 1"
+                                maxLength={PRESCRIPTION_HEADER_MAX_LENGTH}
                                 onChange={(event) =>
                                   handlePrescriptionHeaderChange(
                                     colIndex,
+                                    "header",
                                     event.target.value
                                   )
                                 }
                               />
-                            </Field>
-                            {column.rows.map((row, rowIndex) => (
-                              <div
-                                className={styles.prescriptionRow}
-                                key={`row-${rowIndex}`}
-                              >
-                                <input
-                                  className={styles.input}
-                                  placeholder={`Step ${rowIndex + 1} Product`}
-                                  maxLength={PRESCRIPTION_PRODUCT_MAX_LENGTH}
-                                  value={row.product}
-                                  onChange={(event) =>
-                                    handlePrescriptionRowChange(
-                                      colIndex,
-                                      rowIndex,
-                                      "product",
-                                      event.target.value
-                                    )
-                                  }
-                                />
-                                <input
-                                  className={styles.input}
-                                  placeholder={`Step ${rowIndex + 1} Product 2`}
-                                  maxLength={PRESCRIPTION_PRODUCT_MAX_LENGTH}
-                                  value={row.product2}
-                                  onChange={(event) =>
-                                    handlePrescriptionRowChange(
-                                      colIndex,
-                                      rowIndex,
-                                      "product2",
-                                      event.target.value
-                                    )
-                                  }
-                                />
-                              <textarea
-                                id={`dir-${colIndex}-${rowIndex}`}
-                                className={styles.textarea}
-                                placeholder="Directions"
-                                value={row.directions}
+                              <input
+                                className={styles.input}
+                                value={column.header2}
+                                placeholder="Header line 2"
+                                maxLength={PRESCRIPTION_HEADER_MAX_LENGTH}
                                 onChange={(event) =>
-                                  handlePrescriptionRowChange(
+                                  handlePrescriptionHeaderChange(
                                     colIndex,
-                                    rowIndex,
-                                    "directions",
+                                    "header2",
                                     event.target.value
                                   )
-                                }
-                                onFocus={() =>
-                                  setHighlightTarget({ colIndex, rowIndex })
                                 }
                               />
                             </div>
                           ))}
                         </div>
+
+                        {Array.from(
+                          {
+                            length: Math.max(
+                              1,
+                              ...prescriptionDraft.columns.map(
+                                (column) => column.rows.length
+                              )
+                            )
+                          },
+                          (_, rowIndex) => rowIndex
+                        ).map((rowIndex) => (
+                          <div
+                            className={styles.prescriptionFinalRow}
+                            key={`row-${rowIndex}`}
+                            style={{
+                              gridTemplateColumns: `60px repeat(${prescriptionColumnCount}, minmax(0, 1fr))`
+                            }}
+                          >
+                            <div className={styles.prescriptionFinalStepLabel}>
+                              Step {rowIndex + 1}
+                            </div>
+                            {prescriptionDraft.columns.map((column, colIndex) => {
+                              const row = column.rows[rowIndex] ?? {
+                                product: "",
+                                directions: ""
+                              };
+                              return (
+                                <div
+                                  className={styles.prescriptionFinalCell}
+                                  key={`cell-${colIndex}-${rowIndex}`}
+                                >
+                                  <textarea
+                                    className={`${styles.textarea} ${styles.prescriptionProductTextarea}`}
+                                    data-prescription-row="product"
+                                    data-row-index={rowIndex}
+                                    data-col-index={colIndex}
+                                    placeholder="Product"
+                                    maxLength={PRESCRIPTION_PRODUCT_MAX_LENGTH}
+                                    value={row.product}
+                                    onChange={(event) =>
+                                      handlePrescriptionRowChange(
+                                        colIndex,
+                                        rowIndex,
+                                        "product",
+                                        event.target.value
+                                      )
+                                    }
+                                    rows={
+                                      (row.product ?? "").length >
+                                      PRESCRIPTION_PRODUCT_WRAP_THRESHOLD
+                                        ? 2
+                                        : 1
+                                    }
+                                  />
+                                  <HighlightTextarea
+                                    value={row.directions ?? ""}
+                                    placeholder="Directions"
+                                    onChange={(nextValue) =>
+                                      handlePrescriptionDirectionsChange(
+                                        colIndex,
+                                        rowIndex,
+                                        nextValue
+                                      )
+                                    }
+                                    onFocus={() =>
+                                      setHighlightTarget({ colIndex, rowIndex })
+                                    }
+                                    textareaProps={{
+                                      id: `dir-${colIndex}-${rowIndex}`,
+                                      "data-prescription-row": "direction",
+                                      "data-row-index": rowIndex,
+                                      "data-col-index": colIndex
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
                         ))}
                       </div>
 
@@ -6279,6 +7405,7 @@ export default function ClientsDashboard() {
                           variant="secondary"
                           type="button"
                           onClick={handlePrescriptionCancel}
+                          className={styles.cancelButton}
                         >
                           Cancel
                         </Button>
@@ -6330,6 +7457,61 @@ export default function ClientsDashboard() {
         portalTarget={portalTarget}
       />
 
+      <Modal
+        open={isPrescriptionExitPromptOpen}
+        title="Unsaved Prescription"
+        onClose={handlePrescriptionExitStay}
+        portalTarget={portalTarget}
+        className={styles.confirmModal}
+      >
+        <Notice>Would you like to save before exiting?</Notice>
+        <ButtonRow>
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={handlePrescriptionExitDiscard}
+            className={styles.cancelButton}
+          >
+            Discard Changes
+          </Button>
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={handlePrescriptionExitStay}
+          >
+            Stay
+          </Button>
+          <Button type="button" onClick={handlePrescriptionExitSave}>
+            Save and Exit
+          </Button>
+        </ButtonRow>
+      </Modal>
+
+      <UnsavedChangesPrompt
+        open={overviewGuard.prompt.open}
+        onDiscard={overviewGuard.prompt.onDiscard}
+        onSave={overviewGuard.prompt.onSave}
+        onStay={overviewGuard.prompt.onStay}
+      />
+      <UnsavedChangesPrompt
+        open={appointmentGuard.prompt.open}
+        onDiscard={appointmentGuard.prompt.onDiscard}
+        onSave={appointmentGuard.prompt.onSave}
+        onStay={appointmentGuard.prompt.onStay}
+      />
+      <UnsavedChangesPrompt
+        open={productGuard.prompt.open}
+        onDiscard={productGuard.prompt.onDiscard}
+        onSave={productGuard.prompt.onSave}
+        onStay={productGuard.prompt.onStay}
+      />
+      <UnsavedChangesPrompt
+        open={notesGuard.prompt.open}
+        onDiscard={notesGuard.prompt.onDiscard}
+        onSave={notesGuard.prompt.onSave}
+        onStay={notesGuard.prompt.onStay}
+      />
+
       <UploadSuccessModal
         portalTarget={portalTarget}
         open={Boolean(uploadSuccess)}
@@ -6347,6 +7529,48 @@ export default function ClientsDashboard() {
           onLoad={handlePrintFrameLoad}
         />
       )}
+
+      <Modal
+        open={isPrescriptionShareOpen}
+        title="Send Prescription to Phone"
+        onClose={closePrescriptionShareModal}
+        portalTarget={portalTarget}
+        className={styles.uploadModal}
+      >
+        <div className={styles.modalSection}>
+          {prescriptionShareLoading && <Notice>Generating QR code...</Notice>}
+          {!prescriptionShareLoading && prescriptionShareQrDataUrl && (
+            <div className={styles.qrPanel}>
+              <div className={styles.qrHeader}>
+                <h3>Prescription Download</h3>
+              </div>
+              <div className={styles.qrContent}>
+                <img
+                  className={styles.qrImage}
+                  src={prescriptionShareQrDataUrl}
+                  alt="Prescription download QR code"
+                />
+                {prescriptionShareUrl && (
+                  <div className={styles.qrUrl}>{prescriptionShareUrl}</div>
+                )}
+              </div>
+              <Notice>
+                Link expires in 10 minutes and can only be used once.
+              </Notice>
+            </div>
+          )}
+        </div>
+        <ButtonRow>
+          <Button
+            variant="secondary"
+            type="button"
+            className={styles.cancelButton}
+            onClick={closePrescriptionShareModal}
+          >
+            Cancel
+          </Button>
+        </ButtonRow>
+      </Modal>
 
       {photoDragGhost && portalTarget
         ? createPortal(

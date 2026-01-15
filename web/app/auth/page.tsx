@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "../clients/clients.module.css";
 import Button from "../ui/Button";
@@ -8,7 +8,7 @@ import Field from "../ui/Field";
 import Notice from "../ui/Notice";
 import StatusMessage from "../ui/StatusMessage";
 
-export default function AuthPage() {
+function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextTarget = searchParams.get("next") || "/";
@@ -62,5 +62,13 @@ export default function AuthPage() {
         </form>
       </section>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<div className={styles.page} />}>
+      <AuthContent />
+    </Suspense>
   );
 }

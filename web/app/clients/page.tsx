@@ -8,7 +8,7 @@ export default function ClientsPage() {
       <div style={{ marginBottom: "16px" }}>
         <Link href="/">Back to Dashboard</Link>
       </div>
-      <h1>Clients</h1>
+      <h1>Workspace</h1>
       <Suspense fallback={null}>
         <ClientsDashboard />
       </Suspense>

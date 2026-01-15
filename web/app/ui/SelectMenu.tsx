@@ -39,10 +39,11 @@ export default function SelectMenu({
   const [activeIndex, setActiveIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-  const selectedOption = useMemo(
-    () => options.find((option) => option.value === value) ?? null,
+  const selectedIndex = useMemo(
+    () => options.findIndex((option) => option.value === value),
     [options, value]
   );
+  const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : null;
 
   useEffect(() => {
     if (!open) {
@@ -70,9 +71,12 @@ export default function SelectMenu({
     if (activeIndex >= 0 && activeIndex < options.length) {
       return;
     }
-    const selectedIndex = options.findIndex((option) => option.value === value);
-    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
-  }, [open, activeIndex, options, value]);
+    if (selectedIndex >= 0) {
+      setActiveIndex(selectedIndex);
+      return;
+    }
+    setActiveIndex(options.length ? 0 : -1);
+  }, [open, activeIndex, options, selectedIndex]);
 
   const handleSelect = (nextValue: string) => {
     onChange(nextValue);
@@ -181,7 +185,18 @@ export default function SelectMenu({
         </span>
       </button>
       {open && (
-        <ul className={listClasses} role="listbox">
+        <ul
+          className={listClasses}
+          role="listbox"
+          onMouseLeave={() =>
+            setActiveIndex(selectedIndex >= 0 ? selectedIndex : -1)
+          }
+          onMouseMove={(event) => {
+            if (event.target === event.currentTarget) {
+              setActiveIndex(selectedIndex >= 0 ? selectedIndex : -1);
+            }
+          }}
+        >
           {options.length === 0 && (
             <li className={styles.selectMenuEmpty}>No options</li>
           )}
@@ -195,12 +210,18 @@ export default function SelectMenu({
                   className={[
                     optionClasses,
                     isActive ? optionActiveClasses : "",
-                    isSelected ? optionSelectedClasses : ""
+                    isSelected && index === activeIndex ? optionSelectedClasses : ""
                   ]
                     .filter(Boolean)
                     .join(" ")}
                   onMouseEnter={() => setActiveIndex(index)}
-                  onClick={() => handleSelect(option.value)}
+                  onMouseDown={(event) => {
+                    if (event.button !== 0) {
+                      return;
+                    }
+                    event.preventDefault();
+                    handleSelect(option.value);
+                  }}
                 >
                   {option.label}
                 </button>

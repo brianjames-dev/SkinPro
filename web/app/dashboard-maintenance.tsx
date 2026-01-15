@@ -5,25 +5,27 @@ import styles from "./clients/clients.module.css";
 import Badge from "./ui/Badge";
 import Button from "./ui/Button";
 import ButtonRow from "./ui/ButtonRow";
+import CloseButton from "./ui/CloseButton";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import Field from "./ui/Field";
+import HighlightTextarea from "./ui/HighlightTextarea";
 import Notice from "./ui/Notice";
 import SearchMenu from "./ui/SearchMenu";
 import StatusMessage from "./ui/StatusMessage";
-import CloseButton from "./ui/CloseButton";
 import UnsavedChangesPrompt from "./ui/UnsavedChangesPrompt";
 import useUnsavedChangesGuard from "./ui/useUnsavedChangesGuard";
 import { useUnsavedChangesRegistry } from "./ui/UnsavedChangesContext";
+import { applyHighlightToRaw } from "@/lib/highlightText";
 import { formatDateInput, normalizeDateInput } from "@/lib/format";
 import { parseDateParts, parseMmddyyyy } from "@/lib/parse";
 import useKeyboardListNavigation from "../lib/hooks/useKeyboardListNavigation";
 
-type Alert = {
+type MaintenanceEntry = {
   id: number;
   client_id: number;
   full_name: string;
   primary_phone?: string | null;
-  deadline: string;
+  last_talked_date: string;
   notes?: string | null;
 };
 
@@ -33,8 +35,8 @@ type ClientOption = {
   primary_phone?: string | null;
 };
 
-type AlertsResponse = {
-  alerts?: Alert[];
+type MaintenanceResponse = {
+  maintenance?: MaintenanceEntry[];
   error?: string;
 };
 
@@ -77,26 +79,70 @@ const calculateAlertStatus = (deadline: string) => {
   return `${overdueDays} day${overdueDays === 1 ? "" : "s"} - Overdue`;
 };
 
-export default function DashboardAlerts({
+const formatCompactValue = (value: string) => {
+  const trimmed = value.trim();
+  const stripped = trimmed.replace(/\[h\]|\[\/h\]/g, "").trim();
+  return stripped ? trimmed : "—";
+};
+
+const renderHighlightedValue = (value: string) => {
+  const tokens = value.split(/(\[h\]|\[\/h\])/);
+  const nodes: React.ReactNode[] = [];
+  let isHighlighted = false;
+  tokens.forEach((token, index) => {
+    if (token === "[h]") {
+      isHighlighted = true;
+      return;
+    }
+    if (token === "[/h]") {
+      isHighlighted = false;
+      return;
+    }
+    if (!token) {
+      return;
+    }
+    nodes.push(
+      <span className={isHighlighted ? styles.highlightText : undefined} key={index}>
+        {token}
+      </span>
+    );
+  });
+  return nodes;
+};
+
+export default function DashboardMaintenance({
   rootTabs
 }: {
   rootTabs: React.ReactNode;
 }) {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [entries, setEntries] = useState<MaintenanceEntry[]>([]);
   const [clients, setClients] = useState<ClientOption[]>([]);
-  const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [loadingEntries, setLoadingEntries] = useState(false);
   const [loadingClients, setLoadingClients] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientSearchQuery, setClientSearchQuery] = useState("");
-  const [alertDeadline, setAlertDeadline] = useState("");
-  const [alertNotes, setAlertNotes] = useState("");
-  const [editingAlertId, setEditingAlertId] = useState<number | null>(null);
-  const [editAlertDeadline, setEditAlertDeadline] = useState("");
-  const [editAlertNotes, setEditAlertNotes] = useState("");
-  const [isAlertFormOpen, setIsAlertFormOpen] = useState(false);
-  const [alertPendingDelete, setAlertPendingDelete] = useState<Alert | null>(null);
+  const [lastTalkedDate, setLastTalkedDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+  const [editLastTalkedDate, setEditLastTalkedDate] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<MaintenanceEntry | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [highlightTarget, setHighlightTarget] = useState<
+    "create" | "edit" | null
+  >(null);
+
+  const setNotice = (message: string | null, isError = false) => {
+    if (isError) {
+      setError(message);
+      setStatus(null);
+    } else {
+      setStatus(message);
+      setError(null);
+    }
+  };
 
   const selectedClient = useMemo(() => {
     const id = Number(selectedClientId);
@@ -128,259 +174,295 @@ export default function DashboardAlerts({
     onSelect: (client) => {
       setSelectedClientId(String(client.id));
       setClientSearchQuery(client.full_name);
+      setClientSearchActiveIndex(-1);
     }
   });
 
-  const sortedAlerts = useMemo(() => {
-    return [...alerts].sort((a, b) => parseMmddyyyy(a.deadline) - parseMmddyyyy(b.deadline));
-  }, [alerts]);
+  const sortedEntries = useMemo(() => {
+    return [...entries].sort(
+      (a, b) =>
+        parseMmddyyyy(a.last_talked_date) - parseMmddyyyy(b.last_talked_date)
+    );
+  }, [entries]);
 
-  const getAlertStatusClass = (statusText: string) => {
+  const getStatusClass = (statusText: string) => {
     if (statusText.includes("Overdue")) {
       return styles.alertStatusRed;
     }
-    if (statusText.includes("Due Today")) {
+    if (statusText.includes("Tomorrow") || statusText.includes("Upcoming")) {
       return styles.alertStatusOrange;
     }
-    if (statusText.includes("Tomorrow") || statusText.includes("Upcoming")) {
+    if (statusText.includes("days")) {
       return styles.alertStatusYellow;
     }
-    if (statusText.includes("days")) {
-      return styles.alertStatusGreen;
+    if (statusText === "Invalid date") {
+      return styles.alertStatusGray;
     }
-    return styles.alertStatusGray;
+    return styles.alertStatusGreen;
   };
 
-  const setNotice = (message: string | null, isError = false) => {
-    if (isError) {
-      setError(message);
-      setStatus(null);
-    } else {
-      setStatus(message);
-      setError(null);
-    }
-  };
-
-  const loadAlerts = async () => {
-    setLoadingAlerts(true);
+  const loadEntries = async () => {
+    setLoadingEntries(true);
     try {
-      const response = await fetch("/api/alerts");
-      const data = (await response.json()) as AlertsResponse;
+      const response = await fetch("/api/maintenance");
+      const data = (await response.json()) as MaintenanceResponse;
       if (!response.ok) {
-        throw new Error(data.error ?? "Failed to load alerts");
+        throw new Error(data.error ?? "Failed to load maintenance");
       }
-      setAlerts(data.alerts ?? []);
+      setEntries(data.maintenance ?? []);
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Failed to load alerts", true);
+      setError(err instanceof Error ? err.message : "Failed to load maintenance");
     } finally {
-      setLoadingAlerts(false);
+      setLoadingEntries(false);
     }
   };
 
   const loadClients = async () => {
     setLoadingClients(true);
     try {
-      const params = new URLSearchParams({ limit: "10000" });
-      const response = await fetch(`/api/clients?${params.toString()}`);
+      const response = await fetch("/api/clients");
       const data = (await response.json()) as ClientsResponse;
       if (!response.ok) {
         throw new Error(data.error ?? "Failed to load clients");
       }
       setClients(data.clients ?? []);
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Failed to load clients", true);
+      setError(err instanceof Error ? err.message : "Failed to load clients");
     } finally {
       setLoadingClients(false);
     }
   };
 
   useEffect(() => {
-    void loadAlerts();
+    void loadEntries();
     void loadClients();
   }, []);
 
-  const getAlertSnapshot = useCallback(
+  const getMaintenanceSnapshot = useCallback(
     () =>
       JSON.stringify({
-        mode: isAlertFormOpen ? "create" : editingAlertId ? "edit" : "idle",
+        mode: isFormOpen ? "create" : editingEntryId ? "edit" : "idle",
         selectedClientId,
         clientSearchQuery,
-        alertDeadline,
-        alertNotes,
-        editingAlertId,
-        editAlertDeadline,
-        editAlertNotes
+        lastTalkedDate,
+        notes,
+        editingEntryId,
+        editLastTalkedDate,
+        editNotes
       }),
     [
-      isAlertFormOpen,
-      editingAlertId,
+      isFormOpen,
+      editingEntryId,
       selectedClientId,
       clientSearchQuery,
-      alertDeadline,
-      alertNotes,
-      editAlertDeadline,
-      editAlertNotes
+      lastTalkedDate,
+      notes,
+      editLastTalkedDate,
+      editNotes
     ]
   );
 
-  const saveAlertCreate = async () => {
+  const saveMaintenanceCreate = async () => {
     if (!selectedClient) {
-      setNotice("Select a client before setting an alert.", true);
+      setNotice("Select a client before logging maintenance.", true);
       return false;
     }
-    if (!selectedClient.primary_phone) {
-      setNotice("Client needs a primary phone number before alerts.", true);
-      return false;
-    }
-    const deadline = normalizeDateInput(alertDeadline);
-    if (!deadline) {
-      setNotice("Deadline is required (MM/DD/YYYY).", true);
+    const date = normalizeDateInput(lastTalkedDate);
+    if (!date) {
+      setNotice("Date is required (MM/DD/YYYY).", true);
       return false;
     }
 
     try {
-      const response = await fetch("/api/alerts", {
+      const response = await fetch("/api/maintenance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           client_id: selectedClient.id,
-          deadline,
-          notes: alertNotes
+          last_talked_date: date,
+          notes
         })
       });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
-        throw new Error(data.error ?? "Failed to create alert");
+        throw new Error(data.error ?? "Failed to create maintenance entry");
       }
-      resetAlertForm();
-      setIsAlertFormOpen(false);
-      await loadAlerts();
-      setNotice("Alert created.");
+      resetForm();
+      setIsFormOpen(false);
+      await loadEntries();
+      setNotice("Maintenance entry created.");
       return true;
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Failed to create alert", true);
+      setNotice(
+        err instanceof Error ? err.message : "Failed to create entry",
+        true
+      );
       return false;
     }
   };
 
-  const saveAlertUpdate = async () => {
-    if (!editingAlertId) {
+  const saveMaintenanceUpdate = async () => {
+    if (!editingEntryId) {
       return false;
     }
-    const deadline = normalizeDateInput(editAlertDeadline);
-    if (!deadline) {
-      setNotice("Deadline is required (MM/DD/YYYY).", true);
+    const date = normalizeDateInput(editLastTalkedDate);
+    if (!date) {
+      setNotice("Date is required (MM/DD/YYYY).", true);
       return false;
     }
 
     try {
-      const response = await fetch(`/api/alerts/${editingAlertId}`, {
+      const response = await fetch(`/api/maintenance/${editingEntryId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          deadline,
-          notes: editAlertNotes
+          last_talked_date: date,
+          notes: editNotes
         })
       });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
-        throw new Error(data.error ?? "Failed to update alert");
+        throw new Error(data.error ?? "Failed to update maintenance entry");
       }
-      await loadAlerts();
-      handleAlertEditCancel();
-      setNotice("Alert updated.");
+      await loadEntries();
+      handleEditCancel();
+      setNotice("Maintenance entry updated.");
       return true;
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Failed to update alert", true);
+      setNotice(
+        err instanceof Error ? err.message : "Failed to update entry",
+        true
+      );
       return false;
     }
   };
 
-  const alertGuard = useUnsavedChangesGuard({
-    isEnabled: isAlertFormOpen || editingAlertId !== null,
-    getSnapshot: getAlertSnapshot,
+  const maintenanceGuard = useUnsavedChangesGuard({
+    isEnabled: isFormOpen || editingEntryId !== null,
+    getSnapshot: getMaintenanceSnapshot,
     onSave: async () =>
-      editingAlertId ? saveAlertUpdate() : isAlertFormOpen ? saveAlertCreate() : true,
+      editingEntryId
+        ? saveMaintenanceUpdate()
+        : isFormOpen
+          ? saveMaintenanceCreate()
+          : true,
     onDiscard: () => {
-      if (editingAlertId) {
-        handleAlertEditCancel();
+      if (editingEntryId) {
+        handleEditCancel();
       }
-      if (isAlertFormOpen) {
-        resetAlertForm();
-        setIsAlertFormOpen(false);
+      if (isFormOpen) {
+        resetForm();
+        setIsFormOpen(false);
       }
     }
   });
 
-  useUnsavedChangesRegistry("alerts", {
-    isDirty: alertGuard.isDirty,
-    requestExit: alertGuard.requestExit
+  useUnsavedChangesRegistry("maintenance", {
+    isDirty: maintenanceGuard.isDirty,
+    requestExit: maintenanceGuard.requestExit
   });
 
   useEffect(() => {
-    if (isAlertFormOpen || editingAlertId !== null) {
-      alertGuard.markSnapshot();
+    if (isFormOpen || editingEntryId !== null) {
+      maintenanceGuard.markSnapshot();
     }
-  }, [isAlertFormOpen, editingAlertId]);
+  }, [isFormOpen, editingEntryId]);
 
-  const resetAlertForm = () => {
+  const resetForm = () => {
     setSelectedClientId("");
     setClientSearchQuery("");
     setClientSearchActiveIndex(-1);
-    setAlertDeadline("");
-    setAlertNotes("");
+    setLastTalkedDate("");
+    setNotes("");
+    setHighlightTarget(null);
   };
 
-  const handleAlertCreate = async (event: React.FormEvent) => {
+  const handleHighlight = () => {
+    if (!highlightTarget) {
+      setStatus("Select text to highlight.");
+      return;
+    }
+    const textareaId =
+      highlightTarget === "create"
+        ? "maintenance-notes-create"
+        : "maintenance-notes-edit";
+    const textarea = document.getElementById(
+      textareaId
+    ) as HTMLTextAreaElement | null;
+    if (!textarea) {
+      setStatus("Select text to highlight.");
+      return;
+    }
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? start;
+    if (start === end) {
+      setStatus("Select text to highlight.");
+      textarea.focus();
+      return;
+    }
+    if (highlightTarget === "create") {
+      const nextRaw = applyHighlightToRaw(notes ?? "", start, end);
+      setNotes(nextRaw);
+    } else {
+      const nextRaw = applyHighlightToRaw(editNotes ?? "", start, end);
+      setEditNotes(nextRaw);
+    }
+    setTimeout(() => textarea.focus(), 0);
+  };
+
+  const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
-    await saveAlertCreate();
+    await saveMaintenanceCreate();
   };
 
-  const handleAlertEditStart = (alert: Alert) => {
-    alertGuard.requestExit(() => {
-      setEditingAlertId(alert.id);
-      setEditAlertDeadline(alert.deadline ?? "");
-      setEditAlertNotes(alert.notes ?? "");
+  const handleEditStart = (entry: MaintenanceEntry) => {
+    maintenanceGuard.requestExit(() => {
+      setEditingEntryId(entry.id);
+      setEditLastTalkedDate(entry.last_talked_date ?? "");
+      setEditNotes(entry.notes ?? "");
     });
   };
 
-  const handleAlertEditCancel = () => {
-    setEditingAlertId(null);
-    setEditAlertDeadline("");
-    setEditAlertNotes("");
+  const handleEditCancel = () => {
+    setEditingEntryId(null);
+    setEditLastTalkedDate("");
+    setEditNotes("");
+    setHighlightTarget(null);
   };
 
-  const handleAlertUpdate = async (event: React.FormEvent) => {
+  const handleUpdate = async (event: React.FormEvent) => {
     event.preventDefault();
-    await saveAlertUpdate();
+    await saveMaintenanceUpdate();
   };
 
-  const handleAlertDelete = async (alert: Alert) => {
+  const handleDelete = async (entry: MaintenanceEntry) => {
     try {
-      const response = await fetch(`/api/alerts/${alert.id}`, {
+      const response = await fetch(`/api/maintenance/${entry.id}`, {
         method: "DELETE"
       });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
-        throw new Error(data.error ?? "Failed to delete alert");
+        throw new Error(data.error ?? "Failed to delete maintenance");
       }
-      if (editingAlertId === alert.id) {
-        handleAlertEditCancel();
+      if (editingEntryId === entry.id) {
+        handleEditCancel();
       }
-      await loadAlerts();
-      setNotice("Alert deleted.");
+      const refreshed = await fetch("/api/maintenance");
+      const refreshedData = (await refreshed.json()) as MaintenanceResponse;
+      setEntries(refreshedData.maintenance ?? []);
+      setStatus("Maintenance entry deleted.");
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Failed to delete alert", true);
+      setError(err instanceof Error ? err.message : "Failed to delete maintenance");
     }
   };
 
-  const handleAlertDeleteConfirm = async () => {
-    if (!alertPendingDelete) {
+  const handleDeleteConfirm = async () => {
+    if (!pendingDelete) {
       return;
     }
-    const alert = alertPendingDelete;
-    setAlertPendingDelete(null);
-    await handleAlertDelete(alert);
+    const entry = pendingDelete;
+    setPendingDelete(null);
+    await handleDelete(entry);
   };
 
   return (
@@ -388,26 +470,26 @@ export default function DashboardAlerts({
       <div className={styles.section}>
         <div className={styles.sectionHeaderRow}>
           {rootTabs}
-          {!isAlertFormOpen && (
+          {!isFormOpen && (
             <Button
               type="button"
-              onClick={() => alertGuard.requestExit(() => setIsAlertFormOpen(true))}
+              onClick={() => maintenanceGuard.requestExit(() => setIsFormOpen(true))}
             >
-              New Alert
+              New Maintenance
             </Button>
           )}
         </div>
-        {isAlertFormOpen && (
-          <form onSubmit={handleAlertCreate} className={styles.alertForm}>
+        {isFormOpen && (
+          <form onSubmit={handleCreate} className={styles.alertForm}>
             <CloseButton
               className={styles.alertCloseButton}
               onClick={() =>
-                alertGuard.requestExit(() => {
-                  resetAlertForm();
-                  setIsAlertFormOpen(false);
+                maintenanceGuard.requestExit(() => {
+                  resetForm();
+                  setIsFormOpen(false);
                 })
               }
-              aria-label="Cancel alert"
+              aria-label="Cancel maintenance"
               title="Cancel"
             />
             <Field label="Client">
@@ -467,101 +549,114 @@ export default function DashboardAlerts({
                 )}
               </div>
             </Field>
-            <Field label="Deadline">
+            <Field label="Date last talked to">
               <input
                 className={styles.input}
                 placeholder="MM/DD/YYYY"
                 inputMode="numeric"
-                value={alertDeadline}
+                value={lastTalkedDate}
                 onChange={(event) =>
-                  setAlertDeadline(formatDateInput(event.target.value))
+                  setLastTalkedDate(formatDateInput(event.target.value))
                 }
                 disabled={!selectedClient}
               />
             </Field>
             <Field label="Notes">
-              <textarea
-                className={styles.textarea}
-                value={alertNotes}
-                onChange={(event) => setAlertNotes(event.target.value)}
-                disabled={!selectedClient}
+              <HighlightTextarea
+                value={notes}
+                placeholder=""
+                onChange={setNotes}
+                onFocus={() => setHighlightTarget("create")}
+                textareaProps={{ id: "maintenance-notes-create" }}
               />
             </Field>
             <ButtonRow className={styles.alertFormActions}>
               <Button type="submit" disabled={!selectedClient}>
-                Set Alert
+                Save Maintenance
               </Button>
               <Button
                 variant="secondary"
                 type="button"
                 className={styles.cancelButton}
                 onClick={() =>
-                  alertGuard.requestExit(() => {
-                    resetAlertForm();
-                    setIsAlertFormOpen(false);
+                  maintenanceGuard.requestExit(() => {
+                    resetForm();
+                    setIsFormOpen(false);
                   })
                 }
               >
                 Cancel
               </Button>
+              <Button
+                variant="secondary"
+                type="button"
+                className={styles.highlightButton}
+                onClick={handleHighlight}
+              >
+                Highlight
+              </Button>
               {selectedClient ? (
                 <Notice as="span">
-                  Setting alert for {selectedClient.full_name}.
+                  Logging maintenance for {selectedClient.full_name}.
                 </Notice>
               ) : (
-                <Notice as="span">Select a client to set a new alert.</Notice>
+                <Notice as="span">Select a client to add maintenance.</Notice>
               )}
             </ButtonRow>
           </form>
         )}
 
-        {loadingAlerts && <Notice>Loading alerts...</Notice>}
-        {!loadingAlerts && sortedAlerts.length === 0 && (
-          <Notice>No alerts yet.</Notice>
+        {loadingEntries && <Notice>Loading maintenance...</Notice>}
+        {!loadingEntries && sortedEntries.length === 0 && (
+          <Notice>No maintenance entries yet.</Notice>
         )}
-        {!loadingAlerts && sortedAlerts.length > 0 && (
+        {!loadingEntries && sortedEntries.length > 0 && (
           <div className={styles.alertsTableWrap}>
             <table className={styles.alertsTable}>
               <thead>
                 <tr>
-                  <th>Client</th>
-                  <th>Status</th>
-                  <th>Deadline</th>
-                  <th>Phone</th>
+                  <th>Name</th>
+                  <th>Timeline</th>
+                  <th>Date Last Talked To</th>
+                  <th>Number</th>
                   <th>Notes</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {sortedAlerts.map((alert) => {
-                  const statusText = calculateAlertStatus(alert.deadline);
+                {sortedEntries.map((entry) => {
+                  const statusText = calculateAlertStatus(entry.last_talked_date);
                   return (
-                    <tr key={alert.id}>
-                      <td>{alert.full_name}</td>
+                    <tr key={entry.id}>
+                      <td>{entry.full_name}</td>
                       <td>
                         <Badge
                           baseClassName={styles.alertStatus}
-                          toneClassName={getAlertStatusClass(statusText)}
+                          toneClassName={getStatusClass(statusText)}
                         >
                           {statusText}
                         </Badge>
                       </td>
-                      <td>{alert.deadline}</td>
-                      <td>{alert.primary_phone ?? ""}</td>
-                      <td>{alert.notes ?? ""}</td>
+                      <td>{entry.last_talked_date}</td>
+                      <td>{entry.primary_phone ?? ""}</td>
+                      <td>
+                        {renderHighlightedValue(
+                          formatCompactValue(entry.notes ?? "")
+                        )}
+                      </td>
                       <td>
                         <div className={styles.alertActions}>
                           <Button
                             variant="secondary"
                             type="button"
-                            onClick={() => handleAlertEditStart(alert)}
+                            onClick={() => handleEditStart(entry)}
                           >
                             Edit
                           </Button>
                           <Button
                             danger
                             type="button"
-                            onClick={() => setAlertPendingDelete(alert)}
+                            onClick={() => setPendingDelete(entry)}
                           >
                             Delete
                           </Button>
@@ -575,32 +670,34 @@ export default function DashboardAlerts({
           </div>
         )}
 
-        {editingAlertId && (
-          <form onSubmit={handleAlertUpdate} className={styles.alertEditPanel}>
+        {editingEntryId && (
+          <form onSubmit={handleUpdate} className={styles.alertEditPanel}>
             <CloseButton
               className={styles.alertCloseButton}
-              onClick={() => alertGuard.requestExit(handleAlertEditCancel)}
-              aria-label="Cancel alert edit"
+              onClick={() => maintenanceGuard.requestExit(handleEditCancel)}
+              aria-label="Cancel maintenance edit"
               title="Cancel"
             />
-            <h3>Edit Alert</h3>
+            <h3>Edit Maintenance</h3>
             <div className={styles.formGrid}>
-              <Field label="Deadline">
+              <Field label="Date last talked to">
                 <input
                   className={styles.input}
                   placeholder="MM/DD/YYYY"
                   inputMode="numeric"
-                  value={editAlertDeadline}
+                  value={editLastTalkedDate}
                   onChange={(event) =>
-                    setEditAlertDeadline(formatDateInput(event.target.value))
+                    setEditLastTalkedDate(formatDateInput(event.target.value))
                   }
                 />
               </Field>
               <Field label="Notes">
-                <textarea
-                  className={styles.textarea}
-                  value={editAlertNotes}
-                  onChange={(event) => setEditAlertNotes(event.target.value)}
+                <HighlightTextarea
+                  value={editNotes}
+                  placeholder=""
+                  onChange={setEditNotes}
+                  onFocus={() => setHighlightTarget("edit")}
+                  textareaProps={{ id: "maintenance-notes-edit" }}
                 />
               </Field>
             </div>
@@ -610,36 +707,44 @@ export default function DashboardAlerts({
                 variant="secondary"
                 type="button"
                 className={styles.cancelButton}
-                onClick={() => alertGuard.requestExit(handleAlertEditCancel)}
+                onClick={() => maintenanceGuard.requestExit(handleEditCancel)}
               >
                 Cancel
+              </Button>
+              <Button
+                variant="secondary"
+                type="button"
+                className={styles.highlightButton}
+                onClick={handleHighlight}
+              >
+                Highlight
               </Button>
             </ButtonRow>
           </form>
         )}
 
         <ConfirmDialog
-          open={Boolean(alertPendingDelete)}
-          title="Delete Alert"
+          open={Boolean(pendingDelete)}
+          title="Delete Maintenance"
           message={
-            alertPendingDelete
-              ? `Delete the alert for ${alertPendingDelete.full_name}?`
-              : "Delete this alert?"
+            pendingDelete
+              ? `Delete the maintenance entry for ${pendingDelete.full_name}?`
+              : "Delete this maintenance entry?"
           }
           confirmLabel="Delete"
           confirmDanger
-          onCancel={() => setAlertPendingDelete(null)}
-          onConfirm={handleAlertDeleteConfirm}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={handleDeleteConfirm}
         />
 
         {status && <StatusMessage>{status}</StatusMessage>}
         {error && <StatusMessage>Error: {error}</StatusMessage>}
       </div>
       <UnsavedChangesPrompt
-        open={alertGuard.prompt.open}
-        onDiscard={alertGuard.prompt.onDiscard}
-        onSave={alertGuard.prompt.onSave}
-        onStay={alertGuard.prompt.onStay}
+        open={maintenanceGuard.prompt.open}
+        onDiscard={maintenanceGuard.prompt.onDiscard}
+        onSave={maintenanceGuard.prompt.onSave}
+        onStay={maintenanceGuard.prompt.onStay}
       />
     </section>
   );

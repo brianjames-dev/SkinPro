@@ -1,0 +1,100 @@
+import fs from "fs";
+import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+import { loadSkinproPaths } from "@/lib/skinproPaths";
+import { isPathWithin } from "@/lib/fileUtils";
+import { getShareToken, markShareTokenUsed } from "@/lib/shareTokens";
+import { renderPdfToPng } from "@/lib/renderPdfToPng";
+
+export const runtime = "nodejs";
+
+const isPngBuffer = (buffer: Buffer) =>
+  buffer.length >= 8 &&
+  buffer[0] === 0x89 &&
+  buffer[1] === 0x50 &&
+  buffer[2] === 0x4e &&
+  buffer[3] === 0x47 &&
+  buffer[4] === 0x0d &&
+  buffer[5] === 0x0a &&
+  buffer[6] === 0x1a &&
+  buffer[7] === 0x0a;
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token") ?? "";
+
+  if (!token) {
+    return NextResponse.json({ error: "token is required" }, { status: 400 });
+  }
+
+  try {
+    console.log("[share] request", { token: token.slice(0, 6) });
+    const shareToken = getShareToken(token);
+    if (!shareToken) {
+      console.warn("[share] invalid or expired token");
+      return NextResponse.json(
+        { error: "Share link is invalid or expired" },
+        { status: 404 }
+      );
+    }
+
+    console.log("[share] token ok", {
+      prescriptionId: shareToken.prescriptionId,
+      expiresAt: shareToken.expiresAt
+    });
+    const db = getDb();
+    const row = db
+      .prepare("SELECT file_path FROM prescriptions WHERE id = ?")
+      .get(shareToken.prescriptionId) as { file_path?: string } | undefined;
+
+    if (!row?.file_path) {
+      console.warn("[share] missing file_path");
+      return NextResponse.json(
+        { error: "Prescription not found" },
+        { status: 404 }
+      );
+    }
+
+    const paths = loadSkinproPaths();
+    if (!isPathWithin(paths.dataDir, row.file_path)) {
+      console.warn("[share] file path outside data dir", {
+        filePath: row.file_path
+      });
+      return NextResponse.json(
+        { error: "Invalid file path" },
+        { status: 400 }
+      );
+    }
+
+    if (!fs.existsSync(row.file_path)) {
+      console.warn("[share] file missing on disk", { filePath: row.file_path });
+      return NextResponse.json(
+        { error: "File missing" },
+        { status: 404 }
+      );
+    }
+
+    console.log("[share] rendering pdf", { filePath: row.file_path });
+    const pngBuffer = await renderPdfToPng(row.file_path, 2);
+    if (!isPngBuffer(pngBuffer)) {
+      throw new Error("Rendered output is not a PNG");
+    }
+
+    markShareTokenUsed(token);
+    console.log("[share] rendered png", { bytes: pngBuffer.length });
+
+    return new NextResponse(pngBuffer, {
+      headers: {
+        "Content-Type": "image/png",
+        "Content-Disposition": `attachment; filename=\"prescription-${shareToken.prescriptionId}.png\"`,
+        "Cache-Control": "no-store"
+      }
+    });
+  } catch (error) {
+    console.error("[share] failed", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unexpected error" },
+      { status: 500 }
+    );
+  }
+}

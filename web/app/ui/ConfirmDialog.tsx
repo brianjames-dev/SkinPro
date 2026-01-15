@@ -5,6 +5,7 @@ import Button from "./Button";
 import ButtonRow from "./ButtonRow";
 import Modal from "./Modal";
 import Notice from "./Notice";
+import styles from "../clients/clients.module.css";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -30,10 +31,21 @@ export default function ConfirmDialog({
   confirmDanger = false
 }: ConfirmDialogProps) {
   return (
-    <Modal open={open} title={title} onClose={onCancel} portalTarget={portalTarget}>
+    <Modal
+      open={open}
+      title={title}
+      onClose={onCancel}
+      portalTarget={portalTarget}
+      className={styles.confirmModal}
+    >
       <Notice>{message}</Notice>
       <ButtonRow>
-        <Button variant="secondary" type="button" onClick={onCancel}>
+        <Button
+          variant="secondary"
+          type="button"
+          onClick={onCancel}
+          className={styles.cancelButton}
+        >
           {cancelLabel}
         </Button>
         <Button danger={confirmDanger} type="button" onClick={onConfirm}>

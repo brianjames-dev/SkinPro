@@ -190,7 +190,7 @@ const titleY = headerTop + 6;
 // Title and header info
 
 doc.font("Helvetica-Bold").fontSize(18);
-doc.text("CORIUM CORRECTIVE SKIN CARE SCRIPT", titleX, titleY);
+doc.text("DAILY SKINCARE ROUTINE", titleX, titleY);
 
 doc.font("Helvetica").fontSize(10);
 doc.text("NAME:", titleX, titleY + 26, { lineBreak: false });

@@ -28,7 +28,11 @@ type ClientsResponse = {
   error?: string;
 };
 
-export default function DashboardClients() {
+export default function DashboardClients({
+  rootTabs
+}: {
+  rootTabs: React.ReactNode;
+}) {
   const router = useRouter();
   const [allClients, setAllClients] = useState<Client[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -240,111 +244,117 @@ export default function DashboardClients() {
 
   const addClientName = searchQuery.trim();
   const addClientHref = addClientName
-    ? `/clients?newClient=1&newClientName=${encodeURIComponent(addClientName)}`
-    : "/clients?newClient=1";
+    ? `/clients?newClient=1&overview=info&newClientName=${encodeURIComponent(
+        addClientName
+      )}`
+    : "/clients?newClient=1&overview=info";
 
   return (
-    <section className={`${styles.panel} ${styles.clientsTablePanel}`}>
-      <div className={styles.tableHeader}>
-        <div>
-          <h2 className={styles.tableTitle}>Clients Directory</h2>
-          <Notice>
-            Search by name or open the workspace to edit details.
-          </Notice>
+    <section
+      className={`${styles.panel} ${styles.workspacePanel} ${styles.clientsTablePanel}`}
+    >
+      <div className={styles.section}>
+        <div className={styles.sectionHeaderRow}>
+          {rootTabs}
+          <div className={styles.sectionHeaderActions}>
+            <Button
+              type="button"
+              onClick={handleOpenWorkspace}
+              disabled={!selectedClientId}
+            >
+              Open Workspace
+            </Button>
+          </div>
         </div>
-        <div className={styles.tableActions}>
-          <Button
-            type="button"
-            onClick={handleOpenWorkspace}
-            disabled={!selectedClientId}
-          >
-            Open Workspace
-          </Button>
-        </div>
-      </div>
 
-      <div className={styles.searchBar}>
-        <Field>
-          <input
-            className={styles.input}
-            name="search"
-            placeholder="Search client name"
-            value={searchQuery}
-            aria-label="Search client name"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown" && filteredClients.length > 0) {
-                event.preventDefault();
-                const currentIndex = filteredClients.findIndex(
-                  (client) => client.id === selectedClientId
-                );
-                const nextIndex =
-                  currentIndex < 0
-                    ? 0
-                    : Math.min(currentIndex + 1, filteredClients.length - 1);
-                setSelectedClientId(filteredClients[nextIndex].id);
-                return;
-              }
-
-              if (event.key === "ArrowUp" && filteredClients.length > 0) {
-                event.preventDefault();
-                const currentIndex = filteredClients.findIndex(
-                  (client) => client.id === selectedClientId
-                );
-                const nextIndex = currentIndex <= 0 ? 0 : currentIndex - 1;
-                setSelectedClientId(filteredClients[nextIndex].id);
-                return;
-              }
-
-              if (event.key === "Enter") {
-                event.preventDefault();
-                if (selectedClientId) {
-                  handleSearchOpenWorkspace(selectedClientId);
+        <div className={styles.searchBar}>
+          <Field>
+            <input
+              className={styles.input}
+              name="search"
+              placeholder="Search client name"
+              value={searchQuery}
+              aria-label="Search client name"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown" && filteredClients.length > 0) {
+                  event.preventDefault();
+                  const currentIndex = filteredClients.findIndex(
+                    (client) => client.id === selectedClientId
+                  );
+                  const nextIndex =
+                    currentIndex < 0
+                      ? 0
+                      : Math.min(currentIndex + 1, filteredClients.length - 1);
+                  setSelectedClientId(filteredClients[nextIndex].id);
                   return;
                 }
-                handleSearch();
-              }
-            }}
-          />
-        </Field>
-        <Button variant="secondary" type="button" onClick={handleSearch}>
-          Search
-        </Button>
-        <Button variant="secondary" type="button" onClick={handleClear}>
-          Clear
-        </Button>
-        <ButtonLink variant="secondary" href={addClientHref}>
-          Add Client
-        </ButtonLink>
-      </div>
 
-      <div
-        className={styles.tableWrap}
-        tabIndex={0}
-        role="listbox"
-        aria-label="Client directory"
-        onKeyDown={handleTableKeyDown}
-        onMouseDown={(event) => {
-          event.currentTarget.focus();
-        }}
-      >
-        <table className={styles.clientsTable}>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Gender</th>
-              <th>Birthdate</th>
-              <th>Primary #</th>
-              <th>Email</th>
-              <th>Address</th>
-            </tr>
-          </thead>
-          <tbody>{renderRows()}</tbody>
-        </table>
+                if (event.key === "ArrowUp" && filteredClients.length > 0) {
+                  event.preventDefault();
+                  const currentIndex = filteredClients.findIndex(
+                    (client) => client.id === selectedClientId
+                  );
+                  const nextIndex = currentIndex <= 0 ? 0 : currentIndex - 1;
+                  setSelectedClientId(filteredClients[nextIndex].id);
+                  return;
+                }
+
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  if (selectedClientId) {
+                    handleSearchOpenWorkspace(selectedClientId);
+                    return;
+                  }
+                  handleSearch();
+                }
+              }}
+            />
+          </Field>
+          <Button variant="secondary" type="button" onClick={handleSearch}>
+            Search
+          </Button>
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={handleClear}
+            className={styles.cancelButton}
+          >
+            Clear
+          </Button>
+          <ButtonLink variant="secondary" href={addClientHref}>
+            Add Client
+          </ButtonLink>
+        </div>
+
+        <div
+          className={styles.tableWrap}
+          tabIndex={0}
+          role="listbox"
+          aria-label="Client directory"
+          onKeyDown={handleTableKeyDown}
+          onMouseDown={(event) => {
+            event.currentTarget.focus();
+          }}
+        >
+          <table className={styles.clientsTable}>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Gender</th>
+                <th>Birthdate</th>
+                <th>Primary #</th>
+                <th>Email</th>
+                <th>Address</th>
+              </tr>
+            </thead>
+            <tbody>{renderRows()}</tbody>
+          </table>
+        </div>
       </div>
     </section>
   );

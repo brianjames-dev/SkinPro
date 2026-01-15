@@ -2,26 +2,45 @@
 
 import DashboardClients from "./dashboard-clients";
 import DashboardAlerts from "./dashboard-alerts";
+import DashboardMaintenance from "./dashboard-maintenance";
 import styles from "./clients/clients.module.css";
-import Tabs from "./ui/Tabs";
+import TogglePill from "./ui/TogglePill";
 import useQueryTabSync from "../lib/hooks/useQueryTabSync";
 import Notice from "./ui/Notice";
+import {
+  UnsavedChangesProvider,
+  useUnsavedChangesContext
+} from "./ui/UnsavedChangesContext";
 
-type RootTab = "alerts" | "clients";
+type RootTab = "alerts" | "maintenance" | "clients";
 
-const ROOT_TAB_IDS: RootTab[] = ["alerts", "clients"];
+const ROOT_TAB_IDS: RootTab[] = ["alerts", "maintenance", "clients"];
 
 const ROOT_TABS: { id: RootTab; label: string }[] = [
   { id: "alerts", label: "Alerts" },
+  { id: "maintenance", label: "Maintenance" },
   { id: "clients", label: "Clients" }
 ];
 
-export default function Home() {
+function HomeContent() {
+  const unsaved = useUnsavedChangesContext();
   const { value: rootTab, onChange: handleRootTabChange } = useQueryTabSync({
     key: "tab",
     defaultValue: "alerts",
     values: ROOT_TAB_IDS
   });
+
+  const handleRootTabSelect = (tab: RootTab) => {
+    if (tab === rootTab) {
+      return;
+    }
+    const entry = unsaved?.getEntry(rootTab);
+    if (entry && entry.isDirty()) {
+      entry.requestExit(() => handleRootTabChange(tab));
+      return;
+    }
+    handleRootTabChange(tab);
+  };
 
   return (
     <div className={styles.page}>
@@ -29,21 +48,62 @@ export default function Home() {
         <div>
           <h1 className={styles.homeTitle}>SkinPro Web</h1>
           <Notice>
-            Local web UI backed by the existing SkinPro SQLite database and
+            Local web UI backed by the existing SkinPro database and
             SkinProData folder.
           </Notice>
         </div>
       </header>
 
-      <Tabs
-        as="nav"
-        className={`${styles.sectionTabs} ${styles.rootTabs}`}
-        value={rootTab}
-        onChange={handleRootTabChange}
-        tabs={ROOT_TABS}
-      />
-
-      {rootTab === "alerts" ? <DashboardAlerts /> : <DashboardClients />}
+      {rootTab === "alerts" && (
+        <DashboardAlerts
+          rootTabs={
+            <TogglePill
+              className={`${styles.sectionTabs} ${styles.rootTabs}`}
+              buttonClassName={styles.tabButton}
+              buttonActiveClassName={styles.tabButtonActive}
+              value={rootTab}
+              onChange={handleRootTabSelect}
+              items={ROOT_TABS}
+            />
+          }
+        />
+      )}
+      {rootTab === "maintenance" && (
+        <DashboardMaintenance
+          rootTabs={
+            <TogglePill
+              className={`${styles.sectionTabs} ${styles.rootTabs}`}
+              buttonClassName={styles.tabButton}
+              buttonActiveClassName={styles.tabButtonActive}
+              value={rootTab}
+              onChange={handleRootTabSelect}
+              items={ROOT_TABS}
+            />
+          }
+        />
+      )}
+      {rootTab === "clients" && (
+        <DashboardClients
+          rootTabs={
+            <TogglePill
+              className={`${styles.sectionTabs} ${styles.rootTabs}`}
+              buttonClassName={styles.tabButton}
+              buttonActiveClassName={styles.tabButtonActive}
+              value={rootTab}
+              onChange={handleRootTabSelect}
+              items={ROOT_TABS}
+            />
+          }
+        />
+      )}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <UnsavedChangesProvider>
+      <HomeContent />
+    </UnsavedChangesProvider>
   );
 }

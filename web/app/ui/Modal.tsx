@@ -4,7 +4,7 @@ import { useId, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import styles from "../clients/clients.module.css";
-import IconButton from "./IconButton";
+import CloseButton from "./CloseButton";
 
 type ModalProps = {
   open: boolean;
@@ -60,9 +60,7 @@ export default function Modal({
               <span />
             )}
             {onClose && (
-              <IconButton onClick={onClose} aria-label="Close" title="Close">
-                X
-              </IconButton>
+              <CloseButton onClick={onClose} aria-label="Close" title="Close" />
             )}
           </div>
         )}
