@@ -1,47 +1,49 @@
-# SkinPro Web Migration Roadmap
+# Roadmap (condensed)
 
-Goals and constraints
-- Local/offline single-user workflow
-- TS/JS frontend with a Node API
-- Reuse the existing SQLite schema and SkinProData folder
-- Optional cloud sync later, no changes required now
+Now: Refactor + cleanup
+- Move/confirm all web UI files under `web/`, remove legacy shims when safe.
+- Extract shared UI from `clients-dashboard.tsx`:
+  - Buttons + button row, tabs/pills, modals/confirm dialogs
+  - Form fields (label/input/select/textarea), notice/empty states
+  - Search dropdowns + keyboard nav, tree/list rows, tables
+  - Badges/status chips, receipt-style detail blocks
+- Extract shared hooks/utilities:
+  - `useQueryTabSync` (home/workspace/overview)
+  - `useKeyboardListNavigation`
+  - formatters (date, phone, currency) + parsing helpers
+  - API table ensure helpers (notes/products/current flag)
+- Incremental migration: refactor one screen at a time (Dashboard → Clients Overview → Modals).
 
-Phase 0 - API foundation (read-only)
-- Read SkinProData config and open SQLite
-- Add basic health and clients endpoints
-- Stream local files via API (photos, PDFs)
+Extraction order (proposed, `web/app/ui` + `web/lib/hooks`)
+1) Buttons + ButtonRow
+   - `web/app/ui/Button.tsx`, `web/app/ui/ButtonRow.tsx`
+2) Tabs/pills + tab routing hook
+   - `web/app/ui/Tabs.tsx`, `web/lib/hooks/useQueryTabSync.ts`
+3) Form fields + Notice/Empty states
+   - `web/app/ui/Field.tsx`, `web/app/ui/Notice.tsx`
+4) Modal + ConfirmDialog
+   - `web/app/ui/Modal.tsx`, `web/app/ui/ConfirmDialog.tsx`
+5) Search dropdown + keyboard nav hook
+   - `web/app/ui/SearchMenu.tsx`, `web/lib/hooks/useKeyboardListNavigation.ts`
+6) List/Treeview + table rows
+   - `web/app/ui/List.tsx`, `web/app/ui/TreeList.tsx`
+7) Badges/status chips + receipt/detail blocks
+   - `web/app/ui/Badge.tsx`, `web/app/ui/Receipt.tsx`
+8) Utilities consolidation
+   - `web/lib/format.ts`, `web/lib/parse.ts`, `web/lib/api/ensureTables.ts`
+9) Remaining bespoke UI cleanup
+   - `web/app/ui/TogglePill.tsx` (replace notes toggle + photo compare toggle)
+   - `web/app/ui/TreeToggle.tsx` (replace product group expand/collapse button)
+   - `web/app/ui/IconButton.tsx` (replace icon-only action buttons)
+   - `web/app/ui/LockableCheckbox.tsx` (notes Done toggle with lock)
+   - prune unused CSS (e.g., `.expandableToggle*` if unused)
 
-Phase 1 - Core UI (clients + info + appointments)
-- Clients list, search, create, edit, delete
-- Client info and health data editing
-- Appointments list, create, edit, delete
+Later: Packaging + polish
+- Optional desktop wrapper after refactor stabilizes.
 
-Phase 2 - Photos and profile pictures
-- Photo upload and preview
-- Appointment photo linking and deletion
-- Profile picture upload
-
-Phase 3 - Prescriptions and PDF generation
-- Port 2/3/4 column prescriptions to Node
-- PDF preview and download
-- Match output with current ReportLab layouts
-
-Phase 4 - Alerts, polish, and packaging
-- Alerts CRUD
-- UI polish and performance passes
-- Optional desktop wrapper (Electron or Tauri)
-
-Tab-to-endpoint mapping (initial sketch)
-- Clients tab: GET/POST /api/clients, GET/PATCH/DELETE /api/clients/[id]
-- Info tab: GET/PUT /api/clients/[id]/health
-- Appointments tab: GET/POST /api/appointments, PATCH/DELETE /api/appointments/[id]
-- Photos tab: GET/POST /api/photos, GET/DELETE /api/photos/[id], GET /api/photos/[id]/file
-- Prescriptions tab: GET/POST /api/prescriptions, GET/DELETE /api/prescriptions/[id], GET /api/prescriptions/[id]/file
-- Alerts tab: GET/POST /api/alerts, PATCH/DELETE /api/alerts/[id]
-- QR uploads: POST /api/uploads/qr, POST /api/uploads/profile
-
-Data and file notes
-- Keep the SQLite schema unchanged
-- Store file paths relative to SkinProData when possible
-- Serve images and PDFs through the API (no direct file access from the browser)
-- Add migration steps later if absolute paths need normalization
+Tab-to-endpoint mapping (current)
+- Dashboard: `/` with `tab=alerts|clients`
+- Client overview: `/clients?clientId=...&tab=appointments|products|photos|prescriptions|notes&overview=info|health`
+- API: `/api/clients`, `/api/clients/[id]`, `/api/clients/[id]/health`
+- API: `/api/appointments`, `/api/photos`, `/api/prescriptions`, `/api/products`, `/api/notes`, `/api/alerts`
+- Uploads: `/api/uploads/qr`, `/api/uploads/profile`

@@ -1,10 +1,15 @@
 # Decisions
 
-- Use Next.js with a local Node API for the web UI to keep iteration fast and avoid packaging overhead.
-- Keep SQLite and the SkinProData folder unchanged; read config from ~/.skinpro_config_location.json.
-- Use better-sqlite3 for the API layer (simple sync queries, single-user friendly).
-- Pin to Node 20 LTS to avoid native build failures for better-sqlite3 on Node 24.
-- Port prescription PDFs with pdfkit and add a PNG logo asset for compatibility.
-- Store prescription templates in `SkinProData/prescriptions/templates.json` to avoid schema changes.
-- Normalize photo/profile EXIF orientation on upload using `sharp`.
-- Generate QR upload links via LAN IP detection with an optional `SKINPRO_QR_HOST` override.
+- Next.js app router + local Node API; SQLite + SkinProData remain the source of truth.
+- better-sqlite3 for sync, single-user local DB access; Node 20 LTS pin.
+- Prescriptions: pdfkit output, templates in `SkinProData/prescriptions/templates.json`, unique file paths.
+- Uploads: QR via LAN IP with `SKINPRO_QR_HOST` override; EXIF normalization via `sharp`.
+- On-demand tables/columns: `client_products`, `client_notes`, `prescriptions.is_current`.
+- Tab routing uses query params to preserve `clientId` and allow back/forward.
+- Prescriptions: header supports optional second line (`ColX_Header2`); steps use a single product field.
+- Highlighted text uses `[h]` tokens with a shared `HighlightTextarea` overlay component across edit surfaces.
+- Maintenance dashboard uses a dedicated `maintenance` table and API endpoints, separate from alerts.
+- Prescription QR share uses single-use tokens (10 min TTL) stored in `share_tokens`, served as PNG for mobile download.
+- Prescription share PNG rendering uses `pdfjs-dist` + `@napi-rs/canvas` via a dedicated Node script to rasterize the first PDF page.
+- Unsaved changes handling uses a shared guard hook + prompt component registered per section to standardize exit confirmations.
+- Legacy desktop/Tkinter code moved under `legacy/`; the active web app now lives in `src/`.

@@ -52,11 +52,11 @@ dist/
 # Logs
 *.log
 
-# Node/Next (web)
+# Node/Next (src)
 node_modules/
 .next/
 out/
 .turbo/
 .vercel/
-web/.env.local
-web/.env.*.local
+src/.env.local
+src/.env.*.local

@@ -1,20 +1,17 @@
 # Status
 
 Current
-- Phase 3 complete: Prescriptions endpoints, PDF generation, and UI are wired up
-- Added prescription templates, copy-to-client, and print workflow support in the web UI/API
-- Added EXIF orientation normalization and QR-based upload endpoints/QR generation
-- Phase 4 core done: Alerts API + dashboard UI added (Electron wrapper deferred)
-- Clients dashboard layout refreshed with top overview panel and tabbed workspace
-- Root page now includes a full clients directory table with search
-- Root clients directory now supports keyboard navigation and live in-memory search
-- Workspace clients panel can collapse with a compact finder bar
-- Workspace client finder now lives at the top with a hideable sidebar toggle
-- Profile photo upload now uses a Local/QR modal instead of a separate QR panel
-- Health form moved into the Client Overview panel with Info/Health tabs
+- Core web UI is functional: clients, alerts, appointments, photos, prescriptions, products, notes
+- Prescriptions: PDF generation, templates, copy, preview/edit, current marker; header second line + edit-mode dividers
+- Uploads: local + QR flows, EXIF normalization, shared success dialog
+- UI polish: tabbed workspace, search UX, birthday celebration, notes workflow
+- Highlightable text fields: shared highlight textarea used in prescriptions + health, with clear action and token stripping in read mode
+- Home dashboard: Maintenance tab mirrors alerts with separate datastore and highlightable notes
+- Prescriptions: QR share flow generates single-use, 10-minute download links and renders a QR in the UI
+- Unsaved-changes guard/prompt now applied to edit flows across alerts/maintenance/clients
+- Repository layout: legacy Tkinter code moved to `legacy/`, web app renamed to `src/`
 
 Next actions
-- Verify alerts CRUD and status colors in the UI
-- Verify QR uploads from a phone on the same LAN
-- Confirm print dialog behavior for PDFs in the browser
-- Decide later on optional Electron wrapper
+- Refactor/cleanup: modularize shared UI + hooks, reduce clients-dashboard.tsx size
+ - Consolidate web-only files under `src/` and remove legacy shims when safe
+- Verify alerts + notes flows and PDF print behavior after refactor

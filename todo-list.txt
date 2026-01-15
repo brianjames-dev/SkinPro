@@ -1,4 +1,0 @@
-1. Add two entry boxes at header of prescription pages
-2. New page: Date column (last visit) | Notes | completion date | checkmark (on/off)
-3. Fix yellow prescription items not showing up in the program
-4. Divide treatments from products in appointments tab. Section should be only showing products
