@@ -3,6 +3,7 @@
 import DashboardClients from "./dashboard-clients";
 import DashboardAlerts from "./dashboard-alerts";
 import DashboardMaintenance from "./dashboard-maintenance";
+import DashboardNews from "./dashboard-news";
 import styles from "./clients/clients.module.css";
 import TogglePill from "./ui/TogglePill";
 import useQueryTabSync from "../lib/hooks/useQueryTabSync";
@@ -12,14 +13,15 @@ import {
   useUnsavedChangesContext
 } from "./ui/UnsavedChangesContext";
 
-type RootTab = "alerts" | "maintenance" | "clients";
+type RootTab = "alerts" | "maintenance" | "clients" | "news";
 
-const ROOT_TAB_IDS: RootTab[] = ["alerts", "maintenance", "clients"];
+const ROOT_TAB_IDS: RootTab[] = ["alerts", "maintenance", "clients", "news"];
 
 const ROOT_TABS: { id: RootTab; label: string }[] = [
   { id: "alerts", label: "Alerts" },
   { id: "maintenance", label: "Maintenance" },
-  { id: "clients", label: "Clients" }
+  { id: "clients", label: "Clients" },
+  { id: "news", label: "News" }
 ];
 
 function HomeContent() {
@@ -84,6 +86,20 @@ function HomeContent() {
       )}
       {rootTab === "clients" && (
         <DashboardClients
+          rootTabs={
+            <TogglePill
+              className={`${styles.sectionTabs} ${styles.rootTabs}`}
+              buttonClassName={styles.tabButton}
+              buttonActiveClassName={styles.tabButtonActive}
+              value={rootTab}
+              onChange={handleRootTabSelect}
+              items={ROOT_TABS}
+            />
+          }
+        />
+      )}
+      {rootTab === "news" && (
+        <DashboardNews
           rootTabs={
             <TogglePill
               className={`${styles.sectionTabs} ${styles.rootTabs}`}

@@ -15,6 +15,10 @@ Security config
 - `SKINPRO_QR_TOKEN_TTL_MINUTES` QR upload token TTL (default: 10)
 - `SKINPRO_QR_LAN=1` to allow LAN QR links (default is localhost only)
 
+News config
+- `SKINPRO_NEWS_CACHE_MINUTES` news cache TTL (default: 360)
+- `SKINPRO_NEWS_MAX` max stories per refresh (default: 18)
+
 Config lookup order
 1) `SKINPRO_DATA_DIR` env var (optional override)
 2) `~/.skinpro_config_location.json` pointer created by the desktop app
@@ -71,6 +75,7 @@ Endpoints
 - `GET /api/uploads/profile?token=...`
 - `POST /api/uploads/profile?token=...`
 - `GET /api/uploads/qr-code?mode=photo&client_id=123&appointment_id=456`
+- `GET /api/news?topics=facials,electrolysis&refresh=1`
 
 PDF prototype
 - `npm run pdf:prototype`
