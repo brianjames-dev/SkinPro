@@ -18,6 +18,7 @@ Security config
 News config
 - `SKINPRO_NEWS_CACHE_MINUTES` news cache TTL (default: 360)
 - `SKINPRO_NEWS_MAX` max stories per refresh (default: 18)
+- `SKINPRO_NEWS_IMAGE_FETCHES` max article image lookups per refresh (default: 4)
 
 Config lookup order
 1) `SKINPRO_DATA_DIR` env var (optional override)

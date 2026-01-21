@@ -14,6 +14,7 @@ type NewsStory = {
   source: string;
   publishedAt?: string;
   summary?: string;
+  imageUrl?: string;
 };
 
 type NewsResponse = {
@@ -32,6 +33,8 @@ const NEWS_PROFILES: { id: NewsProfile; label: string; topics: string[] }[] = [
 ];
 
 const NEWS_PROFILE_STORAGE_KEY = "skinpro-news-profile";
+const NEWS_READ_STORAGE_KEY = "skinpro-news-read";
+const PAYWALL_BASE_URL = "https://www.removepaywall.com/search?url=";
 
 const formatRelativeTime = (value?: string) => {
   if (!value) {
@@ -68,6 +71,17 @@ const formatStoryDate = (value?: string) => {
   }).format(date);
 };
 
+const buildWrappedUrl = (url: string) => {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.startsWith(PAYWALL_BASE_URL)) {
+    return trimmed;
+  }
+  return `${PAYWALL_BASE_URL}${encodeURIComponent(trimmed)}`;
+};
+
 export default function DashboardNews({ rootTabs }: { rootTabs: React.ReactNode }) {
   const [stories, setStories] = useState<NewsStory[]>([]);
   const [loading, setLoading] = useState(false);
@@ -77,11 +91,27 @@ export default function DashboardNews({ rootTabs }: { rootTabs: React.ReactNode 
   const [profile, setProfile] = useState<NewsProfile>("facials-electrolysis");
   const [activeIndex, setActiveIndex] = useState(0);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [readStories, setReadStories] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const stored = window.localStorage.getItem(NEWS_PROFILE_STORAGE_KEY);
     if (stored && NEWS_PROFILES.some((profile) => profile.id === stored)) {
       setProfile(stored as NewsProfile);
+    }
+  }, []);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(NEWS_READ_STORAGE_KEY);
+    if (!stored) {
+      return;
+    }
+    try {
+      const ids = JSON.parse(stored) as string[];
+      if (Array.isArray(ids)) {
+        setReadStories(new Set(ids));
+      }
+    } catch {
+      setReadStories(new Set());
     }
   }, []);
 
@@ -95,7 +125,11 @@ export default function DashboardNews({ rootTabs }: { rootTabs: React.ReactNode 
   );
   const visibleStories = useMemo(() => stories.slice(0, 10), [stories]);
   const activeStory = visibleStories[activeIndex];
+  const activeStoryUrl = activeStory?.url ?? "";
+  const activeStoryPaywallUrl = activeStory ? buildWrappedUrl(activeStory.url) : "";
+  const activeStoryRead = activeStory ? readStories.has(activeStory.id) : false;
   const updatedLabel = updatedAt ? formatRelativeTime(updatedAt) : "";
+  const topStoryLabel = activeIndex === 0 ? "Top Story" : "Featured";
 
   const loadStories = async (forceRefresh = false) => {
     setLoading(true);
@@ -158,6 +192,30 @@ export default function DashboardNews({ rootTabs }: { rootTabs: React.ReactNode 
     setActiveIndex((current) => (current + 1) % visibleStories.length);
   };
 
+  const persistReadStories = (next: Set<string>) => {
+    window.localStorage.setItem(NEWS_READ_STORAGE_KEY, JSON.stringify([...next]));
+  };
+
+  const markStoryRead = (storyId: string) => {
+    setReadStories((current) => {
+      if (current.has(storyId)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(storyId);
+      persistReadStories(next);
+      return next;
+    });
+  };
+
+  const openStory = (story: NewsStory) => {
+    if (!story.url) {
+      return;
+    }
+    markStoryRead(story.id);
+    window.open(story.url, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <section className={`${styles.panel} ${styles.workspacePanel}`}>
       <div className={styles.section}>
@@ -194,7 +252,12 @@ export default function DashboardNews({ rootTabs }: { rootTabs: React.ReactNode 
           <div className={styles.newsLayout}>
             <article className={styles.newsHero}>
               <div className={styles.newsHeroMeta}>
-                <span className={styles.newsBadge}>Top Story</span>
+                <span className={styles.newsBadge} title="Highest-ranked story in this feed.">
+                  {topStoryLabel}
+                </span>
+                <span className={styles.newsReadBadge}>
+                  {activeStoryRead ? "Read" : "New"}
+                </span>
                 <span className={styles.newsMetaText}>
                   {activeStory.source || "Industry news"}
                   {activeStory.publishedAt &&
@@ -203,16 +266,27 @@ export default function DashboardNews({ rootTabs }: { rootTabs: React.ReactNode 
               </div>
               <h2 className={styles.newsHeroTitle}>
                 <a
-                  href={activeStory.url}
+                  href={activeStoryUrl}
                   target="_blank"
                   rel="noreferrer"
                   className={styles.newsHeroLink}
+                  onClick={() => markStoryRead(activeStory.id)}
                 >
                   {activeStory.title}
                 </a>
               </h2>
               {activeStory.summary && (
                 <p className={styles.newsHeroSummary}>{activeStory.summary}</p>
+              )}
+              {activeStory.imageUrl && (
+                <div className={styles.newsHeroImageWrap}>
+                  <img
+                    src={activeStory.imageUrl}
+                    alt={activeStory.title}
+                    className={styles.newsHeroImage}
+                    loading="lazy"
+                  />
+                </div>
               )}
               <div className={styles.newsHeroActions}>
                 <Button variant="secondary" onClick={handlePrev}>
@@ -225,10 +299,20 @@ export default function DashboardNews({ rootTabs }: { rootTabs: React.ReactNode 
                   {autoRotate ? "Pause rotation" : "Resume rotation"}
                 </Button>
                 <a
-                  href={activeStory.url}
+                  href={activeStoryPaywallUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={styles.newsPaywallButton}
+                  onClick={() => markStoryRead(activeStory.id)}
+                >
+                  Remove Paywall
+                </a>
+                <a
+                  href={activeStoryUrl}
                   target="_blank"
                   rel="noreferrer"
                   className={styles.newsLinkButton}
+                  onClick={() => markStoryRead(activeStory.id)}
                 >
                   Read full story
                 </a>
@@ -236,26 +320,49 @@ export default function DashboardNews({ rootTabs }: { rootTabs: React.ReactNode 
             </article>
 
             <div className={styles.newsList}>
-              {visibleStories.map((story, index) => (
-                <a
-                  key={story.id}
-                  href={story.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`${styles.newsListItem} ${
-                    index === activeIndex ? styles.newsListItemActive : ""
-                  }`.trim()}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onFocus={() => setActiveIndex(index)}
-                  aria-current={index === activeIndex ? "true" : undefined}
-                >
-                  <span className={styles.newsListTitle}>{story.title}</span>
-                  <span className={styles.newsListMeta}>
-                    {story.source || "Industry news"}
-                    {story.publishedAt && ` • ${formatStoryDate(story.publishedAt)}`}
-                  </span>
-                </a>
-              ))}
+              {visibleStories.map((story, index) => {
+                const isRead = readStories.has(story.id);
+                return (
+                  <div
+                    key={story.id}
+                    className={`${styles.newsListItem} ${
+                      index === activeIndex ? styles.newsListItemActive : ""
+                    } ${isRead ? styles.newsListItemRead : ""}`.trim()}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onFocus={() => setActiveIndex(index)}
+                    onClick={() => openStory(story)}
+                    role="link"
+                    tabIndex={0}
+                    aria-current={index === activeIndex ? "true" : undefined}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openStory(story);
+                      }
+                    }}
+                  >
+                    <span className={styles.newsListTitle}>{story.title}</span>
+                    <div className={styles.newsListFooter}>
+                      <span className={styles.newsListMeta}>
+                        {story.source || "Industry news"}
+                        {story.publishedAt && ` • ${formatStoryDate(story.publishedAt)}`}
+                      </span>
+                      <a
+                        href={buildWrappedUrl(story.url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={styles.newsPaywallButton}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          markStoryRead(story.id);
+                        }}
+                      >
+                        Remove Paywall
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

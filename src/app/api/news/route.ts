@@ -15,6 +15,8 @@ type NewsStory = {
   source: string;
   publishedAt?: string;
   summary?: string;
+  imageUrl?: string;
+  sourceUrl?: string;
   score: number;
 };
 
@@ -66,6 +68,16 @@ const TOPIC_KEYWORDS: Record<
   }
 };
 
+const SKINCARE_ANCHORS = ["skincare", "skin care"];
+const MEDICAL_CONTEXT = [
+  "medical",
+  "medical news",
+  "clinical",
+  "study",
+  "trial",
+  "guideline"
+];
+
 const SIGNAL_KEYWORDS = [
   "study",
   "trial",
@@ -85,6 +97,7 @@ const parseNumber = (value: string | undefined, fallback: number) => {
 
 const CACHE_TTL_MINUTES = parseNumber(process.env.SKINPRO_NEWS_CACHE_MINUTES, 360);
 const MAX_STORIES = parseNumber(process.env.SKINPRO_NEWS_MAX, 18);
+const MAX_IMAGE_FETCHES = parseNumber(process.env.SKINPRO_NEWS_IMAGE_FETCHES, 4);
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -119,8 +132,21 @@ const readText = (value: unknown): string => {
   return "";
 };
 
+const decodeHtmlEntities = (value: string) =>
+  value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\u00a0/g, " ");
+
 const stripTags = (value: string) =>
-  value.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+  decodeHtmlEntities(value)
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
 const splitTitle = (value: string) => {
   const parts = value.split(" - ");
@@ -159,6 +185,217 @@ const extractLink = (item: Record<string, unknown>): string => {
   return "";
 };
 
+const extractImageFromHtml = (value: string) => {
+  if (!value) {
+    return "";
+  }
+  const match = value.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return match ? decodeHtmlEntities(match[1].trim()) : "";
+};
+
+const readAttrUrl = (value: unknown): string => {
+  if (!value) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const found = readAttrUrl(entry);
+      if (found) {
+        return found;
+      }
+    }
+    return "";
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const candidate =
+      record.url ?? record.href ?? record.src ?? record.text ?? record["#text"];
+    return readText(candidate);
+  }
+  return "";
+};
+
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const extractMetaContent = (html: string, key: string) => {
+  const safeKey = escapeRegExp(key);
+  const patterns = [
+    new RegExp(
+      `<meta[^>]+property=["']${safeKey}["'][^>]+content=["']([^"']+)["']`,
+      "i"
+    ),
+    new RegExp(
+      `<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${safeKey}["']`,
+      "i"
+    ),
+    new RegExp(
+      `<meta[^>]+name=["']${safeKey}["'][^>]+content=["']([^"']+)["']`,
+      "i"
+    ),
+    new RegExp(
+      `<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${safeKey}["']`,
+      "i"
+    )
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) {
+      return decodeHtmlEntities(match[1]);
+    }
+  }
+  return "";
+};
+
+const resolveUrl = (value: string, baseUrl: string) => {
+  const decoded = decodeHtmlEntities(value).trim();
+  if (!decoded) {
+    return "";
+  }
+  if (decoded.startsWith("//")) {
+    return `https:${decoded}`;
+  }
+  if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
+    return decoded;
+  }
+  try {
+    return new URL(decoded, baseUrl).toString();
+  } catch {
+    return "";
+  }
+};
+
+const normalizeImageUrl = (value: string) => {
+  if (!value) {
+    return "";
+  }
+  const trimmed = decodeHtmlEntities(value).trim();
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("//")) {
+    return `https:${trimmed}`;
+  }
+  return "";
+};
+
+const extractImageUrl = (item: Record<string, unknown>, rawDescription: string) => {
+  const media =
+    readAttrUrl(item["media:content"]) ||
+    readAttrUrl(item["media:thumbnail"]) ||
+    readAttrUrl(item.enclosure);
+  const mediaUrl = normalizeImageUrl(decodeHtmlEntities(media));
+  if (mediaUrl) {
+    return mediaUrl;
+  }
+  const htmlUrl = normalizeImageUrl(extractImageFromHtml(rawDescription));
+  if (htmlUrl) {
+    return htmlUrl;
+  }
+  return "";
+};
+
+const extractMetaImage = (html: string, baseUrl: string) => {
+  const keys = [
+    "og:image:secure_url",
+    "og:image",
+    "twitter:image",
+    "twitter:image:src"
+  ];
+  for (const key of keys) {
+    const candidate = extractMetaContent(html, key);
+    if (candidate) {
+      const resolved = resolveUrl(candidate, baseUrl);
+      if (resolved) {
+        return resolved;
+      }
+    }
+  }
+  return "";
+};
+
+const isGoogleNewsHost = (url: string) => {
+  try {
+    const host = new URL(url).hostname;
+    return host === "news.google.com" || host === "news.url.google.com";
+  } catch {
+    return false;
+  }
+};
+
+const isLikelyGooglePlaceholder = (storyUrl: string, imageUrl: string) => {
+  if (!imageUrl) {
+    return false;
+  }
+  if (!isGoogleNewsHost(storyUrl)) {
+    return false;
+  }
+  try {
+    const host = new URL(imageUrl).hostname;
+    return host.endsWith("googleusercontent.com") || host.endsWith("gstatic.com");
+  } catch {
+    return false;
+  }
+};
+
+const resolveStoryImage = async (storyUrl: string, sourceUrl?: string) => {
+  if (!storyUrl) {
+    return "";
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(storyUrl, {
+      headers: {
+        "User-Agent": "SkinPro News"
+      },
+      redirect: "follow",
+      signal: controller.signal
+    });
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/html")) {
+      return "";
+    }
+    const html = await response.text();
+    if (!isGoogleNewsHost(response.url || storyUrl)) {
+      return extractMetaImage(html, response.url || storyUrl);
+    }
+  } catch {
+    // fall through to source fallback
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (sourceUrl) {
+    const sourceController = new AbortController();
+    const sourceTimeout = setTimeout(() => sourceController.abort(), 8000);
+    try {
+      const sourceResponse = await fetch(sourceUrl, {
+        headers: {
+          "User-Agent": "SkinPro News"
+        },
+        redirect: "follow",
+        signal: sourceController.signal
+      });
+      const contentType = sourceResponse.headers.get("content-type") ?? "";
+      if (contentType.includes("text/html")) {
+        const html = await sourceResponse.text();
+        return extractMetaImage(html, sourceResponse.url || sourceUrl);
+      }
+    } catch {
+      return "";
+    } finally {
+      clearTimeout(sourceTimeout);
+    }
+  }
+
+  return "";
+};
+
 const extractPublishedAt = (item: Record<string, unknown>): string => {
   const dateCandidate =
     item.pubDate ?? item.published ?? item.updated ?? item["dc:date"] ?? item.date;
@@ -171,6 +408,16 @@ const extractSource = (item: Record<string, unknown>, fallback: string): string 
     return sourceText;
   }
   return fallback;
+};
+
+const extractSourceUrl = (item: Record<string, unknown>): string => {
+  if (!item.source) {
+    return "";
+  }
+  if (typeof item.source === "object") {
+    return readAttrUrl(item.source);
+  }
+  return "";
 };
 
 const parseTopics = (value: string | null): string[] => {
@@ -198,9 +445,21 @@ const buildQuery = (topics: string[]) => {
     });
   });
   const terms = keywords.size ? [...keywords] : DEFAULT_TOPICS;
-  return terms
-    .map((term) => (term.includes(" ") ? `"${term}"` : term))
-    .join(" OR ");
+  const quoteTerm = (term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) {
+      return "";
+    }
+    if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+      return trimmed;
+    }
+    return trimmed.includes(" ") ? `"${trimmed}"` : trimmed;
+  };
+  const keywordClause = terms.map(quoteTerm).filter(Boolean).join(" OR ");
+  const skincareClause = SKINCARE_ANCHORS.map(quoteTerm).join(" OR ");
+  const medicalClause = MEDICAL_CONTEXT.map(quoteTerm).join(" OR ");
+
+  return `(${skincareClause}) AND (${medicalClause}) AND (${keywordClause})`;
 };
 
 const buildFeedUrl = (topics: string[]) => {
@@ -271,10 +530,11 @@ const normalizeStories = (
       continue;
     }
     const source = extractSource(item, sourceFromTitle);
+    const sourceUrl = extractSourceUrl(item);
     const publishedAt = extractPublishedAt(item);
-    const summary = stripTags(
-      readText(item.description ?? item.summary ?? item.content)
-    );
+    const rawDescription = readText(item.description ?? item.summary ?? item.content);
+    const summary = stripTags(rawDescription);
+    const imageUrl = extractImageUrl(item, rawDescription);
 
     const baseId = url || `${title}:${source}`;
     const id = crypto.createHash("sha1").update(baseId).digest("hex");
@@ -290,6 +550,8 @@ const normalizeStories = (
       source,
       publishedAt,
       summary,
+      imageUrl: imageUrl || undefined,
+      sourceUrl: sourceUrl || undefined,
       score: 0
     };
     story.score = scoreStory(story, topics);
@@ -404,6 +666,39 @@ export async function GET(request: Request) {
         return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
       })
       .slice(0, Math.max(5, MAX_STORIES));
+
+    const cachedImages = new Map<string, string>();
+    cached?.stories?.forEach((story) => {
+      if (story.imageUrl) {
+        cachedImages.set(story.id, story.imageUrl);
+      }
+    });
+
+    stories.forEach((story) => {
+      if (!story.imageUrl) {
+        const cachedImage = cachedImages.get(story.id);
+        if (cachedImage) {
+          story.imageUrl = cachedImage;
+        }
+      }
+    });
+
+    stories.forEach((story) => {
+      if (story.imageUrl && isLikelyGooglePlaceholder(story.url, story.imageUrl)) {
+        story.imageUrl = undefined;
+      }
+    });
+
+    let remainingFetches = MAX_IMAGE_FETCHES;
+    for (const story of stories) {
+      if (!story.imageUrl && remainingFetches > 0) {
+        remainingFetches -= 1;
+        const resolved = await resolveStoryImage(story.url, story.sourceUrl);
+        if (resolved) {
+          story.imageUrl = resolved;
+        }
+      }
+    }
 
     const payload: NewsCache = {
       updatedAt: new Date().toISOString(),

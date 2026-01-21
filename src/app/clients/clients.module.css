@@ -776,9 +776,10 @@
   border-radius: 16px;
   padding: 16px;
   background: #fffdf7;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  min-height: 220px;
+  min-height: 260px;
 }
 
 .newsHeroMeta {
@@ -808,6 +809,21 @@
   color: var(--ink-muted);
 }
 
+.newsHeroImageWrap {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #f5efe2;
+}
+
+.newsHeroImage {
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  object-fit: contain;
+  display: block;
+}
+
 .newsHeroTitle {
   margin: 0;
   font-size: 20px;
@@ -835,6 +851,7 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  margin-top: auto;
 }
 
 .newsLinkButton {
@@ -856,6 +873,24 @@
   text-decoration: none;
 }
 
+.newsPaywallButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  background: #efe6d6;
+  color: var(--ink);
+  text-decoration: none;
+  border: 1px solid rgba(31, 27, 22, 0.12);
+}
+
 .newsList {
   display: grid;
   gap: 10px;
@@ -871,15 +906,52 @@
   display: grid;
   gap: 6px;
   transition: background 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
 }
 
 .newsListItem:hover {
   background: #f7f1e6;
 }
 
+.newsListItem:focus-visible {
+  outline: 2px solid rgba(45, 107, 93, 0.4);
+  outline-offset: 2px;
+}
+
 .newsListItemActive {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px rgba(45, 107, 93, 0.2);
+}
+
+.newsListItemRead {
+  border-color: #e6dccb;
+  background: #fbf8f1;
+}
+
+.newsReadBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f0e6d5;
+  color: #5b5144;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.newsListFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.newsListFooter .newsPaywallButton {
+  font-size: 11px;
+  padding: 6px 10px;
 }
 
 .newsListTitle {

@@ -15,13 +15,13 @@ import {
 
 type RootTab = "alerts" | "maintenance" | "clients" | "news";
 
-const ROOT_TAB_IDS: RootTab[] = ["alerts", "maintenance", "clients", "news"];
+const ROOT_TAB_IDS: RootTab[] = ["alerts", "maintenance", "news", "clients"];
 
 const ROOT_TABS: { id: RootTab; label: string }[] = [
   { id: "alerts", label: "Alerts" },
   { id: "maintenance", label: "Maintenance" },
-  { id: "clients", label: "Clients" },
-  { id: "news", label: "News" }
+  { id: "news", label: "News" },
+  { id: "clients", label: "Clients" }
 ];
 
 function HomeContent() {
