@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./clients/clients.module.css";
 import Badge from "./ui/Badge";
 import Button from "./ui/Button";
@@ -15,7 +15,7 @@ import StatusMessage from "./ui/StatusMessage";
 import UnsavedChangesPrompt from "./ui/UnsavedChangesPrompt";
 import useUnsavedChangesGuard from "./ui/useUnsavedChangesGuard";
 import { useUnsavedChangesRegistry } from "./ui/UnsavedChangesContext";
-import { applyHighlightToRaw } from "@/lib/highlightText";
+import { toggleHighlightInRaw } from "@/lib/highlightText";
 import { formatDateInput, normalizeDateInput } from "@/lib/format";
 import { parseDateParts, parseMmddyyyy } from "@/lib/parse";
 import useKeyboardListNavigation from "../lib/hooks/useKeyboardListNavigation";
@@ -81,20 +81,22 @@ const calculateAlertStatus = (deadline: string) => {
 
 const formatCompactValue = (value: string) => {
   const trimmed = value.trim();
-  const stripped = trimmed.replace(/\[h\]|\[\/h\]/g, "").trim();
+  const stripped = trimmed
+    .replace(/\[\[highlight\]\]|\[\[\/highlight\]\]/g, "")
+    .trim();
   return stripped ? trimmed : "—";
 };
 
 const renderHighlightedValue = (value: string) => {
-  const tokens = value.split(/(\[h\]|\[\/h\])/);
+  const tokens = value.split(/(\[\[highlight\]\]|\[\[\/highlight\]\])/);
   const nodes: React.ReactNode[] = [];
   let isHighlighted = false;
   tokens.forEach((token, index) => {
-    if (token === "[h]") {
+    if (token === "[[highlight]]") {
       isHighlighted = true;
       return;
     }
-    if (token === "[/h]") {
+    if (token === "[[/highlight]]") {
       isHighlighted = false;
       return;
     }
@@ -128,6 +130,9 @@ export default function DashboardMaintenance({
   const [editNotes, setEditNotes] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<MaintenanceEntry | null>(null);
+  const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
+  const [isMovingEntry, setIsMovingEntry] = useState(false);
+  const editPanelRef = useRef<HTMLFormElement | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [highlightTarget, setHighlightTarget] = useState<
@@ -184,6 +189,17 @@ export default function DashboardMaintenance({
         parseMmddyyyy(a.last_talked_date) - parseMmddyyyy(b.last_talked_date)
     );
   }, [entries]);
+
+  const selectedEntry = useMemo(
+    () => entries.find((entry) => entry.id === selectedEntryId) ?? null,
+    [entries, selectedEntryId]
+  );
+
+  useEffect(() => {
+    if (selectedEntryId && !entries.some((entry) => entry.id === selectedEntryId)) {
+      setSelectedEntryId(null);
+    }
+  }, [entries, selectedEntryId]);
 
   const getStatusClass = (statusText: string) => {
     if (statusText.includes("Overdue")) {
@@ -395,20 +411,20 @@ export default function DashboardMaintenance({
     }
     const start = textarea.selectionStart ?? 0;
     const end = textarea.selectionEnd ?? start;
-    if (start === end) {
-      setStatus("Select text to highlight.");
-      textarea.focus();
-      return;
-    }
-    if (highlightTarget === "create") {
-      const nextRaw = applyHighlightToRaw(notes ?? "", start, end);
-      setNotes(nextRaw);
-    } else {
-      const nextRaw = applyHighlightToRaw(editNotes ?? "", start, end);
-      setEditNotes(nextRaw);
-    }
-    setTimeout(() => textarea.focus(), 0);
-  };
+      if (start === end) {
+        setStatus("Select text to highlight.");
+        textarea.focus();
+        return;
+      }
+      if (highlightTarget === "create") {
+        const nextRaw = toggleHighlightInRaw(notes ?? "", start, end);
+        setNotes(nextRaw);
+      } else {
+        const nextRaw = toggleHighlightInRaw(editNotes ?? "", start, end);
+        setEditNotes(nextRaw);
+      }
+      setTimeout(() => textarea.focus(), 0);
+    };
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -422,6 +438,48 @@ export default function DashboardMaintenance({
       setEditNotes(entry.notes ?? "");
     });
   };
+
+  useEffect(() => {
+    if (!editingEntryId) {
+      return;
+    }
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let observer: ResizeObserver | null = null;
+
+    const scrollToBottom = () => {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: "smooth"
+      });
+    };
+
+    const run = () => {
+      scrollToBottom();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(scrollToBottom, 140);
+    };
+
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(run);
+      observer.observe(document.body);
+    }
+
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(run);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      if (observer) {
+        observer.disconnect();
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [editingEntryId]);
 
   const handleEditCancel = () => {
     setEditingEntryId(null);
@@ -465,19 +523,86 @@ export default function DashboardMaintenance({
     await handleDelete(entry);
   };
 
+
+  const moveMaintenanceToAlert = async (entry: MaintenanceEntry) => {
+    if (!entry.primary_phone) {
+      setNotice("Client needs a primary phone number before alerts.", true);
+      return;
+    }
+    setIsMovingEntry(true);
+    try {
+      const createResponse = await fetch("/api/alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: entry.client_id,
+          deadline: entry.last_talked_date,
+          notes: entry.notes ?? ""
+        })
+      });
+      const createData = (await createResponse.json()) as { error?: string };
+      if (!createResponse.ok) {
+        throw new Error(createData.error ?? "Failed to create alert");
+      }
+
+      const deleteResponse = await fetch(`/api/maintenance/${entry.id}`, {
+        method: "DELETE"
+      });
+      const deleteData = (await deleteResponse.json()) as { error?: string };
+      if (!deleteResponse.ok) {
+        throw new Error(deleteData.error ?? "Failed to delete maintenance entry");
+      }
+
+      setSelectedEntryId(null);
+      await loadEntries();
+      setNotice("Moved maintenance to alert.");
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : "Failed to move maintenance entry",
+        true
+      );
+    } finally {
+      setIsMovingEntry(false);
+    }
+  };
+
+  const handleMoveMaintenance = () => {
+    if (!selectedEntry) {
+      return;
+    }
+    maintenanceGuard.requestExit(() => {
+      void moveMaintenanceToAlert(selectedEntry);
+    });
+  };
+
   return (
     <section className={`${styles.panel} ${styles.workspacePanel}`}>
       <div className={styles.section}>
         <div className={styles.sectionHeaderRow}>
           {rootTabs}
-          {!isFormOpen && (
-            <Button
-              type="button"
-              onClick={() => maintenanceGuard.requestExit(() => setIsFormOpen(true))}
-            >
-              New Maintenance
-            </Button>
-          )}
+          <div className={styles.sectionHeaderActions}>
+            {selectedEntry && !isFormOpen && (
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={handleMoveMaintenance}
+                disabled={isMovingEntry}
+              >
+                {isMovingEntry ? "Moving..." : "Move to Alert"}
+              </Button>
+            )}
+            {!isFormOpen && (
+              <Button
+                type="button"
+                onClick={() =>
+                  maintenanceGuard.requestExit(() => setIsFormOpen(true))
+                }
+                disabled={isMovingEntry}
+              >
+                New Maintenance
+              </Button>
+            )}
+          </div>
         </div>
         {isFormOpen && (
           <form onSubmit={handleCreate} className={styles.alertForm}>
@@ -618,7 +743,7 @@ export default function DashboardMaintenance({
                   <th>Name</th>
                   <th>Timeline</th>
                   <th>Date Last Talked To</th>
-                  <th>Number</th>
+                  <th>Phone</th>
                   <th>Notes</th>
                   <th>Actions</th>
                 </tr>
@@ -626,8 +751,16 @@ export default function DashboardMaintenance({
               <tbody>
                 {sortedEntries.map((entry) => {
                   const statusText = calculateAlertStatus(entry.last_talked_date);
+                  const isSelected = entry.id === selectedEntryId;
                   return (
-                    <tr key={entry.id}>
+                    <tr
+                      key={entry.id}
+                      className={isSelected ? styles.tableRowSelected : undefined}
+                      onClick={() =>
+                        setSelectedEntryId(isSelected ? null : entry.id)
+                      }
+                      aria-selected={isSelected}
+                    >
                       <td>{entry.full_name}</td>
                       <td>
                         <Badge
@@ -649,14 +782,20 @@ export default function DashboardMaintenance({
                           <Button
                             variant="secondary"
                             type="button"
-                            onClick={() => handleEditStart(entry)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleEditStart(entry);
+                            }}
                           >
                             Edit
                           </Button>
                           <Button
                             danger
                             type="button"
-                            onClick={() => setPendingDelete(entry)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setPendingDelete(entry);
+                            }}
                           >
                             Delete
                           </Button>
@@ -671,7 +810,11 @@ export default function DashboardMaintenance({
         )}
 
         {editingEntryId && (
-          <form onSubmit={handleUpdate} className={styles.alertEditPanel}>
+          <form
+            ref={editPanelRef}
+            onSubmit={handleUpdate}
+            className={styles.alertEditPanel}
+          >
             <CloseButton
               className={styles.alertCloseButton}
               onClick={() => maintenanceGuard.requestExit(handleEditCancel)}

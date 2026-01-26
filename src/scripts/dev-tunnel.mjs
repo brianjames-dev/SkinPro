@@ -13,10 +13,21 @@ const startDevServer = (url) => {
   tunnelUrl = url;
   console.log(`[tunnel] URL: ${url}`);
   console.log("[tunnel] Starting Next dev server with SKINPRO_QR_HOST...");
-  devProcess = spawn("npm", ["run", "dev:local"], {
-    env: { ...process.env, SKINPRO_QR_HOST: url },
-    stdio: "inherit"
-  });
+  const env = { ...process.env, SKINPRO_QR_HOST: url };
+  const npmExecPath = process.env.npm_execpath;
+  if (npmExecPath) {
+    devProcess = spawn(process.execPath, [npmExecPath, "run", "dev:local"], {
+      env,
+      stdio: "inherit"
+    });
+  } else {
+    const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+    devProcess = spawn(npmCommand, ["run", "dev:local"], {
+      env,
+      stdio: "inherit",
+      shell: process.platform === "win32"
+    });
+  }
 };
 
 const cloudflared = spawn(

@@ -1,5 +1,6 @@
 "use client";
 
+import { forwardRef } from "react";
 import type { ButtonHTMLAttributes } from "react";
 
 type ListRowButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -10,15 +11,19 @@ type ListRowButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   baseClassName?: string;
 };
 
-export default function ListRowButton({
-  active = false,
-  selected = false,
-  activeClassName,
-  selectedClassName,
-  baseClassName,
-  className,
-  ...rest
-}: ListRowButtonProps) {
+const ListRowButton = forwardRef<HTMLButtonElement, ListRowButtonProps>(
+  (
+    {
+      active = false,
+      selected = false,
+      activeClassName,
+      selectedClassName,
+      baseClassName,
+      className,
+      ...rest
+    },
+    ref
+  ) => {
   const classes = [
     baseClassName ?? "",
     className ?? "",
@@ -28,5 +33,10 @@ export default function ListRowButton({
     .filter(Boolean)
     .join(" ");
 
-  return <button className={classes} {...rest} />;
-}
+    return <button ref={ref} className={classes} {...rest} />;
+  }
+);
+
+ListRowButton.displayName = "ListRowButton";
+
+export default ListRowButton;

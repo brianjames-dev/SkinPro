@@ -1672,6 +1672,7 @@
   overflow: auto;
   display: grid;
   gap: 12px;
+  scroll-behavior: smooth;
 }
 
 .appointmentNotesHint {
@@ -2850,6 +2851,10 @@
   table-layout: fixed;
 }
 
+.alertsTable tbody tr {
+  cursor: pointer;
+}
+
 .alertsTable th,
 .alertsTable td {
   padding: 8px 10px;
@@ -2868,6 +2873,14 @@
 
 .alertsTable tr:hover {
   background: #f5f1e8;
+}
+
+.alertsTable tr.tableRowSelected td {
+  background: var(--accent-soft);
+}
+
+.alertsTable tr.tableRowSelected:hover td {
+  background: var(--accent-soft);
 }
 
 .alertsTable th:nth-child(1),

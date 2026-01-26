@@ -116,16 +116,16 @@ function extractColumns(steps: StepsDict): ColumnData[] {
 }
 
 function tokenizeHighlight(text: string): { text: string; highlight: boolean }[] {
-  const tokens = text.split(/(\[h\]|\[\/h\])/);
+  const tokens = text.split(/(\[\[highlight\]\]|\[\[\/highlight\]\])/);
   const segments: { text: string; highlight: boolean }[] = [];
   let isHighlight = false;
 
   for (const token of tokens) {
-    if (token === "[h]") {
+    if (token === "[[highlight]]") {
       isHighlight = true;
       continue;
     }
-    if (token === "[/h]") {
+    if (token === "[[/highlight]]") {
       isHighlight = false;
       continue;
     }

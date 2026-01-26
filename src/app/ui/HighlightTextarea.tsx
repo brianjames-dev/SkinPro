@@ -34,7 +34,10 @@ export default function HighlightTextarea({
 }: HighlightTextareaProps) {
   const mirrorRef = useRef<HTMLDivElement | null>(null);
   const strippedValue = useMemo(() => stripHighlightTokens(value ?? ""), [value]);
-  const hasHighlights = useMemo(() => (value ?? "").includes("[h]"), [value]);
+  const hasHighlights = useMemo(
+    () => (value ?? "").includes("[[highlight]]"),
+    [value]
+  );
   const { className: textareaPropsClassName, ...restTextareaProps } =
     textareaProps ?? {};
   const mergedTextareaClassName = [
@@ -62,15 +65,17 @@ export default function HighlightTextarea({
   );
 
   const renderHighlights = useMemo(() => {
-    const tokens = (value ?? "").split(/(\[h\]|\[\/h\])/);
+    const tokens = (value ?? "").split(
+      /(\[\[highlight\]\]|\[\[\/highlight\]\])/
+    );
     const nodes: React.ReactNode[] = [];
     let isHighlighted = false;
     tokens.forEach((token, index) => {
-      if (token === "[h]") {
+      if (token === "[[highlight]]") {
         isHighlighted = true;
         return;
       }
-      if (token === "[/h]") {
+      if (token === "[[/highlight]]") {
         isHighlighted = false;
         return;
       }

@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./clients/clients.module.css";
 import Badge from "./ui/Badge";
 import Button from "./ui/Button";
 import ButtonRow from "./ui/ButtonRow";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import Field from "./ui/Field";
+import HighlightTextarea from "./ui/HighlightTextarea";
 import Notice from "./ui/Notice";
 import SearchMenu from "./ui/SearchMenu";
 import StatusMessage from "./ui/StatusMessage";
@@ -14,6 +15,7 @@ import CloseButton from "./ui/CloseButton";
 import UnsavedChangesPrompt from "./ui/UnsavedChangesPrompt";
 import useUnsavedChangesGuard from "./ui/useUnsavedChangesGuard";
 import { useUnsavedChangesRegistry } from "./ui/UnsavedChangesContext";
+import { toggleHighlightInRaw } from "@/lib/highlightText";
 import { formatDateInput, normalizeDateInput } from "@/lib/format";
 import { parseDateParts, parseMmddyyyy } from "@/lib/parse";
 import useKeyboardListNavigation from "../lib/hooks/useKeyboardListNavigation";
@@ -77,6 +79,39 @@ const calculateAlertStatus = (deadline: string) => {
   return `${overdueDays} day${overdueDays === 1 ? "" : "s"} - Overdue`;
 };
 
+const formatCompactValue = (value: string) => {
+  const trimmed = value.trim();
+  const stripped = trimmed
+    .replace(/\[\[highlight\]\]|\[\[\/highlight\]\]/g, "")
+    .trim();
+  return stripped ? trimmed : "-";
+};
+
+const renderHighlightedValue = (value: string) => {
+  const tokens = value.split(/(\[\[highlight\]\]|\[\[\/highlight\]\])/);
+  const nodes: React.ReactNode[] = [];
+  let isHighlighted = false;
+  tokens.forEach((token, index) => {
+    if (token === "[[highlight]]") {
+      isHighlighted = true;
+      return;
+    }
+    if (token === "[[/highlight]]") {
+      isHighlighted = false;
+      return;
+    }
+    if (!token) {
+      return;
+    }
+    nodes.push(
+      <span className={isHighlighted ? styles.highlightText : undefined} key={index}>
+        {token}
+      </span>
+    );
+  });
+  return nodes;
+};
+
 export default function DashboardAlerts({
   rootTabs
 }: {
@@ -95,8 +130,14 @@ export default function DashboardAlerts({
   const [editAlertNotes, setEditAlertNotes] = useState("");
   const [isAlertFormOpen, setIsAlertFormOpen] = useState(false);
   const [alertPendingDelete, setAlertPendingDelete] = useState<Alert | null>(null);
+  const [selectedAlertId, setSelectedAlertId] = useState<number | null>(null);
+  const [isMovingAlert, setIsMovingAlert] = useState(false);
+  const editPanelRef = useRef<HTMLFormElement | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [highlightTarget, setHighlightTarget] = useState<"create" | "edit" | null>(
+    null
+  );
 
   const selectedClient = useMemo(() => {
     const id = Number(selectedClientId);
@@ -134,6 +175,17 @@ export default function DashboardAlerts({
   const sortedAlerts = useMemo(() => {
     return [...alerts].sort((a, b) => parseMmddyyyy(a.deadline) - parseMmddyyyy(b.deadline));
   }, [alerts]);
+
+  const selectedAlert = useMemo(
+    () => alerts.find((alert) => alert.id === selectedAlertId) ?? null,
+    [alerts, selectedAlertId]
+  );
+
+  useEffect(() => {
+    if (selectedAlertId && !alerts.some((alert) => alert.id === selectedAlertId)) {
+      setSelectedAlertId(null);
+    }
+  }, [alerts, selectedAlertId]);
 
   const getAlertStatusClass = (statusText: string) => {
     if (statusText.includes("Overdue")) {
@@ -329,6 +381,7 @@ export default function DashboardAlerts({
     setClientSearchActiveIndex(-1);
     setAlertDeadline("");
     setAlertNotes("");
+    setHighlightTarget(null);
   };
 
   const handleAlertCreate = async (event: React.FormEvent) => {
@@ -344,10 +397,53 @@ export default function DashboardAlerts({
     });
   };
 
+  useEffect(() => {
+    if (!editingAlertId) {
+      return;
+    }
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let observer: ResizeObserver | null = null;
+
+    const scrollToBottom = () => {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: "smooth"
+      });
+    };
+
+    const run = () => {
+      scrollToBottom();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(scrollToBottom, 140);
+    };
+
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(run);
+      observer.observe(document.body);
+    }
+
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(run);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      if (observer) {
+        observer.disconnect();
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [editingAlertId]);
+
   const handleAlertEditCancel = () => {
     setEditingAlertId(null);
     setEditAlertDeadline("");
     setEditAlertNotes("");
+    setHighlightTarget(null);
   };
 
   const handleAlertUpdate = async (event: React.FormEvent) => {
@@ -383,19 +479,112 @@ export default function DashboardAlerts({
     await handleAlertDelete(alert);
   };
 
+  const handleHighlight = () => {
+    if (!highlightTarget) {
+      setNotice("Select text to highlight.");
+      return;
+    }
+    const textareaId =
+      highlightTarget === "create" ? "alert-notes-create" : "alert-notes-edit";
+    const textarea = document.getElementById(
+      textareaId
+    ) as HTMLTextAreaElement | null;
+    if (!textarea) {
+      setNotice("Select text to highlight.");
+      return;
+    }
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? start;
+    if (start === end) {
+      setNotice("Select text to highlight.");
+      textarea.focus();
+      return;
+    }
+    if (highlightTarget === "create") {
+      const nextRaw = toggleHighlightInRaw(alertNotes ?? "", start, end);
+      setAlertNotes(nextRaw);
+    } else {
+      const nextRaw = toggleHighlightInRaw(editAlertNotes ?? "", start, end);
+      setEditAlertNotes(nextRaw);
+    }
+    setTimeout(() => textarea.focus(), 0);
+  };
+
+  const moveAlertToMaintenance = async (alert: Alert) => {
+    setIsMovingAlert(true);
+    try {
+      const createResponse = await fetch("/api/maintenance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: alert.client_id,
+          last_talked_date: alert.deadline,
+          notes: alert.notes ?? ""
+        })
+      });
+      const createData = (await createResponse.json()) as { error?: string };
+      if (!createResponse.ok) {
+        throw new Error(createData.error ?? "Failed to create maintenance entry");
+      }
+
+      const deleteResponse = await fetch(`/api/alerts/${alert.id}`, {
+        method: "DELETE"
+      });
+      const deleteData = (await deleteResponse.json()) as { error?: string };
+      if (!deleteResponse.ok) {
+        throw new Error(deleteData.error ?? "Failed to delete alert");
+      }
+
+      setSelectedAlertId(null);
+      await loadAlerts();
+      setNotice("Moved alert to maintenance.");
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : "Failed to move alert",
+        true
+      );
+    } finally {
+      setIsMovingAlert(false);
+    }
+  };
+
+  const handleMoveAlert = () => {
+    if (!selectedAlert) {
+      return;
+    }
+    alertGuard.requestExit(() => {
+      void moveAlertToMaintenance(selectedAlert);
+    });
+  };
+
   return (
     <section className={`${styles.panel} ${styles.workspacePanel}`}>
       <div className={styles.section}>
         <div className={styles.sectionHeaderRow}>
           {rootTabs}
-          {!isAlertFormOpen && (
-            <Button
-              type="button"
-              onClick={() => alertGuard.requestExit(() => setIsAlertFormOpen(true))}
-            >
-              New Alert
-            </Button>
-          )}
+          <div className={styles.sectionHeaderActions}>
+            {selectedAlert && !isAlertFormOpen && (
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={handleMoveAlert}
+                disabled={isMovingAlert}
+              >
+                {isMovingAlert ? "Moving..." : "Move to Maintenance"}
+              </Button>
+            )}
+            {!isAlertFormOpen && (
+              <Button
+                type="button"
+                onClick={() =>
+                  alertGuard.requestExit(() => setIsAlertFormOpen(true))
+                }
+                disabled={isMovingAlert}
+              >
+                New Alert
+              </Button>
+            )}
+          </div>
         </div>
         {isAlertFormOpen && (
           <form onSubmit={handleAlertCreate} className={styles.alertForm}>
@@ -480,11 +669,15 @@ export default function DashboardAlerts({
               />
             </Field>
             <Field label="Notes">
-              <textarea
-                className={styles.textarea}
+              <HighlightTextarea
                 value={alertNotes}
-                onChange={(event) => setAlertNotes(event.target.value)}
-                disabled={!selectedClient}
+                placeholder=""
+                onChange={setAlertNotes}
+                onFocus={() => setHighlightTarget("create")}
+                textareaProps={{
+                  id: "alert-notes-create",
+                  disabled: !selectedClient
+                }}
               />
             </Field>
             <ButtonRow className={styles.alertFormActions}>
@@ -503,6 +696,15 @@ export default function DashboardAlerts({
                 }
               >
                 Cancel
+              </Button>
+              <Button
+                variant="secondary"
+                type="button"
+                className={styles.highlightButton}
+                onClick={handleHighlight}
+                disabled={!selectedClient}
+              >
+                Highlight
               </Button>
               {selectedClient ? (
                 <Notice as="span">
@@ -535,8 +737,16 @@ export default function DashboardAlerts({
               <tbody>
                 {sortedAlerts.map((alert) => {
                   const statusText = calculateAlertStatus(alert.deadline);
+                  const isSelected = alert.id === selectedAlertId;
                   return (
-                    <tr key={alert.id}>
+                    <tr
+                      key={alert.id}
+                      className={isSelected ? styles.tableRowSelected : undefined}
+                      onClick={() =>
+                        setSelectedAlertId(isSelected ? null : alert.id)
+                      }
+                      aria-selected={isSelected}
+                    >
                       <td>{alert.full_name}</td>
                       <td>
                         <Badge
@@ -548,20 +758,30 @@ export default function DashboardAlerts({
                       </td>
                       <td>{alert.deadline}</td>
                       <td>{alert.primary_phone ?? ""}</td>
-                      <td>{alert.notes ?? ""}</td>
+                      <td>
+                        {renderHighlightedValue(
+                          formatCompactValue(alert.notes ?? "")
+                        )}
+                      </td>
                       <td>
                         <div className={styles.alertActions}>
                           <Button
                             variant="secondary"
                             type="button"
-                            onClick={() => handleAlertEditStart(alert)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleAlertEditStart(alert);
+                            }}
                           >
                             Edit
                           </Button>
                           <Button
                             danger
                             type="button"
-                            onClick={() => setAlertPendingDelete(alert)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setAlertPendingDelete(alert);
+                            }}
                           >
                             Delete
                           </Button>
@@ -576,7 +796,11 @@ export default function DashboardAlerts({
         )}
 
         {editingAlertId && (
-          <form onSubmit={handleAlertUpdate} className={styles.alertEditPanel}>
+          <form
+            ref={editPanelRef}
+            onSubmit={handleAlertUpdate}
+            className={styles.alertEditPanel}
+          >
             <CloseButton
               className={styles.alertCloseButton}
               onClick={() => alertGuard.requestExit(handleAlertEditCancel)}
@@ -597,10 +821,12 @@ export default function DashboardAlerts({
                 />
               </Field>
               <Field label="Notes">
-                <textarea
-                  className={styles.textarea}
+                <HighlightTextarea
                   value={editAlertNotes}
-                  onChange={(event) => setEditAlertNotes(event.target.value)}
+                  placeholder=""
+                  onChange={setEditAlertNotes}
+                  onFocus={() => setHighlightTarget("edit")}
+                  textareaProps={{ id: "alert-notes-edit" }}
                 />
               </Field>
             </div>
@@ -613,6 +839,14 @@ export default function DashboardAlerts({
                 onClick={() => alertGuard.requestExit(handleAlertEditCancel)}
               >
                 Cancel
+              </Button>
+              <Button
+                variant="secondary"
+                type="button"
+                className={styles.highlightButton}
+                onClick={handleHighlight}
+              >
+                Highlight
               </Button>
             </ButtonRow>
           </form>

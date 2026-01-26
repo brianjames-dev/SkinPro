@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -26,7 +27,7 @@ import {
   parseMonthDay
 } from "@/lib/parse";
 import useQueryTabSync from "@/lib/hooks/useQueryTabSync";
-import { applyHighlightToRaw } from "@/lib/highlightText";
+import { toggleHighlightInRaw } from "@/lib/highlightText";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
 import ButtonRow from "../ui/ButtonRow";
@@ -482,7 +483,9 @@ const isWithinBirthdayWindow = (value: string, now = new Date()) => {
 
 const formatCompactValue = (value: string) => {
   const trimmed = value.trim();
-  const stripped = trimmed.replace(/\[h\]|\[\/h\]/g, "").trim();
+  const stripped = trimmed
+    .replace(/\[\[highlight\]\]|\[\[\/highlight\]\]/g, "")
+    .trim();
   return stripped ? trimmed : "—";
 };
 
@@ -615,15 +618,15 @@ const CompactValue = ({
 };
 
 const renderHighlightedValue = (value: string) => {
-  const tokens = value.split(/(\[h\]|\[\/h\])/);
+  const tokens = value.split(/(\[\[highlight\]\]|\[\[\/highlight\]\])/);
   const nodes: React.ReactNode[] = [];
   let isHighlighted = false;
   tokens.forEach((token, index) => {
-    if (token === "[h]") {
+    if (token === "[[highlight]]") {
       isHighlighted = true;
       return;
     }
-    if (token === "[/h]") {
+    if (token === "[[/highlight]]") {
       isHighlighted = false;
       return;
     }
@@ -741,6 +744,10 @@ export default function ClientsDashboard() {
   const [appointmentNotesMode, setAppointmentNotesMode] = useState<
     "selected" | "all"
   >("all");
+  const appointmentNotesBodyRef = useRef<HTMLDivElement | null>(null);
+  const appointmentNoteItemRefs = useRef(new Map<number, HTMLButtonElement | null>());
+  const appointmentNotesScrollRef = useRef<number | null>(null);
+  const appointmentNotesScrollStartRef = useRef<number | null>(null);
   const [products, setProducts] = useState<ClientProduct[]>([]);
   const [productForm, setProductForm] = useState<ProductForm>(EMPTY_PRODUCT);
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
@@ -2095,15 +2102,16 @@ export default function ClientsDashboard() {
       return;
     }
     const raw = healthForm[healthHighlightField] ?? "";
-    const nextRaw = applyHighlightToRaw(raw, start, end);
-    if (nextRaw === raw) {
-      return;
-    }
-    handleHealthFieldChange(healthHighlightField, nextRaw);
-    setTimeout(() => {
-      textarea.focus();
-    }, 0);
-  };
+      const nextRaw = toggleHighlightInRaw(raw, start, end);
+      if (nextRaw === raw) {
+        return;
+      }
+      handleHealthFieldChange(healthHighlightField, nextRaw);
+      setTimeout(() => {
+        textarea.focus();
+      }, 0);
+    };
+
 
   const handleAppointmentChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -2347,10 +2355,94 @@ export default function ClientsDashboard() {
   }, [isAppointmentFormOpen, selectedAppointmentId]);
 
   useEffect(() => {
+    if (!isAppointmentFormOpen) {
+      return;
+    }
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let observer: ResizeObserver | null = null;
+
+    const scrollToBottom = () => {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: "smooth"
+      });
+    };
+
+    const run = () => {
+      scrollToBottom();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(scrollToBottom, 140);
+    };
+
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(run);
+      observer.observe(document.body);
+    }
+
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(run);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      if (observer) {
+        observer.disconnect();
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isAppointmentFormOpen]);
+
+  useEffect(() => {
     if (isProductFormOpen) {
       productGuard.markSnapshot();
     }
   }, [isProductFormOpen, selectedProductId]);
+
+  useEffect(() => {
+    if (!isProductFormOpen) {
+      return;
+    }
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let observer: ResizeObserver | null = null;
+
+    const scrollToBottom = () => {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: "smooth"
+      });
+    };
+
+    const run = () => {
+      scrollToBottom();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(scrollToBottom, 140);
+    };
+
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(run);
+      observer.observe(document.body);
+    }
+
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(run);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      if (observer) {
+        observer.disconnect();
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isProductFormOpen]);
 
   useEffect(() => {
     if (isNoteFormOpen || editingNoteId !== null) {
@@ -3297,15 +3389,16 @@ export default function ClientsDashboard() {
     }
     const raw =
       prescriptionDraft.columns[colIndex]?.rows[rowIndex]?.directions ?? "";
-    const nextRaw = applyHighlightToRaw(raw, start, end);
-    if (nextRaw === raw) {
-      return;
-    }
-    handlePrescriptionDirectionsChange(colIndex, rowIndex, nextRaw);
-    setTimeout(() => {
-      textarea.focus();
-    }, 0);
-  };
+      const nextRaw = toggleHighlightInRaw(raw, start, end);
+      if (nextRaw === raw) {
+        return;
+      }
+      handlePrescriptionDirectionsChange(colIndex, rowIndex, nextRaw);
+      setTimeout(() => {
+        textarea.focus();
+      }, 0);
+    };
+
 
   const syncPrescriptionDirectionHeights = useCallback(() => {
     const root = prescriptionEditorRef.current;
@@ -3686,10 +3779,10 @@ export default function ClientsDashboard() {
 
     if (notesHighlightTarget.kind === "draft") {
       const raw = noteDraft.notes ?? "";
-      const nextRaw = applyHighlightToRaw(raw, start, end);
-      if (nextRaw !== raw) {
-        handleNoteDraftNotesChange(nextRaw);
-      }
+        const nextRaw = toggleHighlightInRaw(raw, start, end);
+        if (nextRaw !== raw) {
+          handleNoteDraftNotesChange(nextRaw);
+        }
       setTimeout(() => textarea.focus(), 0);
       return;
     }
@@ -3700,12 +3793,12 @@ export default function ClientsDashboard() {
       return;
     }
     const raw = note.notes ?? "";
-    const nextRaw = applyHighlightToRaw(raw, start, end);
-    if (nextRaw !== raw) {
-      handleNoteFieldChange(note.id, "notes", nextRaw);
-    }
-    setTimeout(() => textarea.focus(), 0);
-  };
+      const nextRaw = toggleHighlightInRaw(raw, start, end);
+      if (nextRaw !== raw) {
+        handleNoteFieldChange(note.id, "notes", nextRaw);
+      }
+      setTimeout(() => textarea.focus(), 0);
+    };
 
   async function saveNoteCreate() {
     if (!selectedClientId) {
@@ -4114,6 +4207,12 @@ export default function ClientsDashboard() {
 
   const handleAppointmentSelect = (appointment: Appointment) => {
     const hasPhotos = photosByAppointment.has(appointment.id);
+    if (appointmentNotesMode === "all") {
+      const container = appointmentNotesBodyRef.current;
+      if (container) {
+        appointmentNotesScrollStartRef.current = container.scrollTop;
+      }
+    }
     setSelectedAppointmentId(appointment.id);
     setAppointmentForm({
       id: appointment.id,
@@ -4126,6 +4225,59 @@ export default function ClientsDashboard() {
     });
     setPhotoUploadAppointmentId(String(appointment.id));
   };
+
+  useLayoutEffect(() => {
+    if (appointmentNotesMode !== "all" || !selectedAppointmentId) {
+      return;
+    }
+    const container = appointmentNotesBodyRef.current;
+    const item = appointmentNoteItemRefs.current.get(selectedAppointmentId);
+    if (!container || !item) {
+      return;
+    }
+    const DEBUG_APPT_SCROLL = false;
+    if (appointmentNotesScrollRef.current !== null) {
+      cancelAnimationFrame(appointmentNotesScrollRef.current);
+      appointmentNotesScrollRef.current = null;
+    }
+    const startTop =
+      appointmentNotesScrollStartRef.current ?? container.scrollTop;
+    appointmentNotesScrollStartRef.current = null;
+    const lockedTop = startTop;
+    container.scrollTop = lockedTop;
+    const raf = requestAnimationFrame(() => {
+      const containerRect = container.getBoundingClientRect();
+      const itemRect = item.getBoundingClientRect();
+      const containerTop = container.scrollTop;
+      const itemTop = itemRect.top - containerRect.top + containerTop;
+      const rawTargetTop =
+        itemTop - (container.clientHeight / 2 - itemRect.height / 2);
+      const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
+      const targetTop = Math.min(Math.max(rawTargetTop, 0), maxScroll);
+
+      const delta = targetTop - startTop;
+      if (Math.abs(delta) < 1) {
+        return;
+      }
+      const duration = 500;
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        container.scrollTop = startTop + delta * eased;
+        if (t < 1) {
+          appointmentNotesScrollRef.current = requestAnimationFrame(step);
+        } else {
+          appointmentNotesScrollRef.current = null;
+        }
+      };
+
+      appointmentNotesScrollRef.current = requestAnimationFrame(step);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+    };
+  }, [appointmentNotesMode, selectedAppointmentId, appointmentsWithNotes.length]);
 
   const handleAppointmentEdit = (appointment: Appointment) => {
     appointmentGuard.requestExit(() => {
@@ -5510,16 +5662,16 @@ export default function ClientsDashboard() {
                         >
                           Cancel
                         </Button>
-                        <Button
-                          variant="secondary"
-                          type="button"
-                          disabled={!selectedClientId}
-                          onClick={handleHealthHighlight}
-                          className={styles.highlightButton}
-                        >
-                          Highlight
-                        </Button>
-                      </ButtonRow>
+                          <Button
+                            variant="secondary"
+                            type="button"
+                            disabled={!selectedClientId}
+                            onClick={handleHealthHighlight}
+                            className={styles.highlightButton}
+                          >
+                            Highlight
+                          </Button>
+                        </ButtonRow>
                     </form>
                   )}
                 </>
@@ -5745,7 +5897,10 @@ export default function ClientsDashboard() {
                       onChange={setAppointmentNotesMode}
                     />
                   </div>
-                  <div className={styles.appointmentNotesBody}>
+                    <div
+                      className={styles.appointmentNotesBody}
+                      ref={appointmentNotesBodyRef}
+                    >
                     {appointmentNotesMode === "selected" && (
                       <>
                         {!selectedAppointment && (
@@ -5784,35 +5939,55 @@ export default function ClientsDashboard() {
                           </p>
                         )}
                         {appointmentsWithNotes.length > 0 && (
-                          <div className={styles.appointmentNotesList}>
-                            {appointmentsWithNotes.map((appointment) => (
-                              <ListRowButton
-                                key={appointment.id}
-                                baseClassName={styles.appointmentNoteCard}
-                                selected={selectedAppointmentId === appointment.id}
-                                selectedClassName={styles.appointmentNoteCardSelected}
-                                type="button"
-                                onClick={() => handleAppointmentSelect(appointment)}
-                              >
-                                <div className={styles.appointmentNoteHeader}>
-                                  <span className={styles.appointmentNoteTitle}>
-                                    {appointment.date || "Appointment"}
-                                  </span>
-                                  <span className={styles.appointmentNoteMeta}>
-                                    {appointment.type || "Appointment"}
-                                  </span>
-                                </div>
-                                {appointment.treatment && (
-                                  <div className={styles.appointmentNoteSub}>
-                                    {appointment.treatment}
+                            <div className={styles.appointmentNotesList}>
+                              {appointmentsWithNotes.map((appointment) => {
+                                const isSelected =
+                                  selectedAppointmentId === appointment.id;
+                                return (
+                                  <div
+                                    key={appointment.id}
+                                    className={`${styles.appointmentNoteCard} ${
+                                      isSelected ? styles.appointmentNoteCardSelected : ""
+                                    }`}
+                                    role="button"
+                                    tabIndex={-1}
+                                    onClick={() =>
+                                      handleAppointmentSelect(appointment)
+                                    }
+                                    onMouseDown={(event) => event.preventDefault()}
+                                    ref={(node) => {
+                                      if (node) {
+                                        appointmentNoteItemRefs.current.set(
+                                          appointment.id,
+                                          node
+                                        );
+                                      } else {
+                                        appointmentNoteItemRefs.current.delete(
+                                          appointment.id
+                                        );
+                                      }
+                                    }}
+                                  >
+                                  <div className={styles.appointmentNoteHeader}>
+                                    <span className={styles.appointmentNoteTitle}>
+                                      {appointment.date || "Appointment"}
+                                    </span>
+                                    <span className={styles.appointmentNoteMeta}>
+                                      {appointment.type || "Appointment"}
+                                    </span>
                                   </div>
-                                )}
-                                <div className={styles.appointmentNoteBody}>
-                                  {appointment.treatment_notes?.trim() ||
-                                    "No treatment notes yet."}
-                                </div>
-                              </ListRowButton>
-                            ))}
+                                  {appointment.treatment && (
+                                    <div className={styles.appointmentNoteSub}>
+                                      {appointment.treatment}
+                                    </div>
+                                  )}
+                                  <div className={styles.appointmentNoteBody}>
+                                    {appointment.treatment_notes?.trim() ||
+                                      "No treatment notes yet."}
+                                  </div>
+                                  </div>
+                                );
+                              })}
                           </div>
                         )}
                       </>
@@ -6643,16 +6818,16 @@ export default function ClientsDashboard() {
               />
               {selectedClientId && (
                 <div className={styles.headerActions}>
-                  {(isNoteFormOpen || editingNoteId !== null) && (
-                    <Button
-                      variant="secondary"
-                      type="button"
-                      onClick={handleNotesHighlight}
-                      className={styles.highlightButton}
-                    >
-                      Highlight
-                    </Button>
-                  )}
+                    {(isNoteFormOpen || editingNoteId !== null) && (
+                      <Button
+                        variant="secondary"
+                        type="button"
+                        onClick={handleNotesHighlight}
+                        className={styles.highlightButton}
+                      >
+                        Highlight
+                      </Button>
+                    )}
                   <Button
                     type={isNoteFormOpen ? "submit" : "button"}
                     form={isNoteFormOpen ? "note-create-form" : undefined}

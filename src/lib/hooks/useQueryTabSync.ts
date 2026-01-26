@@ -56,9 +56,9 @@ export default function useQueryTabSync<T extends string>({
         return;
       }
       if (mode === "push") {
-        router.push(nextUrl);
+        router.push(nextUrl, { scroll: false });
       } else {
-        router.replace(nextUrl);
+        router.replace(nextUrl, { scroll: false });
       }
     },
     [key, pathname, router, searchParams]
