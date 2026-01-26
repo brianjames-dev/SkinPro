@@ -426,6 +426,15 @@
   background: #e2f1ec;
 }
 
+.overviewCollapsedAvatarButton:hover .overviewCollapsedAvatar,
+.overviewCollapsedAvatarButton:focus-visible .overviewCollapsedAvatar,
+.overviewCollapsedAvatarButton:hover .overviewCollapsedAvatarPlaceholder,
+.overviewCollapsedAvatarButton:focus-visible .overviewCollapsedAvatarPlaceholder {
+  border-color: #2f7a70;
+  box-shadow: 0 0 0 2px rgba(47, 122, 112, 0.35);
+  background: #e2f1ec;
+}
+
 .profilePlaceholderCompact {
   width: 100%;
   max-width: 200px;
