@@ -4734,6 +4734,7 @@ export default function ClientsDashboard() {
 
   const handleSelectClientFromSearch = async (clientId: number) => {
     setSearchActiveIndex(-1);
+    setSearchQuery("");
     await handleSelectClient(clientId);
   };
 
