@@ -42,7 +42,7 @@ Later: Packaging + polish
 - Optional desktop wrapper after refactor stabilizes.
 
 Tab-to-endpoint mapping (current)
-- Dashboard: `/` with `tab=alerts|clients`
+- Dashboard: `/` with `tab=alerts|maintenance|clients|news`
 - Client overview: `/clients?clientId=...&tab=appointments|products|photos|prescriptions|notes&overview=info|health`
 - API: `/api/clients`, `/api/clients/[id]`, `/api/clients/[id]/health`
 - API: `/api/appointments`, `/api/photos`, `/api/prescriptions`, `/api/products`, `/api/notes`, `/api/alerts`
