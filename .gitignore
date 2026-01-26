@@ -60,3 +60,4 @@ out/
 .vercel/
 src/.env.local
 src/.env.*.local
+src/.certs/

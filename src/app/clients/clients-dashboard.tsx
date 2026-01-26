@@ -167,7 +167,7 @@ type WorkspaceTab =
   | "prescriptions"
   | "notes";
 type OverviewTab = "info" | "health";
-type OverviewMode = "compact" | "edit";
+type OverviewMode = "compact" | "collapsed" | "edit";
 
 type PrescriptionTemplate = {
   id: string;
@@ -642,6 +642,30 @@ const renderHighlightedValue = (value: string) => {
   return nodes;
 };
 
+const extractHighlightedSegments = (value: string) => {
+  const tokens = value.split(/(\[\[highlight\]\]|\[\[\/highlight\]\])/);
+  const results: string[] = [];
+  let isHighlighted = false;
+  tokens.forEach((token) => {
+    if (token === "[[highlight]]") {
+      isHighlighted = true;
+      return;
+    }
+    if (token === "[[/highlight]]") {
+      isHighlighted = false;
+      return;
+    }
+    if (!isHighlighted) {
+      return;
+    }
+    const cleaned = token.replace(/\s+/g, " ").trim();
+    if (cleaned) {
+      results.push(cleaned);
+    }
+  });
+  return results;
+};
+
 const ExpandableValue = ({ value }: { value: string }) => {
   const displayValue = formatCompactValue(value);
   const nodes = renderHighlightedValue(displayValue);
@@ -909,7 +933,7 @@ export default function ClientsDashboard() {
     defaultValue: "health",
     values: OVERVIEW_TAB_IDS
   });
-  const [overviewMode, setOverviewMode] = useState<OverviewMode>("compact");
+  const [overviewMode, setOverviewMode] = useState<OverviewMode>("collapsed");
   const { value: activeTab, onChange: handleWorkspaceTabChange } =
     useQueryTabSync<WorkspaceTab>({
       key: "tab",
@@ -1196,6 +1220,52 @@ export default function ClientsDashboard() {
   const referredByDisplay = useMemo(() => {
     return resolveReferredByName(referredBySelected, allClients);
   }, [referredBySelected, allClients]);
+  const collapsedHighlightNodes = useMemo(() => {
+    const sections = [
+      healthForm.allergies,
+      healthForm.health_conditions,
+      healthForm.health_risks,
+      healthForm.medications,
+      healthForm.treatment_areas,
+      healthForm.current_products,
+      healthForm.skin_conditions,
+      healthForm.other_notes,
+      healthForm.desired_improvement
+    ];
+    const nodes: React.ReactNode[] = [];
+    let sectionIndex = 0;
+    sections.forEach((value) => {
+      const items = extractHighlightedSegments(value);
+      if (!items.length) {
+        return;
+      }
+      if (sectionIndex > 0) {
+        nodes.push(" | ");
+      }
+      items.forEach((item, itemIndex) => {
+        if (itemIndex > 0) {
+          nodes.push(", ");
+        }
+        nodes.push(
+          <span className={styles.highlightText} key={`${sectionIndex}-${itemIndex}`}>
+            {item}
+          </span>
+        );
+      });
+      sectionIndex += 1;
+    });
+    return nodes;
+  }, [
+    healthForm.allergies,
+    healthForm.health_conditions,
+    healthForm.health_risks,
+    healthForm.medications,
+    healthForm.treatment_areas,
+    healthForm.current_products,
+    healthForm.skin_conditions,
+    healthForm.other_notes,
+    healthForm.desired_improvement
+  ]);
 
   const selectedCopyClient = useMemo(() => {
     if (!copyTargetClientId) {
@@ -1858,6 +1928,7 @@ export default function ClientsDashboard() {
     selectedClientIdRef.current = clientId;
     clientFormMutationIdRef.current = 0;
     setSelectedClientId(clientId);
+    setOverviewMode("collapsed");
     syncClientRoute(clientId);
     setNotice(null);
     setCopyTargetClientId("");
@@ -1881,6 +1952,7 @@ export default function ClientsDashboard() {
     clientDetailsRequestIdRef.current += 1;
     setLoadingClientDetails(false);
     setSelectedClientId(null);
+    setOverviewMode("collapsed");
     syncClientRoute(null);
     replaceOverviewTab("info");
     const nextClientForm = initialName
@@ -2346,6 +2418,13 @@ export default function ClientsDashboard() {
   const enterOverviewEdit = () => {
     setOverviewMode("edit");
     window.setTimeout(() => overviewGuard.markSnapshot(), 0);
+  };
+
+  const toggleOverviewCollapsed = () => {
+    if (overviewMode === "edit") {
+      return;
+    }
+    setOverviewMode((prev) => (prev === "collapsed" ? "compact" : "collapsed"));
   };
 
   useEffect(() => {
@@ -4954,77 +5033,39 @@ export default function ClientsDashboard() {
             )}
           </div>
         </section>
-        <section className={`${styles.panel} ${styles.overviewPanel}`}>
-          <div className={styles.overviewHeader}>
-            <div>
-              <h2 className={styles.overviewTitle}>
-                {clientForm.full_name ? clientForm.full_name : "Client Overview"}
-              </h2>
-            </div>
-            {selectedClientId && (
-              <div className={styles.overviewMetaRow}>
-                {referralStats.count > 0 && (
-                  <span
-                    className={`${styles.overviewMeta} ${styles.overviewMetaReferral}`}
-                  >
-                    +{referralStats.count} Referral
-                    {referralStats.count === 1 ? "" : "s"}
-                    {referralStats.names.length > 0
-                      ? ` -> ${referralStats.names.join(", ")}`
-                      : ""}
-                  </span>
-                )}
-                <span className={styles.overviewMeta}>ID #{selectedClientId}</span>
-              </div>
-            )}
-          </div>
-
+        <section
+          className={`${styles.panel} ${styles.overviewPanel} ${
+            overviewMode === "collapsed" ? styles.overviewPanelCollapsed : ""
+          }`}
+        >
           <div
-            className={[
-              styles.overviewGrid,
-              overviewMode === "compact" ? styles.overviewGridCompact : "",
-              overviewMode === "edit" ? styles.overviewGridEdit : ""
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            className={`${styles.overviewHeader} ${
+              overviewMode === "collapsed" ? styles.overviewHeaderCollapsed : ""
+            }`}
           >
+            <div className={styles.overviewHeaderTitle}>
+              {overviewMode !== "collapsed" && (
+                <h2 className={styles.overviewTitle}>
+                  {clientForm.full_name ? clientForm.full_name : "Client Overview"}
+                </h2>
+              )}
+            </div>
             <div
-              className={`${styles.profileCard} ${
-                overviewMode === "compact" ? styles.compactCard : ""
+              className={`${styles.overviewHeaderActions} ${
+                overviewMode === "collapsed" ? styles.overviewHeaderActionsCollapsed : ""
               }`}
             >
-              {!selectedClientId && (
-                <div
-                  className={`${styles.profileStack} ${styles.profileStackCompact}`}
-                >
-                  <div
-                    className={`${styles.profilePlaceholder} ${styles.profilePlaceholderCompact}`}
-                  >
-                    No profile picture yet.
-                  </div>
-                </div>
-              )}
-              {selectedClientId && (
-                <>
-                  <div
-                    className={[
-                      styles.profileStack,
-                      overviewMode === "compact" ? styles.profileStackCompact : "",
-                      overviewMode === "edit" ? styles.profileStackEdit : ""
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                  >
-                    {profilePictureUrl ? (
+              {overviewMode === "collapsed" && (
+                <div className={styles.overviewCollapsed}>
+                  {selectedClientId ? (
+                    profilePictureUrl ? (
                       <button
                         type="button"
-                        className={styles.profileImageButton}
+                        className={styles.overviewCollapsedAvatarButton}
                         onClick={openProfileUploadModal}
                       >
                         <img
-                          className={`${styles.profileImage} ${
-                            styles.profileImageCompact
-                          }`}
+                          className={styles.overviewCollapsedAvatar}
                           src={profilePictureUrl}
                           alt="Profile"
                           onError={() => setProfilePictureUrl(null)}
@@ -5033,133 +5074,165 @@ export default function ClientsDashboard() {
                     ) : (
                       <button
                         type="button"
-                        className={`${styles.profilePlaceholderButton} ${styles.profilePlaceholderCompact}`}
+                        className={styles.overviewCollapsedAvatarButton}
                         onClick={openProfileUploadModal}
                       >
-                        <span
-                          className={`${styles.profilePlaceholder} ${
-                            styles.profilePlaceholderCompact
-                          }`}
-                        >
-                          No profile picture yet.
+                        <span className={styles.overviewCollapsedAvatarPlaceholder}>
+                          No photo
                         </span>
                       </button>
-                    )}
-                    {overviewMode === "edit" && (
-                      <div className={styles.profileUploadActions}>
-                        <Button type="button" onClick={openProfileUploadModal}>
-                          Upload Picture
-                        </Button>
-                      </div>
-                    )}
+                    )
+                  ) : (
+                    <div className={styles.overviewCollapsedAvatarPlaceholder}>
+                      No photo
+                    </div>
+                  )}
+                  <div className={styles.overviewCollapsedText}>
+                    <div className={`${styles.overviewCollapsedName} ${styles.overviewTitle}`}>
+                      {clientForm.full_name
+                        ? clientForm.full_name
+                        : "Select a client"}
+                    </div>
+                    <span className={styles.overviewCollapsedHighlights}>
+                      {collapsedHighlightNodes.length > 0
+                        ? collapsedHighlightNodes
+                        : "No highlights"}
+                    </span>
                   </div>
-
-                  <Modal
-                    open={isProfileUploadOpen}
-                    title="Upload Profile Photo"
-                    onClose={closeProfileUploadModal}
-                    portalTarget={portalTarget}
-                    className={styles.uploadModal}
+                </div>
+              )}
+              <div className={styles.overviewHeaderMetaGroup}>
+                {selectedClientId && (
+                  <div className={styles.overviewMetaRow}>
+                    {referralStats.count > 0 && (
+                      <span
+                        className={`${styles.overviewMeta} ${styles.overviewMetaReferral}`}
+                      >
+                        +{referralStats.count} Referral
+                        {referralStats.count === 1 ? "" : "s"}
+                        {referralStats.names.length > 0
+                          ? ` -> ${referralStats.names.join(", ")}`
+                          : ""}
+                      </span>
+                    )}
+                    <span className={styles.overviewMeta}>ID #{selectedClientId}</span>
+                  </div>
+                )}
+                {overviewMode !== "edit" && (
+                  <button
+                    type="button"
+                    className={`${styles.overviewCollapseToggle} ${
+                      overviewMode === "collapsed"
+                        ? styles.overviewCollapseToggleCollapsed
+                        : styles.overviewCollapseToggleExpanded
+                    }`}
+                    onClick={toggleOverviewCollapsed}
+                    aria-expanded={overviewMode !== "collapsed"}
+                    aria-label={
+                      overviewMode === "collapsed"
+                        ? "Expand client overview"
+                        : "Collapse client overview"
+                    }
                   >
-                    <div className={styles.modalSection}>
-                      <Notice>
-                        {clientForm.full_name
-                          ? `For ${clientForm.full_name}`
-                          : "Select a client to upload."}
-                      </Notice>
+                    <svg
+                      className={styles.overviewCollapseIcon}
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M6 9l6 6 6-6"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {overviewMode === "collapsed" ? null : (
+            <div
+              className={[
+                styles.overviewGrid,
+                overviewMode === "compact" ? styles.overviewGridCompact : "",
+                overviewMode === "edit" ? styles.overviewGridEdit : ""
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              <div
+                className={`${styles.profileCard} ${
+                  overviewMode === "compact" ? styles.compactCard : ""
+                }`}
+              >
+                {!selectedClientId && (
+                  <div
+                    className={`${styles.profileStack} ${styles.profileStackCompact}`}
+                  >
+                    <div
+                      className={`${styles.profilePlaceholder} ${styles.profilePlaceholderCompact}`}
+                    >
+                      No profile picture yet.
+                    </div>
+                  </div>
+                )}
+                {selectedClientId && (
+                  <>
+                    <div
+                      className={[
+                        styles.profileStack,
+                        overviewMode === "compact" ? styles.profileStackCompact : "",
+                        overviewMode === "edit" ? styles.profileStackEdit : ""
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      {profilePictureUrl ? (
+                        <button
+                          type="button"
+                          className={styles.profileImageButton}
+                          onClick={openProfileUploadModal}
+                        >
+                          <img
+                            className={`${styles.profileImage} ${
+                              styles.profileImageCompact
+                            }`}
+                            src={profilePictureUrl}
+                            alt="Profile"
+                            onError={() => setProfilePictureUrl(null)}
+                          />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className={`${styles.profilePlaceholderButton} ${styles.profilePlaceholderCompact}`}
+                          onClick={openProfileUploadModal}
+                        >
+                          <span
+                            className={`${styles.profilePlaceholder} ${
+                              styles.profilePlaceholderCompact
+                            }`}
+                          >
+                            No profile picture yet.
+                          </span>
+                        </button>
+                      )}
+                      {overviewMode === "edit" && (
+                        <div className={styles.profileUploadActions}>
+                          <Button type="button" onClick={openProfileUploadModal}>
+                            Upload Picture
+                          </Button>
+                        </div>
+                      )}
                     </div>
 
-                    <Tabs
-                      className={styles.overviewTabs}
-                      value={profileUploadMode}
-                      onChange={handleProfileModeChange}
-                      tabs={UPLOAD_TABS}
-                    />
-
-                    {profileUploadMode === "local" && (
-                      <div className={styles.modalSection}>
-                        <input
-                          ref={profileFileInputRef}
-                          key={profileUploadKey}
-                          className={styles.hiddenInput}
-                          type="file"
-                          accept="image/*"
-                          onChange={handleProfileFileChange}
-                        />
-                        <div className={styles.uploadPanel}>
-                          <div className={styles.modalRow}>
-                            <Button
-                              variant="secondary"
-                              type="button"
-                              onClick={openProfileLocalPicker}
-                            >
-                              Choose File
-                            </Button>
-                            <Notice as="span">
-                              {profileUploadFile
-                                ? profileUploadFile.name
-                                : "No file selected."}
-                            </Notice>
-                          </div>
-                          <ButtonRow>
-                            <Button
-                              type="button"
-                              onClick={handleProfileUploadClick}
-                              disabled={!profileUploadFile}
-                            >
-                              Upload
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              type="button"
-                              onClick={closeProfileUploadModal}
-                              className={styles.cancelButton}
-                            >
-                              Cancel
-                            </Button>
-                          </ButtonRow>
-                        </div>
-                      </div>
-                    )}
-
-                    {profileUploadMode === "qr" && (
-                      <div className={styles.modalSection}>
-                        <div className={styles.qrPanel}>
-                          <div className={styles.qrHeader}>
-                            <h3>Profile QR Upload</h3>
-                            {profileQrLoading && (
-                              <Notice as="span">Generating...</Notice>
-                            )}
-                          </div>
-                          {profileQrDataUrl && (
-                            <div className={styles.qrContent}>
-                              <img
-                                className={styles.qrImage}
-                                src={profileQrDataUrl}
-                                alt="Profile upload QR code"
-                              />
-                              {profileQrUrl && (
-                                <div className={styles.qrUrl}>{profileQrUrl}</div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <ButtonRow>
-                          <Button
-                            variant="secondary"
-                            type="button"
-                            onClick={closeProfileUploadModal}
-                            className={styles.cancelButton}
-                          >
-                            Cancel
-                          </Button>
-                        </ButtonRow>
-                      </div>
-                    )}
-                  </Modal>
-                </>
-              )}
-            </div>
+                  </>
+                )}
+              </div>
 
             <div className={styles.detailsPanel}>
               <div className={styles.detailsHeader}>
@@ -5675,9 +5748,114 @@ export default function ClientsDashboard() {
                   )}
                 </>
               )}
-              </div>
             </div>
           </div>
+            </div>
+          )}
+
+          <Modal
+            open={isProfileUploadOpen}
+            title="Upload Profile Photo"
+            onClose={closeProfileUploadModal}
+            portalTarget={portalTarget}
+            className={styles.uploadModal}
+          >
+            <div className={styles.modalSection}>
+              <Notice>
+                {clientForm.full_name
+                  ? `For ${clientForm.full_name}`
+                  : "Select a client to upload."}
+              </Notice>
+            </div>
+
+            <Tabs
+              className={styles.overviewTabs}
+              value={profileUploadMode}
+              onChange={handleProfileModeChange}
+              tabs={UPLOAD_TABS}
+            />
+
+            {profileUploadMode === "local" && (
+              <div className={styles.modalSection}>
+                <input
+                  ref={profileFileInputRef}
+                  key={profileUploadKey}
+                  className={styles.hiddenInput}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfileFileChange}
+                />
+                <div className={styles.uploadPanel}>
+                  <div className={styles.modalRow}>
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      onClick={openProfileLocalPicker}
+                    >
+                      Choose File
+                    </Button>
+                    <Notice as="span">
+                      {profileUploadFile
+                        ? profileUploadFile.name
+                        : "No file selected."}
+                    </Notice>
+                  </div>
+                  <ButtonRow>
+                    <Button
+                      type="button"
+                      onClick={handleProfileUploadClick}
+                      disabled={!profileUploadFile}
+                    >
+                      Upload
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      onClick={closeProfileUploadModal}
+                      className={styles.cancelButton}
+                    >
+                      Cancel
+                    </Button>
+                  </ButtonRow>
+                </div>
+              </div>
+            )}
+
+            {profileUploadMode === "qr" && (
+              <div className={styles.modalSection}>
+                <div className={styles.qrPanel}>
+                  <div className={styles.qrHeader}>
+                    <h3>Profile QR Upload</h3>
+                    {profileQrLoading && (
+                      <Notice as="span">Generating...</Notice>
+                    )}
+                  </div>
+                  {profileQrDataUrl && (
+                    <div className={styles.qrContent}>
+                      <img
+                        className={styles.qrImage}
+                        src={profileQrDataUrl}
+                        alt="Profile upload QR code"
+                      />
+                      {profileQrUrl && (
+                        <div className={styles.qrUrl}>{profileQrUrl}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <ButtonRow>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={closeProfileUploadModal}
+                    className={styles.cancelButton}
+                  >
+                    Cancel
+                  </Button>
+                </ButtonRow>
+              </div>
+            )}
+          </Modal>
         </section>
       </div>
 
