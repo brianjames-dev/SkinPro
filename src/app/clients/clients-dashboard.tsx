@@ -5096,7 +5096,7 @@ export default function ClientsDashboard() {
                     <span className={styles.overviewCollapsedHighlights}>
                       {collapsedHighlightNodes.length > 0
                         ? collapsedHighlightNodes
-                        : "No highlights"}
+                        : null}
                     </span>
                   </div>
                 </div>
