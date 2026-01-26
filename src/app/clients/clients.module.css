@@ -68,9 +68,20 @@
 }
 
 .overviewPanel {
+  position: relative;
   display: grid;
   gap: 16px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 248, 235, 0.9));
+}
+
+.overviewPanelCollapsed {
+  gap: 10px;
+}
+
+.panel.overviewPanelCollapsed {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 8px;
 }
 
 .overviewHeader {
@@ -78,6 +89,39 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.overviewHeaderCollapsed {
+  gap: 0;
+}
+
+.overviewHeaderCollapsed .overviewHeaderTitle {
+  display: none;
+}
+
+.overviewHeaderTitle {
+  min-width: 0;
+}
+
+.overviewHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.overviewHeaderActionsCollapsed {
+  width: 100%;
+}
+
+.overviewHeaderMetaGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
 }
 
 .overviewTabs {
@@ -140,6 +184,106 @@
 .overviewGridCompact {
   grid-template-columns: minmax(150px, 200px) minmax(0, 1fr);
   gap: 12px;
+}
+
+.overviewCollapsed {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.overviewCollapsedAvatarButton {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+}
+
+.overviewCollapsedAvatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  background: #f5f1e8;
+}
+
+.overviewCollapsedAvatarPlaceholder {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px dashed var(--line);
+  background: #fbf7ee;
+  color: var(--ink-muted);
+  font-size: 11px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 4px;
+}
+
+.overviewCollapsedText {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.overviewCollapsedName {
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.overviewCollapsedHighlights {
+  font-size: 13px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-2px);
+}
+
+
+.overviewCollapseToggle {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+  box-shadow: 0 6px 14px rgba(32, 26, 18, 0.12);
+  cursor: pointer;
+  transition: color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.overviewCollapseToggle:hover,
+.overviewCollapseToggle:focus-visible {
+  color: var(--ink);
+  box-shadow: 0 8px 18px rgba(32, 26, 18, 0.16);
+}
+
+.overviewCollapseIcon {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.2s ease;
+}
+
+.overviewCollapseToggleCollapsed .overviewCollapseIcon {
+  transform: rotate(0deg);
+}
+
+.overviewCollapseToggleExpanded .overviewCollapseIcon {
+  transform: rotate(180deg);
 }
 
 @media (max-width: 1020px) {
