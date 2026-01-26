@@ -12,6 +12,7 @@ Current
 - Unsaved-changes guard/prompt now applied to edit flows across alerts/maintenance/clients
 - Repository layout: legacy Tkinter code moved to `legacy/`, web app renamed to `src/`
 - Repo: `src/lib` now tracked for cross-machine setup
+- Repo: dev HTTPS certs moved out of git; `src/.certs/` ignored
 - Alerts + maintenance support row selection with one-click conversion between lists
 - Alerts notes now use highlight tokens and render highlighted text in the table
 - Run script: reuse existing dev server or start one in the same terminal with auto-open browser

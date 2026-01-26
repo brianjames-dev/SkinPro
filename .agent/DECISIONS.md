@@ -15,4 +15,5 @@
 - Legacy desktop/Tkinter code moved under `legacy/`; the active web app now lives in `src/`.
 - News dashboard uses Google News RSS with `fast-xml-parser`, cached JSON under `SkinProData/news/` and keyword-weighted ranking for facials/electrolysis.
 - Track `src/lib` in git; narrow ignore to `/lib/` so core shared code ships across machines.
+- Local HTTPS dev certs are machine-specific; ignore `src/.certs/` and avoid committing private keys.
 - Dev tunnel uses `npm_execpath` when available (spawn `node` + npm CLI) and falls back to `npm.cmd` on Windows.
