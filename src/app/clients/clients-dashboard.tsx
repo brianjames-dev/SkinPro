@@ -745,7 +745,7 @@ export default function ClientsDashboard() {
     "selected" | "all"
   >("all");
   const appointmentNotesBodyRef = useRef<HTMLDivElement | null>(null);
-  const appointmentNoteItemRefs = useRef(new Map<number, HTMLButtonElement | null>());
+  const appointmentNoteItemRefs = useRef(new Map<number, HTMLDivElement | null>());
   const appointmentNotesScrollRef = useRef<number | null>(null);
   const appointmentNotesScrollStartRef = useRef<number | null>(null);
   const [products, setProducts] = useState<ClientProduct[]>([]);
@@ -4654,7 +4654,6 @@ export default function ClientsDashboard() {
   };
 
   const handleSelectClientFromSearch = async (clientId: number) => {
-    setSearchQuery("");
     setSearchActiveIndex(-1);
     await handleSelectClient(clientId);
   };

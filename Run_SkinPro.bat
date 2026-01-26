@@ -1,10 +1,15 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
+chcp 65001 >nul
+
 cd /d "%~dp0src"
 
 set "URL="
 for /f %%T in ('powershell -NoProfile -Command "Get-Date -Format \"HH:mm:ss\""' ) do set "NOW=%%T"
-echo [%NOW%] Starting SkinPro web application...
+set "SPIN_BASE=[%NOW%]"
+set "SPIN_TEXT=Starting SkinPro web application..."
+echo Starting SkinPro web application...
+title SkinPro
 
 rem If a dev server is already running, just open it.
 for /l %%P in (3000,1,3010) do (
@@ -26,9 +31,9 @@ start "" /b powershell -NoProfile -Command ^
   "} " ^
   "Write-Host 'Timed out waiting for the dev server. Check this window for errors.'"
 
-for /f %%T in ('powershell -NoProfile -Command "Get-Date -Format \"HH:mm:ss\""' ) do set "NOW=%%T"
-echo [%NOW%] Launching npm run dev...
-call npm run dev
+if exist ".devserver.log" del ".devserver.log" >nul 2>&1
+start "" /b cmd /c "npm run dev > .devserver.log 2>&1"
+powershell -NoProfile -Command "Get-Content -Path '.devserver.log' -Wait -Encoding UTF8"
 
 :open_browser
 start "" "%URL%"

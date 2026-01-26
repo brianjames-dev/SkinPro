@@ -16,6 +16,27 @@ Current
 - Alerts notes now use highlight tokens and render highlighted text in the table
 - Run script: reuse existing dev server or start one in the same terminal with auto-open browser
 - Run script: show immediate startup message + timestamps before npm run
+- Run script: braille spinner while waiting for first dev server output
+- Run script: revert to direct npm run dev to keep console open and avoid early exit
+- Run script: relaunch in Windows Terminal when available
+- Run script: revert to single-console flow when Windows Terminal is unavailable
+- Added `Run_SkinPro.vbs` to launch the app without console flicker
+- Run script: VBS launcher now writes to `Run_SkinPro.log` for debugging
+- Run script: fixed VBS quoting to prevent command splitting
+- Run script: VBS now uses cmd call with clean quoting for log + launch
+- Run script: rewrite batch to ASCII and generate braille spinner via PowerShell char codes
+- Run script: braille spinner now renders inline after the timestamp
+- Run script: switched spinner to ASCII for maximum terminal compatibility
+- Run script: spinner now runs in same PowerShell process as npm with live log tail
+- Run script: spinner moved to cmd loop while npm writes to log
+- Run script: static startup line + auto-minimize on GET / 200 log line
+- Run script: removed auto-minimize script and watcher
+- Clients search: keep search query after selecting a client
+- Home clients tab: preserve treeview search query on selection
+- Clients dashboard: fix appointment note refs typing to match div element
+- Cleanup: removed deprecated `Run_SkinPro.vbs` and `Run_SkinPro.log`
+- Run script: VBS now launches minimized so it appears in the taskbar
+- Run script: VBS log now writes to %TEMP% to avoid permission errors
 
 Next actions
 - Refactor/cleanup: modularize shared UI + hooks, reduce clients-dashboard.tsx size

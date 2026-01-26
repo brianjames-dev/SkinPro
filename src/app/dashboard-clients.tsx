@@ -110,7 +110,6 @@ export default function DashboardClients({
 
   const handleSearchSelectClient = (clientId: number) => {
     setSelectedClientId(clientId);
-    setSearchQuery("");
   };
 
   const handleSearchOpenWorkspace = (clientId: number) => {
