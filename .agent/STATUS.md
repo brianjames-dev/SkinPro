@@ -12,6 +12,10 @@ Current
 - Unsaved-changes guard/prompt now applied to edit flows across alerts/maintenance/clients
 - Repository layout: legacy Tkinter code moved to `legacy/`, web app renamed to `src/`
 - Repo: `src/lib` now tracked for cross-machine setup
+- Alerts + maintenance support row selection with one-click conversion between lists
+- Alerts notes now use highlight tokens and render highlighted text in the table
+- Run script: reuse existing dev server or start one in the same terminal with auto-open browser
+- Run script: show immediate startup message + timestamps before npm run
 
 Next actions
 - Refactor/cleanup: modularize shared UI + hooks, reduce clients-dashboard.tsx size
