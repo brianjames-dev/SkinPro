@@ -13,3 +13,5 @@
 - Prescription share PNG rendering uses `pdfjs-dist` + `@napi-rs/canvas` via a dedicated Node script to rasterize the first PDF page.
 - Unsaved changes handling uses a shared guard hook + prompt component registered per section to standardize exit confirmations.
 - Legacy desktop/Tkinter code moved under `legacy/`; the active web app now lives in `src/`.
+- News dashboard uses Google News RSS with `fast-xml-parser`, cached JSON under `SkinProData/news/` and keyword-weighted ranking for facials/electrolysis.
+- Track `src/lib` in git; narrow ignore to `/lib/` so core shared code ships across machines.

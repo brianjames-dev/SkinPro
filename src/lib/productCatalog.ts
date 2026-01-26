@@ -1,0 +1,64 @@
+export type ProductCatalogItem = {
+  name: string;
+  size: string;
+  price: number;
+  brand: string;
+};
+
+export const PRODUCT_CATALOG: ProductCatalogItem[] = [
+  { name: "Ultra Foaming Gel Cleanser", size: "5.8oz", price: 50.0, brand: "Corium" },
+  { name: "Ultra Foaming Cream Cleanser", size: "2.4oz", price: 60.0, brand: "Corium" },
+  { name: "Balancing Toner (travel size)", size: ".75oz", price: 7.0, brand: "Corium" },
+  { name: "Balancing Toner", size: "7.5oz", price: 40.0, brand: "Corium" },
+  { name: "Depigmentation Cream", size: "1oz", price: 80.0, brand: "Corium" },
+  { name: "Exfoliant Plus Peptides", size: "1oz", price: 85.0, brand: "Corium" },
+  { name: "Growth Factor", size: "1oz", price: 110.0, brand: "Corium" },
+  { name: "Advanced Hydra Serum", size: "1oz", price: 70.0, brand: "Corium" },
+  { name: "Hydra Serum w/Glycolic", size: "1oz", price: 70.0, brand: "Corium" },
+  { name: "Hydrating Eye & Lip Serum", size: ".5oz", price: 90.0, brand: "Corium" },
+  { name: "Intensive Eye Cream", size: ".5oz", price: 95.0, brand: "Corium" },
+  { name: "Lip Balm", size: "7ml", price: 28.0, brand: "Corium" },
+  { name: "Neck & Decollete Serum", size: "1.5oz", price: 135.0, brand: "Corium" },
+  { name: "Night Cream with Collagen & Elastin", size: "2oz", price: 90.0, brand: "Corium" },
+  { name: "Nourishing C&E Serum", size: "1oz", price: 115.0, brand: "Corium" },
+  { name: "Sensitive Repair Cream", size: "1oz", price: 50.0, brand: "Corium" },
+  { name: "Skin Prep", size: "1oz", price: 50.0, brand: "Corium" },
+  { name: "3XS", size: "1oz", price: 60.0, brand: "Corium" },
+  { name: "A & R 5", size: "1oz", price: 75.0, brand: "Corium" },
+  { name: "A & R Ten", size: "1oz", price: 75.0, brand: "Corium" },
+  { name: "BP-9 Cream", size: "1oz", price: 90.0, brand: "Corium" },
+  { name: "Acne & Rosacea Calming Cream", size: "2oz", price: 90.0, brand: "Corium" },
+  { name: "Skin Recovery Gel", size: "4oz", price: 75.0, brand: "Corium" },
+  { name: "Ultra Repair Cream", size: "2oz", price: 125.0, brand: "Corium" },
+  { name: "Vitamin A Micropeeling Cream", size: "1oz", price: 100.0, brand: "Corium" },
+  { name: "Pore Tightening Mask", size: "4oz", price: 95.0, brand: "Corium" },
+  { name: "Purifying Mask", size: "4oz", price: 95.0, brand: "Corium" },
+  { name: "Quench Mask", size: "4oz", price: 95.0, brand: "Corium" },
+  { name: "Dermal Defense", size: "1oz", price: 45.0, brand: "Corium" },
+  { name: "Dermal Defense Plus", size: "2.4oz", price: 80.0, brand: "Corium" },
+  { name: "Tinted Defense", size: "1.5oz", price: 95.0, brand: "Corium" },
+  { name: "Body Cream", size: "8oz", price: 54.0, brand: "Corium" },
+  { name: "Body Cream Cleanser", size: "8oz", price: 54.0, brand: "Corium" },
+  { name: "Body Exfoliating Serum", size: "8oz", price: 64.0, brand: "Corium" },
+  { name: "Hands & Feet Renewal Cream", size: "5oz", price: 49.5, brand: "Corium" },
+  { name: "Enhancer", size: "2oz", price: 135.0, brand: "Corium" },
+  { name: "Antiseptic Cleanser", size: "8oz", price: 60.0, brand: "Laskin" },
+  { name: "AQ1 Cleanser (Deep Pore Cleanser)", size: "4oz", price: 60.0, brand: "Laskin" },
+  { name: "4N1", size: "1.5oz", price: 250.0, brand: "Laskin" },
+  { name: "C B P Cream", size: "1oz", price: 90.0, brand: "Laskin" },
+  { name: "Coleman Cream", size: "2oz", price: 95.0, brand: "Laskin" },
+  { name: "Correcting Cream Medium", size: "1oz", price: 85.0, brand: "Laskin" },
+  { name: "Growth Factor Serum", size: "2oz", price: 220.0, brand: "Laskin" },
+  { name: "Hydra-Cool Gel", size: "2oz", price: 120.0, brand: "Laskin" },
+  { name: "Post Soothe", size: "1oz", price: 66.0, brand: "Laskin" },
+  { name: "Spot Corrector", size: "1oz", price: 87.0, brand: "Laskin" },
+  {
+    name: "Vitamin C Serum 20%  (No vitamin E)",
+    size: "1oz",
+    price: 115.0,
+    brand: "Laskin"
+  },
+  { name: "Z Cream", size: "1.5oz", price: 140.0, brand: "Laskin" },
+  { name: "Rejuvenating Cream  (1% vitamin A)", size: "1oz", price: 100.0, brand: "Laskin" },
+  { name: "Soothing Zinc Gel Mask", size: "10oz", price: 160.0, brand: "Laskin" }
+];
