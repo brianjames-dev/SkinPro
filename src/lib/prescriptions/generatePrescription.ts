@@ -34,7 +34,46 @@ type GenerateArgs = {
 
 const DEFAULT_TITLE = "DAILY SKINCARE ROUTINE";
 const DEBUG_PAGE_CUTOFF = false;
-const FOOTER_HEIGHT = 40;
+const FOOTER_HEIGHT = 24;
+const PRODUCT_LINE_MAX_CHARS = 70;
+const MIN_HYPHEN_PART = 3;
+const PRODUCT_DESCRIPTION_GAP = 0.25;
+const PRODUCT_LINE_SPACING = 1.1;
+const FONT_HEADER = "Helvetica-Bold";
+const FONT_LABEL = "Helvetica-Bold";
+const FONT_BODY = "Helvetica";
+const FONT_BODY_BOLD = "Helvetica-Bold";
+const FONT_DISCLAIMER = "Helvetica-Oblique";
+const ROW_TINT_COLOR = "#d9d9d9";
+const ROW_TINT_OPACITY = 0.35;
+const GRID_VERTICAL_COLOR = "#3b3a3c";
+const GRID_VERTICAL_WIDTH = 0.5;
+const GRID_HORIZONTAL_COLOR = "#c9c4cf";
+const GRID_HORIZONTAL_WIDTH = 0.4;
+const STEP_BADGE_HEIGHT = 12;
+const STEP_BADGE_RADIUS = 7;
+const STEP_BADGE_PADDING_X = 5;
+const STEP_BADGE_COLOR = "#2e2a22";
+const STEP_BADGE_TEXT_SIZE = 6;
+const STEP_BADGE_PADDING_Y = 3;
+const HEADER_PRIMARY_SIZE = 11;
+const HEADER_SECONDARY_SIZE = 9;
+const HEADER_SECONDARY_COLOR = "#6f6a75";
+const HEADER_LINE_HEIGHT = 12;
+const HEADER_BOX_TOP_OFFSET = 5;
+const DISCLAIMER_COLOR = "#5b575f";
+const HIGHLIGHT_COLOR = "#fff3a8";
+const PRODUCT_UNDERLINE_COLOR = "#6d6875";
+const PRODUCT_UNDERLINE_WIDTH = 0.5;
+const HEADER_GRADIENT_TOP_OPACITY = 0.08;
+const HEADER_GRADIENT_FADE = 1;
+const DATE_VALUE_GAP = 3;
+const HEADER_TABLE_GAP = 2;
+const TABLE_TOP_LINE_GAP = 0;
+const HEADER_ROW_GAP = 10;
+const MIN_CELL_LINES = 5;
+const CELL_PADDING = 10;
+const CELL_CENTER_OFFSET = 1;
 
 const DISCLAIMER =
   "*CORIUM CORRECTIVE 360° CANNOT BE COMBINED WITH ANY OTHER SKIN CARE PRODUCTS";
@@ -137,42 +176,152 @@ function tokenizeHighlight(text: string): { text: string; highlight: boolean }[]
   return segments;
 }
 
+function stripLeadingWhitespace(
+  line: { text: string; highlight: boolean }[]
+): { text: string; highlight: boolean }[] {
+  let index = 0;
+  while (index < line.length) {
+    const trimmed = line[index].text.replace(/^\s+/, "");
+    if (trimmed) {
+      if (trimmed !== line[index].text) {
+        line[index] = { ...line[index], text: trimmed };
+      }
+      break;
+    }
+    index += 1;
+  }
+  return line.slice(index);
+}
+
+function findSplitIndex(
+  doc: PDFKit.PDFDocument,
+  word: string,
+  availableWidth: number,
+  availableChars: number
+) {
+  const minSplit = MIN_HYPHEN_PART;
+  const maxSplit = word.length - MIN_HYPHEN_PART;
+  if (maxSplit < minSplit) {
+    return 0;
+  }
+  const maxLen = Math.min(
+    maxSplit,
+    Number.isFinite(availableChars) ? Math.max(0, availableChars - 1) : maxSplit
+  );
+  if (maxLen < minSplit) {
+    return 0;
+  }
+  let best = 0;
+  for (let i = minSplit; i <= maxLen; i += 1) {
+    const candidate = `${word.slice(0, i)}-`;
+    if (doc.widthOfString(candidate) <= availableWidth) {
+      best = i;
+    } else {
+      break;
+    }
+  }
+  return best;
+}
+
 function wrapHighlightedText(
   doc: PDFKit.PDFDocument,
   text: string,
   maxWidth: number,
   fontSize: number
 ) {
-  doc.font("Helvetica").fontSize(fontSize);
+  doc.font(FONT_BODY).fontSize(fontSize);
   const segments = tokenizeHighlight(text);
   const lines: { text: string; highlight: boolean }[][] = [];
   let currentLine: { text: string; highlight: boolean }[] = [];
   let currentWidth = 0;
 
   const pushLine = () => {
-    if (currentLine.length > 0) {
-      lines.push(currentLine);
-      currentLine = [];
-      currentWidth = 0;
+    const cleaned = stripLeadingWhitespace(currentLine).filter((segment) =>
+      segment.text.length > 0
+    );
+    if (cleaned.length > 0) {
+      lines.push(cleaned);
+    }
+    currentLine = [];
+    currentWidth = 0;
+  };
+
+  const addToken = (token: string, highlight: boolean) => {
+    if (!token) {
+      return;
+    }
+    const isWhitespace = /^\s+$/.test(token);
+    if (isWhitespace) {
+      if (currentLine.length === 0) {
+        return;
+      }
+      const width = doc.widthOfString(token);
+      if (currentWidth + width > maxWidth) {
+        pushLine();
+        return;
+      }
+      currentLine.push({ text: token, highlight });
+      currentWidth += width;
+      return;
+    }
+
+    let remaining = token;
+    while (remaining.length > 0) {
+      const availableWidth = maxWidth - currentWidth;
+      const wordWidth = doc.widthOfString(remaining);
+      if (wordWidth <= availableWidth && availableWidth > 0) {
+        currentLine.push({ text: remaining, highlight });
+        currentWidth += wordWidth;
+        break;
+      }
+
+      if (remaining.length <= 5) {
+        if (currentLine.length > 0) {
+          pushLine();
+          continue;
+        }
+        currentLine.push({ text: remaining, highlight });
+        currentWidth += doc.widthOfString(remaining);
+        break;
+      }
+
+      if (currentLine.length > 0 && availableWidth <= 0) {
+        pushLine();
+        continue;
+      }
+
+      const splitIndex = findSplitIndex(
+        doc,
+        remaining,
+        currentLine.length > 0 ? availableWidth : maxWidth,
+        Number.POSITIVE_INFINITY
+      );
+      if (splitIndex === 0) {
+        if (currentLine.length > 0) {
+          pushLine();
+          continue;
+        }
+        currentLine.push({ text: remaining, highlight });
+        currentWidth += doc.widthOfString(remaining);
+        remaining = "";
+        break;
+      }
+
+      const head = remaining.slice(0, splitIndex);
+      const tail = remaining.slice(splitIndex);
+      const piece = `${head}-`;
+      currentLine.push({ text: piece, highlight });
+      currentWidth += doc.widthOfString(piece);
+      pushLine();
+      remaining = tail;
     }
   };
 
   for (const segment of segments) {
     const parts = segment.text.split("\n");
-
     parts.forEach((part, index) => {
-      if (part) {
-        const words = part.split(/(\s+)/).filter(Boolean);
-        for (const word of words) {
-          const width = doc.widthOfString(word);
-          if (currentWidth + width > maxWidth && currentLine.length > 0) {
-            pushLine();
-          }
-          currentLine.push({ text: word, highlight: segment.highlight });
-          currentWidth += width;
-        }
-      }
-
+      const tokens = part.split(/(\s+)/).filter(Boolean);
+      tokens.forEach((token) => addToken(token, segment.highlight));
       if (index < parts.length - 1) {
         pushLine();
       }
@@ -187,32 +336,106 @@ function wrapPlainText(
   doc: PDFKit.PDFDocument,
   text: string,
   maxWidth: number,
-  fontSize: number
+  fontSize: number,
+  options?: { maxChars?: number }
 ) {
-  doc.font("Helvetica-Bold").fontSize(fontSize);
+  doc.font(FONT_BODY_BOLD).fontSize(fontSize);
   const lines: string[] = [];
   let currentLine = "";
   let currentWidth = 0;
+  let currentChars = 0;
+  const maxChars = options?.maxChars ?? Number.POSITIVE_INFINITY;
 
   const pushLine = () => {
-    if (currentLine.trim()) {
-      lines.push(currentLine.trimEnd());
+    const cleaned = currentLine.replace(/^\s+/, "").trimEnd();
+    if (cleaned) {
+      lines.push(cleaned);
     }
     currentLine = "";
     currentWidth = 0;
+    currentChars = 0;
+  };
+
+  const addToken = (token: string) => {
+    if (!token) {
+      return;
+    }
+    const isWhitespace = /^\s+$/.test(token);
+    if (isWhitespace) {
+      if (!currentLine) {
+        return;
+      }
+      if (currentWidth + doc.widthOfString(token) > maxWidth ||
+          currentChars + token.length > maxChars) {
+        pushLine();
+        return;
+      }
+      currentLine += token;
+      currentWidth += doc.widthOfString(token);
+      currentChars += token.length;
+      return;
+    }
+
+    let remaining = token;
+    while (remaining.length > 0) {
+      const availableWidth = maxWidth - currentWidth;
+      const availableChars = maxChars - currentChars;
+      const wordWidth = doc.widthOfString(remaining);
+      if (wordWidth <= availableWidth && remaining.length <= availableChars) {
+        currentLine += remaining;
+        currentWidth += wordWidth;
+        currentChars += remaining.length;
+        break;
+      }
+
+      if (remaining.length <= 5) {
+        if (currentLine) {
+          pushLine();
+          continue;
+        }
+        currentLine += remaining;
+        currentWidth += doc.widthOfString(remaining);
+        currentChars += remaining.length;
+        break;
+      }
+
+      if (currentLine && (availableWidth <= 0 || availableChars <= 1)) {
+        pushLine();
+        continue;
+      }
+
+      const splitIndex = findSplitIndex(
+        doc,
+        remaining,
+        currentLine ? availableWidth : maxWidth,
+        Number.isFinite(availableChars) ? availableChars : Number.POSITIVE_INFINITY
+      );
+      if (splitIndex === 0) {
+        if (currentLine) {
+          pushLine();
+          continue;
+        }
+        currentLine += remaining;
+        currentWidth += doc.widthOfString(remaining);
+        currentChars += remaining.length;
+        remaining = "";
+        break;
+      }
+      const head = remaining.slice(0, splitIndex);
+      const tail = remaining.slice(splitIndex);
+      const piece = `${head}-`;
+      currentLine += piece;
+      currentWidth += doc.widthOfString(piece);
+      currentChars += piece.length;
+      pushLine();
+      remaining = tail;
+    }
   };
 
   const parts = text.split("\n");
   parts.forEach((part, index) => {
-    const words = part.split(/(\s+)/).filter(Boolean);
-    for (const word of words) {
-      const width = doc.widthOfString(word);
-      if (currentWidth + width > maxWidth && currentLine) {
-        pushLine();
-      }
-      currentLine += word;
-      currentWidth += width;
-    }
+    const tokens = part.split(/(\s+)/).filter(Boolean);
+    tokens.forEach(addToken);
     if (index < parts.length - 1) {
       pushLine();
     }
@@ -249,32 +472,35 @@ function drawProductBlock(args: {
 
   const productText = product.trim();
   if (productText) {
-    const productLines = wrapPlainText(doc, productText, maxWidth, fontSize).slice(
-      0,
-      2
-    );
+    const productLines = wrapPlainText(doc, productText, maxWidth, fontSize, {
+      maxChars: PRODUCT_LINE_MAX_CHARS
+    }).slice(0, 2);
     productLines.forEach((line, index) => {
       const lineY = y + lineOffset * lineHeight;
       const isLastLine = index === productLines.length - 1;
       if (!dryRun) {
-        doc.font("Helvetica-Bold").fontSize(fontSize);
+        doc.font(FONT_BODY_BOLD).fontSize(fontSize);
         const labelText = line.trim();
         const renderedText = isLastLine ? `${labelText}:` : labelText;
         doc.text(renderedText, x, lineY, { lineBreak: false });
         const labelWidth = doc.widthOfString(renderedText);
+        doc.save();
+        doc.strokeColor(PRODUCT_UNDERLINE_COLOR).lineWidth(PRODUCT_UNDERLINE_WIDTH);
         doc
-          .moveTo(x, lineY + fontSize)
-          .lineTo(x + labelWidth, lineY + fontSize)
+          .moveTo(x, lineY + fontSize - 1)
+          .lineTo(x + labelWidth, lineY + fontSize - 1)
           .stroke();
+        doc.restore();
       }
-      lineOffset += 1;
+      lineOffset += PRODUCT_LINE_SPACING;
     });
+    lineOffset += PRODUCT_DESCRIPTION_GAP;
   }
 
   const lines = wrapHighlightedText(doc, directions, maxWidth, fontSize);
 
   if (!dryRun) {
-    doc.font("Helvetica").fontSize(fontSize);
+    doc.font(FONT_BODY).fontSize(fontSize);
     lines.forEach((line, index) => {
       const lineY = y + (lineOffset + index) * lineHeight;
       let cursorX = x;
@@ -283,7 +509,7 @@ function drawProductBlock(args: {
         const width = doc.widthOfString(segment.text);
         if (segment.highlight) {
           doc.save();
-          doc.fillColor("#fff3a8");
+          doc.fillColor(HIGHLIGHT_COLOR);
           doc.rect(cursorX, lineY - 1, width, lineHeight).fill();
           doc.restore();
         }
@@ -307,9 +533,9 @@ function drawHeader(
   const leftMargin = 24;
   const headerTop = 24;
   const logoOffsetY = -5;
-  const logoWidth = 85;
-  const logoHeight = 66;
-  const logoX = pageWidth - leftMargin - logoWidth;
+  const logoWidth = 96;
+  const logoHeight = 75;
+  const logoX = leftMargin;
   const logoY = headerTop + logoOffsetY;
 
   const logoPath = resolveLogoPath();
@@ -317,37 +543,38 @@ function drawHeader(
     doc.image(logoPath, logoX, logoY, { width: logoWidth, height: logoHeight });
   }
 
-  const textLeftX = leftMargin + 20;
-  const titleY = headerTop + 8;
-  const infoY = titleY + 24;
-  const disclaimerY = infoY + 18;
-  const dividerY = headerTop + logoHeight + 10;
+  const textLeftX = leftMargin + logoWidth + 20;
+  const titleY = headerTop + 7;
+  const infoY = titleY + 28;
+  const disclaimerY = infoY + 22;
+  const dividerY = headerTop + logoHeight + 8;
 
-  doc.font("Helvetica-Bold").fontSize(20);
+  doc.font(FONT_HEADER).fontSize(20);
   doc.text(DEFAULT_TITLE, textLeftX, titleY, { lineBreak: false });
 
-  doc.font("Helvetica").fontSize(10);
+  doc.font(FONT_LABEL).fontSize(12);
   doc.text("NAME:", textLeftX, infoY, { lineBreak: false });
 
   const nameX = textLeftX + doc.widthOfString("NAME: ");
-  doc.font("Helvetica-Bold").fontSize(10);
+  doc.font(FONT_BODY).fontSize(12);
   doc.text(clientName, nameX, infoY, { lineBreak: false });
 
   const dateLabel = "START DATE: ";
   const dateX = nameX + doc.widthOfString(clientName) + 80;
-  doc.font("Helvetica").fontSize(10);
+  doc.font(FONT_LABEL).fontSize(12);
   doc.text(dateLabel, dateX, infoY, { lineBreak: false });
 
-  doc.font("Helvetica-Bold").fontSize(10);
-  doc.text(startDate, dateX + doc.widthOfString(dateLabel), infoY, {
+  doc.font(FONT_BODY).fontSize(12);
+  doc.text(startDate, dateX + doc.widthOfString(dateLabel) + DATE_VALUE_GAP, infoY, {
     lineBreak: false
   });
 
-  doc.font("Helvetica-Oblique").fontSize(9);
+  doc.font(FONT_DISCLAIMER).fontSize(8.5);
+  doc.fillColor(DISCLAIMER_COLOR);
   doc.text(DISCLAIMER, textLeftX, disclaimerY, { lineBreak: false });
+  doc.fillColor("#000000");
 
   doc.lineWidth(0.4);
-  doc.moveTo(0, dividerY).lineTo(pageWidth, dividerY).stroke();
 
   return { dividerY };
 }
@@ -401,9 +628,9 @@ function getTableLayout(
   tableTop: number
 ): TableLayout {
   const pageWidth = doc.page.width;
-  const leftMargin = 24;
+  const leftMargin = 4;
   const rightMargin = 24;
-  const stepLabelWidth = 56;
+  const stepLabelWidth = 42;
   const tableLeft = leftMargin + stepLabelWidth;
   const columnCount = columns.length;
   const columnGap = 0;
@@ -415,15 +642,15 @@ function getTableLayout(
   });
 
   const headerY = tableTop;
-  const headerLineHeight = 12;
+  const headerLineHeight = HEADER_LINE_HEIGHT;
   const headerLinesPerColumn = columns.map((column) =>
     [column.header, column.header2].filter((line) => line.trim()).length || 1
   );
   const maxHeaderLines = Math.max(...headerLinesPerColumn, 1);
 
-  const rowTop = headerY + maxHeaderLines * headerLineHeight + 10;
+  const rowTop = headerY + maxHeaderLines * headerLineHeight + HEADER_ROW_GAP;
   const fontSize = 10;
-  const lineHeight = 14;
+  const lineHeight = 10;
   const textOffsetX = 6;
   const textOffsetY = -4;
   const wrapWidth = columnWidth - 14;
@@ -475,7 +702,9 @@ function measureRowHeights(
     });
 
     const height =
-      Math.max(Math.max(...heights, 3), 3) * layout.lineHeight + 10;
+      Math.max(Math.max(...heights, MIN_CELL_LINES), MIN_CELL_LINES) *
+        layout.lineHeight +
+      CELL_PADDING;
     rowHeights.push(height);
   }
 
@@ -515,26 +744,6 @@ function getPageBreaks(
   return breaks;
 }
 
-function drawPageNumber(
-  doc: PDFKit.PDFDocument,
-  pageIndex: number,
-  totalPages: number,
-  footerHeight: number
-) {
-  const label = `Page ${pageIndex} / ${totalPages}`;
-  const fontSize = 9;
-  const padding = 10;
-  const pageWidth = doc.page.width;
-  const pageHeight = doc.page.height;
-  const textWidth = doc.widthOfString(label);
-  const rightMargin = 24;
-  const x = pageWidth - rightMargin - textWidth;
-  const y = pageHeight - footerHeight + (footerHeight - fontSize) / 2;
-
-  doc.font("Helvetica").fontSize(fontSize).fillColor("#2e2a22");
-  doc.text(label, x, y, { lineBreak: false });
-}
-
 function drawTablePage(
   doc: PDFKit.PDFDocument,
   columns: ColumnData[],
@@ -546,13 +755,43 @@ function drawTablePage(
 ) {
   if (DEBUG_PAGE_CUTOFF) {
     doc.save();
-    doc.fillColor("#ff4d4f");
-    doc.opacity(0.08);
-    doc.rect(0, doc.page.height - footerHeight, doc.page.width, footerHeight).fill();
+    doc.strokeColor("#ff4d4f").lineWidth(0.6);
+    doc.rect(0, doc.page.height - footerHeight, doc.page.width, footerHeight).stroke();
     doc.restore();
   }
 
-  doc.font("Helvetica").fontSize(10);
+  const headerBoxTop = layout.headerY - HEADER_BOX_TOP_OFFSET;
+  const headerBoxHeight =
+    layout.maxHeaderLines * layout.headerLineHeight + HEADER_BOX_TOP_OFFSET;
+  const topLineY =
+    layout.headerY + layout.maxHeaderLines * layout.headerLineHeight + TABLE_TOP_LINE_GAP;
+  const rowContentOffset = layout.rowTop - topLineY;
+
+  doc.save();
+  columns.forEach((_, index) => {
+    const columnX = layout.columnXs[index];
+    const gradient = doc.linearGradient(
+      columnX,
+      headerBoxTop,
+      columnX,
+      headerBoxTop + headerBoxHeight
+    );
+    gradient.stop(0, "#000000", 0);
+    gradient.stop(HEADER_GRADIENT_FADE, "#000000", HEADER_GRADIENT_TOP_OPACITY);
+    gradient.stop(1, "#000000", HEADER_GRADIENT_TOP_OPACITY);
+    doc.fillColor(gradient);
+    doc.rect(columnX, headerBoxTop, layout.columnWidth, headerBoxHeight).fill();
+  });
+  doc.restore();
+
+  doc.save();
+  doc.strokeColor(GRID_VERTICAL_COLOR).lineWidth(GRID_VERTICAL_WIDTH);
+  doc
+    .moveTo(layout.tableLeft, headerBoxTop)
+    .lineTo(layout.tableRight, headerBoxTop)
+    .stroke();
+  doc.restore();
+
   columns.forEach((column, index) => {
     const headerLines = [column.header, column.header2]
       .map((line) => line.trim())
@@ -562,13 +801,20 @@ function drawTablePage(
     }
     headerLines.forEach((line, lineIndex) => {
       const headerText = line.toUpperCase();
+      doc.font(FONT_BODY).fontSize(lineIndex === 0 ? HEADER_PRIMARY_SIZE : HEADER_SECONDARY_SIZE);
       const headerWidth = doc.widthOfString(headerText);
       const headerX =
         layout.columnXs[index] + (layout.columnWidth - headerWidth) / 2;
       const lineY = layout.headerY + lineIndex * layout.headerLineHeight;
+      if (lineIndex === 1) {
+        doc.fillColor(HEADER_SECONDARY_COLOR);
+      } else {
+        doc.fillColor("#000000");
+      }
       doc.text(headerText, headerX, lineY, { lineBreak: false });
     });
   });
+  doc.fillColor("#000000");
 
   drawWatermark(doc);
 
@@ -585,30 +831,68 @@ function drawTablePage(
     };
 
     doc.save();
-    doc.fillColor("#e6d8f3");
-    doc.opacity(0.4);
+    doc.fillColor(ROW_TINT_COLOR);
+    doc.opacity(ROW_TINT_OPACITY);
     columns.forEach((_, colIndex) => {
       if (shadeCell(colIndex, i)) {
         doc
-          .rect(layout.columnXs[colIndex], rowY - 10, layout.columnWidth, cellHeight)
+          .rect(
+            layout.columnXs[colIndex],
+            rowY - rowContentOffset,
+            layout.columnWidth,
+            cellHeight
+          )
           .fill();
       }
     });
     doc.restore();
 
-    doc.font("Helvetica").fontSize(9).fillColor("#1b1b1b");
-    doc.text(`STEP ${i + 1}`, layout.leftMargin, rowY - 4, {
-      width: layout.stepLabelWidth - 8,
-      align: "right",
-      lineBreak: false
+    const badgeLines = ["S", "T", "E", "P", "", `${i + 1}`];
+    const badgeLineHeight = STEP_BADGE_TEXT_SIZE + 1;
+    const badgeHeight =
+      badgeLines.length * badgeLineHeight + STEP_BADGE_PADDING_Y * 2;
+    const badgeRight = layout.tableLeft - 4;
+    const badgeLeft = badgeRight - STEP_BADGE_HEIGHT;
+    const badgeTop = rowY + (cellHeight - badgeHeight) / 2 - 10;
+    doc.save();
+    doc.fillColor(STEP_BADGE_COLOR);
+    doc
+      .roundedRect(badgeLeft, badgeTop, STEP_BADGE_HEIGHT, badgeHeight, STEP_BADGE_RADIUS)
+      .fill();
+    doc.fillColor("#ffffff");
+    doc.font(FONT_BODY_BOLD).fontSize(STEP_BADGE_TEXT_SIZE);
+    let textY = badgeTop + STEP_BADGE_PADDING_Y + 1;
+    badgeLines.forEach((line) => {
+      if (line) {
+        const textWidth = doc.widthOfString(line);
+        const textX = badgeLeft + (STEP_BADGE_HEIGHT - textWidth) / 2;
+        doc.text(line, textX, textY, { lineBreak: false });
+      }
+      textY += badgeLineHeight;
     });
+    doc.restore();
 
     columns.forEach((column, colIndex) => {
       const step = column.steps[i] ?? { product: "", directions: "" };
+      const contentLines = drawProductBlock({
+        doc,
+        x: layout.columnXs[colIndex] + layout.textOffsetX,
+        y: 0,
+        product: step.product ?? "",
+        directions: step.directions ?? "",
+        maxWidth: layout.wrapWidth,
+        fontSize: layout.fontSize,
+        lineHeight: layout.lineHeight,
+        dryRun: true
+      });
+      const contentHeight = contentLines * layout.lineHeight;
+      const rowTopLineY = topLineY + (rowY - layout.rowTop);
+      const contentStart =
+        rowTopLineY + (cellHeight - contentHeight) / 2 + CELL_CENTER_OFFSET;
       drawProductBlock({
         doc,
         x: layout.columnXs[colIndex] + layout.textOffsetX,
-        y: rowY + layout.textOffsetY,
+        y: contentStart,
         product: step.product ?? "",
         directions: step.directions ?? "",
         maxWidth: layout.wrapWidth,
@@ -621,17 +905,15 @@ function drawTablePage(
     rowY += cellHeight;
   }
 
-  doc.save();
-  doc.strokeColor("#2e2a22").lineWidth(0.4);
-
   const tableBottom =
-    layout.rowTop -
-    10 +
+    topLineY +
     rowHeights
       .slice(startRow, endRow)
       .reduce((sum, height) => sum + height, 0);
 
   // Vertical lines
+  doc.save();
+  doc.strokeColor(GRID_VERTICAL_COLOR).lineWidth(GRID_VERTICAL_WIDTH);
   for (let i = 0; i <= layout.columnCount; i += 1) {
     const lineX =
       i === 0
@@ -639,20 +921,26 @@ function drawTablePage(
         : i === layout.columnCount
         ? layout.tableRight
         : layout.columnXs[i];
-    doc.moveTo(lineX, layout.rowTop - 10).lineTo(lineX, tableBottom).stroke();
+    doc.moveTo(lineX, headerBoxTop).lineTo(lineX, tableBottom).stroke();
   }
+  doc.restore();
 
   // Horizontal lines
-  let lineY = layout.rowTop - 10;
+  let lineY = topLineY;
+  doc.save();
+  doc.strokeColor(GRID_VERTICAL_COLOR).lineWidth(GRID_VERTICAL_WIDTH);
   doc
-    .moveTo(layout.leftMargin, lineY)
+    .moveTo(layout.tableLeft, lineY)
     .lineTo(layout.tableRight, lineY)
     .stroke();
+  doc.restore();
 
+  doc.save();
+  doc.strokeColor(GRID_HORIZONTAL_COLOR).lineWidth(GRID_HORIZONTAL_WIDTH);
   rowHeights.slice(startRow, endRow).forEach((height) => {
     lineY += height;
     doc
-      .moveTo(layout.leftMargin, lineY)
+      .moveTo(layout.tableLeft, lineY)
       .lineTo(layout.tableRight, lineY)
       .stroke();
   });
@@ -694,7 +982,7 @@ export async function generatePrescriptionPdf(args: GenerateArgs) {
     doc.pipe(stream);
 
     let header = drawHeader(doc, { clientName, startDate });
-  const firstLayout = getTableLayout(doc, columns, header.dividerY + 20);
+  const firstLayout = getTableLayout(doc, columns, header.dividerY + HEADER_TABLE_GAP);
   const rowHeights = measureRowHeights(doc, columns, firstLayout);
   const pageBreaks = getPageBreaks(
     rowHeights,
@@ -708,7 +996,7 @@ export async function generatePrescriptionPdf(args: GenerateArgs) {
       doc.addPage({ size: "LETTER", margin: 0 });
       header = drawHeader(doc, { clientName, startDate });
     }
-    const layout = getTableLayout(doc, columns, header.dividerY + 20);
+    const layout = getTableLayout(doc, columns, header.dividerY + HEADER_TABLE_GAP);
     drawTablePage(
       doc,
       columns,
@@ -718,7 +1006,6 @@ export async function generatePrescriptionPdf(args: GenerateArgs) {
       page.endRow,
       FOOTER_HEIGHT
     );
-    drawPageNumber(doc, index + 1, pageBreaks.length, FOOTER_HEIGHT);
   });
 
     doc.end();

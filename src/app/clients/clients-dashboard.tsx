@@ -329,8 +329,15 @@ const EMPTY_PRODUCT: ProductForm = {
 };
 
 const MAX_PRESCRIPTION_ROWS = 10;
-const PRESCRIPTION_PRODUCT_MAX_LENGTH = 44;
-const PRESCRIPTION_PRODUCT_WRAP_THRESHOLD = 22;
+const PRESCRIPTION_PRODUCT_MAX_LENGTH_BY_COLUMN: Record<number, number> = {
+  2: 107,
+  3: 69,
+  4: 49
+};
+const getPrescriptionProductMaxLength = (columnCount: number) =>
+  PRESCRIPTION_PRODUCT_MAX_LENGTH_BY_COLUMN[columnCount] ?? 49;
+const getPrescriptionProductWrapThreshold = (columnCount: number) =>
+  Math.ceil(getPrescriptionProductMaxLength(columnCount) / 2);
 const PRESCRIPTION_HEADER_MAX_LENGTH = 18;
 const PHOTO_PAGE_SIZE = 14;
 const BIRTHDAY_WINDOW_BEFORE_DAYS = 14;
@@ -1856,7 +1863,10 @@ export default function ClientsDashboard() {
     }
   };
 
-  const loadPrescriptions = async (clientId: number) => {
+  const loadPrescriptions = async (
+    clientId: number,
+    options?: { selectId?: number | null }
+  ) => {
     setLoadingPrescriptions(true);
     try {
       const response = await fetch(`/api/prescriptions?client_id=${clientId}`);
@@ -1869,9 +1879,22 @@ export default function ClientsDashboard() {
         throw new Error(data.error ?? "Failed to load prescriptions");
       }
 
-      setPrescriptions(data.prescriptions ?? []);
-      setSelectedPrescriptionId(null);
-      setPrescriptionPreviewUrl(null);
+      const nextPrescriptions = data.prescriptions ?? [];
+      setPrescriptions(nextPrescriptions);
+
+      const selectedId = options?.selectId ?? null;
+      const hasSelected =
+        selectedId != null &&
+        nextPrescriptions.some((prescription) => prescription.id === selectedId);
+      if (hasSelected) {
+        setSelectedPrescriptionId(selectedId);
+        setPrescriptionPreviewUrl(
+          `/api/prescriptions/${selectedId}/file?ts=${Date.now()}`
+        );
+      } else {
+        setSelectedPrescriptionId(null);
+        setPrescriptionPreviewUrl(null);
+      }
     } catch (err) {
       setNotice(
         err instanceof Error ? err.message : "Failed to load prescriptions",
@@ -3370,8 +3393,8 @@ export default function ClientsDashboard() {
     field: "product",
     value: string
   ) => {
-    const nextValue =
-      value.slice(0, PRESCRIPTION_PRODUCT_MAX_LENGTH);
+    const maxLength = getPrescriptionProductMaxLength(prescriptionColumnCount);
+    const nextValue = value.slice(0, maxLength);
     setPrescriptionDraft((prev) => {
       const next = normalizePrescriptionDraft(prev, prescriptionColumnCount);
       const columns = next.columns.map((column, columnIndex) => {
@@ -3674,11 +3697,10 @@ export default function ClientsDashboard() {
           throw new Error(data.error ?? "Failed to update prescription");
         }
         if (selectedClientId) {
-          await loadPrescriptions(selectedClientId);
+          await loadPrescriptions(selectedClientId, {
+            selectId: selectedPrescriptionId
+          });
         }
-        setPrescriptionPreviewUrl(
-          `/api/prescriptions/${selectedPrescriptionId}/file?ts=${Date.now()}`
-        );
         setIsPrescriptionEditing(false);
         prescriptionEditSnapshotRef.current = null;
         setNotice("Prescription updated.");
@@ -7704,7 +7726,9 @@ export default function ClientsDashboard() {
                                     data-row-index={rowIndex}
                                     data-col-index={colIndex}
                                     placeholder="Product"
-                                    maxLength={PRESCRIPTION_PRODUCT_MAX_LENGTH}
+                                    maxLength={getPrescriptionProductMaxLength(
+                                      prescriptionColumnCount
+                                    )}
                                     value={row.product}
                                     onChange={(event) =>
                                       handlePrescriptionRowChange(
@@ -7716,7 +7740,9 @@ export default function ClientsDashboard() {
                                     }
                                     rows={
                                       (row.product ?? "").length >
-                                      PRESCRIPTION_PRODUCT_WRAP_THRESHOLD
+                                      getPrescriptionProductWrapThreshold(
+                                        prescriptionColumnCount
+                                      )
                                         ? 2
                                         : 1
                                     }
