@@ -3,7 +3,7 @@ import os from "os";
 import path from "path";
 import { spawn } from "child_process";
 
-export const renderPdfToPng = async (pdfPath: string, scale = 2) => {
+export const renderPdfToPng = async (pdfPath: string, scale = 3) => {
   const tempDir = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "skinpro-pdf-")
   );

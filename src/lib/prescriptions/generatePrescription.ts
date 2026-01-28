@@ -71,7 +71,7 @@ const DATE_VALUE_GAP = 3;
 const HEADER_TABLE_GAP = 2;
 const TABLE_TOP_LINE_GAP = 0;
 const HEADER_ROW_GAP = 10;
-const MIN_CELL_LINES = 5;
+const MIN_CELL_LINES = 4;
 const CELL_PADDING = 10;
 const CELL_CENTER_OFFSET = 1;
 
@@ -767,22 +767,7 @@ function drawTablePage(
     layout.headerY + layout.maxHeaderLines * layout.headerLineHeight + TABLE_TOP_LINE_GAP;
   const rowContentOffset = layout.rowTop - topLineY;
 
-  doc.save();
-  columns.forEach((_, index) => {
-    const columnX = layout.columnXs[index];
-    const gradient = doc.linearGradient(
-      columnX,
-      headerBoxTop,
-      columnX,
-      headerBoxTop + headerBoxHeight
-    );
-    gradient.stop(0, "#000000", 0);
-    gradient.stop(HEADER_GRADIENT_FADE, "#000000", HEADER_GRADIENT_TOP_OPACITY);
-    gradient.stop(1, "#000000", HEADER_GRADIENT_TOP_OPACITY);
-    doc.fillColor(gradient);
-    doc.rect(columnX, headerBoxTop, layout.columnWidth, headerBoxHeight).fill();
-  });
-  doc.restore();
+  // Header background intentionally left transparent.
 
   doc.save();
   doc.strokeColor(GRID_VERTICAL_COLOR).lineWidth(GRID_VERTICAL_WIDTH);
