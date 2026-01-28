@@ -17,9 +17,8 @@ if (!pdfPath || !outputPath) {
 }
 
 const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-pdfjs.GlobalWorkerOptions.workerSrc = require.resolve(
-  "pdfjs-dist/legacy/build/pdf.worker.mjs"
-);
+const workerPath = require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
+pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
 const pdfjsDir = path.dirname(require.resolve("pdfjs-dist/package.json"));
 const standardFontDataUrl = pathToFileURL(
   path.join(pdfjsDir, "standard_fonts/")
