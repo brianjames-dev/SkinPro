@@ -2493,9 +2493,12 @@
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--ink-muted);
-  align-self: center;
-  justify-self: start;
-  padding-left: 2px;
+  align-self: stretch;
+  justify-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .prescriptionFinalHeaderCell {
@@ -2518,13 +2521,20 @@
   align-self: stretch;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--ink-muted);
-  padding: 10px 6px 10px 4px;
+  padding: 0;
+}
+
+.prescriptionFinalStackedLabel {
+  display: inline-block;
+  white-space: pre-line;
+  text-align: center;
+  line-height: 1.05;
 }
 
 .prescriptionFinalCell {

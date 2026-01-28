@@ -23,9 +23,9 @@ export default function UnsavedChangesPrompt({
   open,
   title = "Unsaved Changes",
   message = "Would you like to save before exiting?",
-  discardLabel = "Discard Changes",
+  discardLabel = "Exit without Saving",
   saveLabel = "Save and Exit",
-  stayLabel = "Stay",
+  stayLabel = "Keep Editing",
   onDiscard,
   onSave,
   onStay,
@@ -41,6 +41,9 @@ export default function UnsavedChangesPrompt({
     >
       <Notice>{message}</Notice>
       <ButtonRow>
+        <Button type="button" onClick={onSave}>
+          {saveLabel}
+        </Button>
         <Button
           variant="secondary"
           type="button"
@@ -51,9 +54,6 @@ export default function UnsavedChangesPrompt({
         </Button>
         <Button variant="secondary" type="button" onClick={onStay}>
           {stayLabel}
-        </Button>
-        <Button type="button" onClick={onSave}>
-          {saveLabel}
         </Button>
       </ButtonRow>
     </Modal>

@@ -348,6 +348,16 @@ const BALLOON_COUNT = 14;
 const CONFETTI_COLORS = ["#f06b6b", "#ffd36b", "#7cc7ff", "#b8f28f", "#c78bff"];
 const BALLOON_COLORS = ["#f7a2b6", "#f9d270", "#8fd2ff", "#b4ef9a", "#f2a2f5"];
 
+  const stackLabel = (label: string) =>
+    label
+      .toUpperCase()
+      .replace(/\s+/g, "")
+      .split("")
+      .join("\n");
+
+  const stackStepLabel = (step: number) =>
+    ["S", "T", "E", "P", "", ...String(step).split("")].join("\n");
+
 const createPrescriptionDraft = (columnCount: number): PrescriptionDraft => {
   const columns: PrescriptionColumn[] = Array.from({ length: columnCount }, (_, index) => ({
     header: "",
@@ -1882,18 +1892,31 @@ export default function ClientsDashboard() {
       const nextPrescriptions = data.prescriptions ?? [];
       setPrescriptions(nextPrescriptions);
 
-      const selectedId = options?.selectId ?? null;
-      const hasSelected =
-        selectedId != null &&
-        nextPrescriptions.some((prescription) => prescription.id === selectedId);
-      if (hasSelected) {
-        setSelectedPrescriptionId(selectedId);
+      const requestedId = options?.selectId ?? null;
+      const requestedExists =
+        requestedId != null &&
+        nextPrescriptions.some((prescription) => prescription.id === requestedId);
+      const currentPrescription = nextPrescriptions.find(
+        (prescription) => prescription.is_current
+      );
+      const nextSelectedId = requestedExists
+        ? requestedId
+        : currentPrescription?.id ?? null;
+      const shouldHydrateCurrent =
+        !requestedExists && currentPrescription?.id != null && !isPrescriptionEditing;
+
+      if (nextSelectedId != null) {
+        setSelectedPrescriptionId(nextSelectedId);
         setPrescriptionPreviewUrl(
-          `/api/prescriptions/${selectedId}/file?ts=${Date.now()}`
+          `/api/prescriptions/${nextSelectedId}/file?ts=${Date.now()}`
         );
       } else {
         setSelectedPrescriptionId(null);
         setPrescriptionPreviewUrl(null);
+      }
+
+      if (shouldHydrateCurrent && currentPrescription) {
+        void handlePrescriptionSelect(currentPrescription, true, true);
       }
     } catch (err) {
       setNotice(
@@ -1947,7 +1970,17 @@ export default function ClientsDashboard() {
     }
   };
 
-  const handleSelectClient = async (clientId: number) => {
+  const handleSelectClient = async (clientId: number, skipPrompt = false) => {
+    if (!skipPrompt && isPrescriptionEditing && isPrescriptionDirty()) {
+      requestPrescriptionExit(() => handleSelectClient(clientId, true));
+      return;
+    }
+    if (isPrescriptionEditing && !isPrescriptionDirty()) {
+      setIsPrescriptionEditing(false);
+      prescriptionEditSnapshotRef.current = null;
+      setSelectedPrescriptionId(null);
+      setPrescriptionPreviewUrl(null);
+    }
     selectedClientIdRef.current = clientId;
     clientFormMutationIdRef.current = 0;
     setSelectedClientId(clientId);
@@ -7648,11 +7681,16 @@ export default function ClientsDashboard() {
                         <div
                           className={styles.prescriptionFinalHeaderRow}
                           style={{
-                            gridTemplateColumns: `60px repeat(${prescriptionColumnCount}, minmax(0, 1fr))`
+                            gridTemplateColumns: `24px repeat(${prescriptionColumnCount}, minmax(0, 1fr))`
                           }}
                         >
                           <div className={styles.prescriptionFinalHeaderLabel}>
-                            HEADER
+                            <span
+                              className={styles.prescriptionFinalStackedLabel}
+                              aria-label="Header"
+                            >
+                              {stackLabel("HEADER")}
+                            </span>
                           </div>
                           {prescriptionDraft.columns.map((column, colIndex) => (
                             <div
@@ -7704,11 +7742,16 @@ export default function ClientsDashboard() {
                             className={styles.prescriptionFinalRow}
                             key={`row-${rowIndex}`}
                             style={{
-                              gridTemplateColumns: `60px repeat(${prescriptionColumnCount}, minmax(0, 1fr))`
+                              gridTemplateColumns: `24px repeat(${prescriptionColumnCount}, minmax(0, 1fr))`
                             }}
                           >
                             <div className={styles.prescriptionFinalStepLabel}>
-                              Step {rowIndex + 1}
+                              <span
+                                className={styles.prescriptionFinalStackedLabel}
+                                aria-label={`Step ${rowIndex + 1}`}
+                              >
+                                {stackStepLabel(rowIndex + 1)}
+                              </span>
                             </div>
                             {prescriptionDraft.columns.map((column, colIndex) => {
                               const row = column.rows[rowIndex] ?? {
@@ -7845,23 +7888,23 @@ export default function ClientsDashboard() {
       >
         <Notice>Would you like to save before exiting?</Notice>
         <ButtonRow>
+          <Button type="button" onClick={handlePrescriptionExitSave}>
+            Save and Exit
+          </Button>
           <Button
             variant="secondary"
             type="button"
             onClick={handlePrescriptionExitDiscard}
             className={styles.cancelButton}
           >
-            Discard Changes
+            Exit without Saving
           </Button>
           <Button
             variant="secondary"
             type="button"
             onClick={handlePrescriptionExitStay}
           >
-            Stay
-          </Button>
-          <Button type="button" onClick={handlePrescriptionExitSave}>
-            Save and Exit
+            Keep Editing
           </Button>
         </ButtonRow>
       </Modal>

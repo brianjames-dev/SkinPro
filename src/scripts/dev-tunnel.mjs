@@ -30,9 +30,10 @@ const startDevServer = (url) => {
   }
 };
 
+const tunnelProtocol = process.env.SKINPRO_TUNNEL_PROTOCOL ?? "http2";
 const cloudflared = spawn(
   "cloudflared",
-  ["tunnel", "--url", "http://127.0.0.1:3000"],
+  ["tunnel", "--protocol", tunnelProtocol, "--url", "http://127.0.0.1:3000"],
   { stdio: ["ignore", "pipe", "pipe"] }
 );
 
