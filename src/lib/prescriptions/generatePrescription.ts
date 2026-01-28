@@ -50,11 +50,11 @@ const GRID_VERTICAL_COLOR = "#3b3a3c";
 const GRID_VERTICAL_WIDTH = 0.5;
 const GRID_HORIZONTAL_COLOR = "#c9c4cf";
 const GRID_HORIZONTAL_WIDTH = 0.4;
-const STEP_BADGE_HEIGHT = 12;
-const STEP_BADGE_RADIUS = 7;
+const STEP_BADGE_HEIGHT = 16;
+const STEP_BADGE_RADIUS = 8;
 const STEP_BADGE_PADDING_X = 5;
 const STEP_BADGE_COLOR = "#2e2a22";
-const STEP_BADGE_TEXT_SIZE = 6;
+const STEP_BADGE_TEXT_SIZE = 7;
 const STEP_BADGE_PADDING_Y = 3;
 const HEADER_PRIMARY_SIZE = 11;
 const HEADER_SECONDARY_SIZE = 9;
@@ -832,29 +832,23 @@ function drawTablePage(
     });
     doc.restore();
 
-    const badgeLines = ["S", "T", "E", "P", "", `${i + 1}`];
-    const badgeLineHeight = STEP_BADGE_TEXT_SIZE + 1;
-    const badgeHeight =
-      badgeLines.length * badgeLineHeight + STEP_BADGE_PADDING_Y * 2;
-    const badgeRight = layout.tableLeft - 4;
-    const badgeLeft = badgeRight - STEP_BADGE_HEIGHT;
-    const badgeTop = rowY + (cellHeight - badgeHeight) / 2 - 10;
+    const badgeLabel = `${i + 1}`;
+    const badgeDiameter = STEP_BADGE_HEIGHT;
+    const badgeRadius = badgeDiameter / 2;
+    const badgeCenterX = layout.tableLeft - 4 - badgeRadius;
+    const badgeCenterY = rowY + cellHeight / 2 - 10;
     doc.save();
     doc.fillColor(STEP_BADGE_COLOR);
-    doc
-      .roundedRect(badgeLeft, badgeTop, STEP_BADGE_HEIGHT, badgeHeight, STEP_BADGE_RADIUS)
-      .fill();
+    doc.circle(badgeCenterX, badgeCenterY, badgeRadius).fill();
     doc.fillColor("#ffffff");
     doc.font(FONT_BODY_BOLD).fontSize(STEP_BADGE_TEXT_SIZE);
-    let textY = badgeTop + STEP_BADGE_PADDING_Y + 1;
-    badgeLines.forEach((line) => {
-      if (line) {
-        const textWidth = doc.widthOfString(line);
-        const textX = badgeLeft + (STEP_BADGE_HEIGHT - textWidth) / 2;
-        doc.text(line, textX, textY, { lineBreak: false });
-      }
-      textY += badgeLineHeight;
-    });
+    const textWidth = doc.widthOfString(badgeLabel);
+    doc.text(
+      badgeLabel,
+      badgeCenterX - textWidth / 2,
+      badgeCenterY - STEP_BADGE_TEXT_SIZE / 2 + 1,
+      { lineBreak: false }
+    );
     doc.restore();
 
     columns.forEach((column, colIndex) => {
