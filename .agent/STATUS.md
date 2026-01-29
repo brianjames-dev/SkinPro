@@ -2,6 +2,7 @@
 
 Current
 - Core web UI is functional: clients, alerts, appointments, photos, prescriptions, products, notes
+- Clients: added mock client seed script + seeded DB from `images/client_tab.jpg`
 - Prescriptions: PDF generation, templates, copy, preview/edit, current marker; header second line + edit-mode dividers
 - Uploads: local + QR flows, EXIF normalization, shared success dialog
 - UI polish: tabbed workspace, search UX, birthday celebration, notes workflow
@@ -39,6 +40,11 @@ Current
 - Cleanup: removed deprecated `Run_SkinPro.vbs` and `Run_SkinPro.log`
 - Run script: VBS now launches minimized so it appears in the taskbar
 - Run script: VBS log now writes to %TEMP% to avoid permission errors
+- Prescriptions: PDF layout tweaks (logo left, tighter line spacing, footer boundary visible, page number removed)
+- Prescriptions: PDF text wrapping fixes (strip leading spaces, 24-char product lines, hyphenate long words, bold product labels)
+- Prescriptions: PDF visual polish (step badges, lighter row tint, aligned header block, standardized fonts)
+- Prescriptions: keep selection/preview after saving edits
+- Prescriptions: PDF rows min 5 lines and vertically center cell content
 
 Next actions
 - Refactor/cleanup: modularize shared UI + hooks, reduce clients-dashboard.tsx size
