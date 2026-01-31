@@ -12,6 +12,7 @@ type SelectMenuProps = {
   value: string;
   options: SelectOption[];
   placeholder?: string;
+  selectedLabel?: string;
   disabled?: boolean;
   onChange: (value: string) => void;
   className?: string;
@@ -26,6 +27,7 @@ export default function SelectMenu({
   value,
   options,
   placeholder = "Select option",
+  selectedLabel,
   disabled = false,
   onChange,
   className,
@@ -44,6 +46,8 @@ export default function SelectMenu({
     [options, value]
   );
   const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : null;
+  const resolvedSelectedLabel =
+    selectedLabel ?? selectedOption?.label ?? placeholder;
 
   useEffect(() => {
     if (!open) {
@@ -177,9 +181,7 @@ export default function SelectMenu({
         aria-expanded={open}
         disabled={disabled}
       >
-        <span className={styles.selectMenuLabel}>
-          {selectedOption?.label ?? placeholder}
-        </span>
+        <span className={styles.selectMenuLabel}>{resolvedSelectedLabel}</span>
         <span className={styles.selectMenuCaret} aria-hidden="true">
           ▾
         </span>

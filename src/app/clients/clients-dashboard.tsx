@@ -460,10 +460,85 @@ const stepsDictToDraft = (steps: Record<string, unknown>): PrescriptionDraft => 
   return normalizePrescriptionDraft(draft, maxCol);
 };
 
-const APPOINTMENT_TYPES = ["Facial", "Electrolysis"] as const;
+const CUSTOM_TREATMENT_OPTION = "Custom Other";
+const APPOINTMENT_TYPES = ["Facials", "Electrolysis"] as const;
+const FACIAL_TREATMENTS = [
+  CUSTOM_TREATMENT_OPTION,
+  "Deep Pore",
+  "Deep Pore Plus",
+  "Tama",
+  "Tama Plus",
+  "VictoriaDeAnn",
+  "Corium Treatment",
+  "AOMED Treatment",
+  "Corium Peel",
+  "AOMED Peel",
+  "Jet Clear",
+  "O2DERM Oxygen",
+  "Karis",
+  "Derma-Planing",
+  "Micro-Needling",
+  "Nano-Needling",
+  "Modalities Facial",
+  "MagPolar"
+];
+const ELECTROLYSIS_TREATMENTS = [
+  "15 minutes",
+  "30 minutes",
+  "45 minutes",
+  "1 hour",
+  "1 hr 15 minutes",
+  "1 hr 30 minutes",
+  "1 hr 45 minutes",
+  "2 hrs"
+];
+const ELECTROLYSIS_TREATMENT_PRICES: Record<string, string> = {
+  "15 minutes": "55",
+  "30 minutes": "65",
+  "45 minutes": "75",
+  "1 hour": "90",
+  "1 hr 15 minutes": "145",
+  "1 hr 30 minutes": "155",
+  "1 hr 45 minutes": "165",
+  "2 hrs": "180"
+};
+const normalizeElectrolysisTreatment = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { treatment: "", price: "" };
+  }
+  if (ELECTROLYSIS_TREATMENT_PRICES[trimmed]) {
+    return {
+      treatment: trimmed,
+      price: formatCurrencyInput(ELECTROLYSIS_TREATMENT_PRICES[trimmed])
+    };
+  }
+  const legacyMatch = trimmed.match(/^(.*?)(?:\s*\$\s*\d[\d.,]*)\s*$/);
+  if (legacyMatch) {
+    const time = legacyMatch[1].trim();
+    if (ELECTROLYSIS_TREATMENT_PRICES[time]) {
+      return {
+        treatment: time,
+        price: formatCurrencyInput(ELECTROLYSIS_TREATMENT_PRICES[time])
+      };
+    }
+  }
+  return { treatment: trimmed, price: "" };
+};
+
+const getTreatmentOptionLabel = (type: string, treatment: string) => {
+  if (type === "Electrolysis") {
+    const price = ELECTROLYSIS_TREATMENT_PRICES[treatment];
+    if (price) {
+      return `${treatment} (${formatCurrencyInput(price)})`;
+    }
+  }
+  return treatment;
+};
 const APPOINTMENT_TREATMENTS: Record<string, string[]> = {
-  Facial: ["Signature Facial", "Hydrating Facial", "Brightening Facial"],
-  Electrolysis: ["15 min Electrolysis", "30 min Electrolysis", "60 min Electrolysis"]
+  Facials: FACIAL_TREATMENTS,
+  Facial: FACIAL_TREATMENTS,
+  Electrolysis: ELECTROLYSIS_TREATMENTS
 };
 
 const diffDays = (target: Date, base: Date) => {
@@ -782,6 +857,7 @@ export default function ClientsDashboard() {
   const [selectedAppointmentId, setSelectedAppointmentId] =
     useState<number | null>(null);
   const [isAppointmentFormOpen, setIsAppointmentFormOpen] = useState(false);
+  const [customTreatmentMode, setCustomTreatmentMode] = useState(false);
   const [appointmentNotesMode, setAppointmentNotesMode] = useState<
     "selected" | "all"
   >("all");
@@ -2257,6 +2333,7 @@ export default function ClientsDashboard() {
   };
 
   const handleAppointmentTypeChange = (value: string) => {
+    setCustomTreatmentMode(false);
     setAppointmentForm((prev) => {
       const next = { ...prev, type: value };
       const options = APPOINTMENT_TREATMENTS[value] ?? [];
@@ -2268,7 +2345,28 @@ export default function ClientsDashboard() {
   };
 
   const handleAppointmentTreatmentChange = (value: string) => {
-    setAppointmentForm((prev) => ({ ...prev, treatment: value }));
+    if (value === CUSTOM_TREATMENT_OPTION) {
+      setCustomTreatmentMode(true);
+      setAppointmentForm((prev) => {
+        const options = APPOINTMENT_TREATMENTS[prev.type] ?? [];
+        const preserveCustom =
+          prev.treatment && !options.includes(prev.treatment) ? prev.treatment : "";
+        return { ...prev, treatment: preserveCustom };
+      });
+      return;
+    }
+    setCustomTreatmentMode(false);
+    setAppointmentForm((prev) => {
+      if (prev.type === "Electrolysis") {
+        const normalized = normalizeElectrolysisTreatment(value);
+        return {
+          ...prev,
+          treatment: normalized.treatment,
+          price: normalized.price || prev.price
+        };
+      }
+      return { ...prev, treatment: value };
+    });
   };
 
   const saveClientInfo = async () => {
@@ -4347,13 +4445,27 @@ export default function ClientsDashboard() {
         appointmentNotesScrollStartRef.current = container.scrollTop;
       }
     }
+    const treatmentOptions = APPOINTMENT_TREATMENTS[appointment.type ?? ""] ?? [];
+    const rawTreatment = appointment.treatment ?? "";
+    const normalizedElectrolysis =
+      appointment.type === "Electrolysis"
+        ? normalizeElectrolysisTreatment(rawTreatment)
+        : { treatment: rawTreatment, price: "" };
+    const hasCustomTreatment =
+      !!normalizedElectrolysis.treatment &&
+      !treatmentOptions.includes(normalizedElectrolysis.treatment);
+    setCustomTreatmentMode(
+      hasCustomTreatment && treatmentOptions.includes(CUSTOM_TREATMENT_OPTION)
+    );
+    const nextPrice =
+      normalizedElectrolysis.price || formatCurrencyInput(appointment.price ?? "");
     setSelectedAppointmentId(appointment.id);
     setAppointmentForm({
       id: appointment.id,
       date: appointment.date ?? "",
       type: appointment.type ?? "",
-      treatment: appointment.treatment ?? "",
-      price: formatCurrencyInput(appointment.price ?? ""),
+      treatment: normalizedElectrolysis.treatment ?? "",
+      price: nextPrice,
       photos_taken: hasPhotos ? "Yes" : "No",
       treatment_notes: appointment.treatment_notes ?? ""
     });
@@ -4424,6 +4536,7 @@ export default function ClientsDashboard() {
     appointmentGuard.requestExit(() => {
       setSelectedAppointmentId(null);
       setAppointmentForm(EMPTY_APPOINTMENT);
+      setCustomTreatmentMode(false);
       setIsAppointmentFormOpen(true);
     });
   };
@@ -4952,9 +5065,24 @@ export default function ClientsDashboard() {
   ]);
 
   const treatmentOptions = APPOINTMENT_TREATMENTS[appointmentForm.type] ?? [];
-  const hasCustomTreatment =
+  const supportsCustomTreatment =
+    treatmentOptions.includes(CUSTOM_TREATMENT_OPTION);
+  const customTreatmentValue =
     appointmentForm.treatment &&
-    !treatmentOptions.includes(appointmentForm.treatment);
+    !treatmentOptions.includes(appointmentForm.treatment)
+      ? appointmentForm.treatment
+      : "";
+  const showCustomTreatmentInput =
+    customTreatmentMode || Boolean(customTreatmentValue);
+  const treatmentSelectValue =
+    showCustomTreatmentInput && supportsCustomTreatment
+      ? CUSTOM_TREATMENT_OPTION
+      : appointmentForm.treatment;
+  const isCustomAppointmentType =
+    appointmentForm.type &&
+    !APPOINTMENT_TYPES.includes(
+      appointmentForm.type as (typeof APPOINTMENT_TYPES)[number]
+    );
   const productBrands = useMemo(() => {
     return Array.from(
       new Set(PRODUCT_CATALOG.map((item) => item.brand))
@@ -6026,6 +6154,14 @@ export default function ClientsDashboard() {
                           value={appointmentForm.type}
                           placeholder="Select type"
                           options={[
+                            ...(isCustomAppointmentType
+                              ? [
+                                  {
+                                    value: appointmentForm.type,
+                                    label: appointmentForm.type
+                                  }
+                                ]
+                              : []),
                             ...APPOINTMENT_TYPES.map((typeOption) => ({
                               value: typeOption,
                               label: typeOption
@@ -6036,26 +6172,45 @@ export default function ClientsDashboard() {
                       </Field>
                       <Field label="Treatment">
                         <SelectMenu
-                          value={appointmentForm.treatment}
+                          value={treatmentSelectValue}
+                          selectedLabel={
+                            appointmentForm.type === "Electrolysis"
+                              ? appointmentForm.treatment || "Select treatment"
+                              : undefined
+                          }
                           placeholder="Select treatment"
                           options={[
-                            ...(hasCustomTreatment
+                            ...(customTreatmentValue && !supportsCustomTreatment
                               ? [
                                   {
-                                    value: appointmentForm.treatment,
-                                    label: appointmentForm.treatment
+                                    value: customTreatmentValue,
+                                    label: customTreatmentValue
                                   }
                                 ]
                               : []),
                             ...treatmentOptions.map((treatmentOption) => ({
                               value: treatmentOption,
-                              label: treatmentOption
+                              label: getTreatmentOptionLabel(
+                                appointmentForm.type,
+                                treatmentOption
+                              )
                             }))
                           ]}
                           onChange={handleAppointmentTreatmentChange}
                           disabled={!appointmentForm.type}
                         />
                       </Field>
+                      {showCustomTreatmentInput && (
+                        <Field label="Custom Treatment">
+                          <input
+                            className={styles.input}
+                            name="treatment"
+                            placeholder="Enter custom treatment"
+                            value={appointmentForm.treatment}
+                            onChange={handleAppointmentChange}
+                          />
+                        </Field>
+                      )}
                       <Field label="Price">
                         <input
                           className={styles.input}
