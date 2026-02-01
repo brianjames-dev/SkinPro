@@ -2425,6 +2425,11 @@
   margin-bottom: 8px;
 }
 
+.prescriptionHelperNotice {
+  margin-top: -5px;
+  margin-bottom: 8px;
+}
+
 .prescriptionList {
   list-style: none;
   padding: 0;

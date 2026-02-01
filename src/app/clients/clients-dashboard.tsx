@@ -4532,6 +4532,12 @@ export default function ClientsDashboard() {
     });
   };
 
+  const handleAppointmentSelectRequest = (appointment: Appointment) => {
+    appointmentGuard.requestExit(() => {
+      handleAppointmentSelect(appointment);
+    });
+  };
+
   const handleAppointmentNew = () => {
     appointmentGuard.requestExit(() => {
       setSelectedAppointmentId(null);
@@ -4696,20 +4702,26 @@ export default function ClientsDashboard() {
     });
   };
 
-  const handleProductGroupSelect = (groupDate: string) => {
+  const applyProductGroupSelect = (groupDate: string) => {
     setSelectedProductGroupDate(groupDate);
     setSelectedProductId(null);
     setIsProductFormOpen(false);
   };
 
-  const toggleProductGroupCollapsed = (groupDate: string) => {
+  const handleProductGroupSelect = (groupDate: string) => {
+    productGuard.requestExit(() => {
+      applyProductGroupSelect(groupDate);
+    });
+  };
+
+  const applyToggleProductGroupCollapsed = (groupDate: string) => {
     setCollapsedProductDates((prev) => ({
       ...prev,
       [groupDate]: !prev[groupDate]
     }));
   };
 
-  const handleProductSelect = (entry: ClientProduct) => {
+  const applyProductSelection = (entry: ClientProduct) => {
     const dateKey = entry.date?.trim() || "No date";
     setSelectedProductGroupDate(dateKey);
     setSelectedProductId(entry.id);
@@ -4723,9 +4735,15 @@ export default function ClientsDashboard() {
     });
   };
 
+  const handleProductSelect = (entry: ClientProduct) => {
+    productGuard.requestExit(() => {
+      applyProductSelection(entry);
+    });
+  };
+
   const handleProductEdit = (entry: ClientProduct) => {
     productGuard.requestExit(() => {
-      handleProductSelect(entry);
+      applyProductSelection(entry);
       setIsProductFormOpen(true);
     });
   };
@@ -5094,7 +5112,9 @@ export default function ClientsDashboard() {
     if (!productForm.brand) {
       return [];
     }
-    return PRODUCT_CATALOG.filter((item) => item.brand === productForm.brand);
+    return PRODUCT_CATALOG.filter((item) => item.brand === productForm.brand)
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [productForm.brand]);
   const hasCustomBrand =
     productForm.brand && !productBrands.includes(productForm.brand);
@@ -6104,7 +6124,9 @@ export default function ClientsDashboard() {
                                 ? styles.appointmentRowSelected
                                 : undefined
                             }
-                            onClick={() => handleAppointmentSelect(appointment)}
+                            onClick={() =>
+                              handleAppointmentSelectRequest(appointment)
+                            }
                             onDoubleClick={() => handleAppointmentEdit(appointment)}
                           >
                             <td>{appointment.date}</td>
@@ -6340,7 +6362,7 @@ export default function ClientsDashboard() {
                                     role="button"
                                     tabIndex={-1}
                                     onClick={() =>
-                                      handleAppointmentSelect(appointment)
+                                      handleAppointmentSelectRequest(appointment)
                                     }
                                     onMouseDown={(event) => event.preventDefault()}
                                     ref={(node) => {
@@ -6488,8 +6510,10 @@ export default function ClientsDashboard() {
                                       className={styles.productGroupToggle}
                                       collapsed={isCollapsed}
                                       onToggle={() => {
-                                        handleProductGroupSelect(group.date);
-                                        toggleProductGroupCollapsed(group.date);
+                                        productGuard.requestExit(() => {
+                                          applyProductGroupSelect(group.date);
+                                          applyToggleProductGroupCollapsed(group.date);
+                                        });
                                       }}
                                       collapsedLabel="Expand product group"
                                       expandedLabel="Collapse product group"
@@ -7525,6 +7549,9 @@ export default function ClientsDashboard() {
                       New
                     </Button>
                   </div>
+                  <Notice className={styles.prescriptionHelperNotice}>
+                    Double-click a prescription to open.
+                  </Notice>
                   {loadingPrescriptions && (
                     <Notice>Loading prescriptions...</Notice>
                   )}

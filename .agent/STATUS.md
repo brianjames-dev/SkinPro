@@ -45,6 +45,15 @@ Current
 - Prescriptions: PDF visual polish (step badges, lighter row tint, aligned header block, standardized fonts)
 - Prescriptions: keep selection/preview after saving edits
 - Prescriptions: PDF rows min 5 lines and vertically center cell content
+- Appointments: updated type/treatment lists and added custom treatment input on the Appointments tab
+- Appointments: electrolysis treatment selections now auto-fill price and hide pricing in the treatment label
+- Appointments: electrolysis treatment dropdown shows price in option labels while saving time-only treatment
+- Appointments: moved Facials "Custom Other" to the top of treatment options
+- Dashboard: added Notes section with client search and notes viewer
+- Dashboard Notes: added done toggle with lock/unlock behavior matching client notes
+- Products: sorted catalog dropdown items alphabetically within brand
+- Guards: appointment/product selection and product tree toggles now respect unsaved-changes prompts
+- Products: updated Skin Recovery Gel price and added Corium trial sizes
 
 Next actions
 - Refactor/cleanup: modularize shared UI + hooks, reduce clients-dashboard.tsx size
