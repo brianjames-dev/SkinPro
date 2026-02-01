@@ -464,23 +464,25 @@ const CUSTOM_TREATMENT_OPTION = "Custom Other";
 const APPOINTMENT_TYPES = ["Facials", "Electrolysis"] as const;
 const FACIAL_TREATMENTS = [
   CUSTOM_TREATMENT_OPTION,
-  "Deep Pore",
-  "Deep Pore Plus",
-  "Tama",
-  "Tama Plus",
-  "VictoriaDeAnn",
-  "Corium Treatment",
-  "AOMED Treatment",
-  "Corium Peel",
-  "AOMED Peel",
-  "Jet Clear",
-  "O2DERM Oxygen",
-  "Karis",
-  "Derma-Planing",
-  "Micro-Needling",
-  "Nano-Needling",
-  "Modalities Facial",
-  "MagPolar"
+  ...[
+    "AOMED Peel",
+    "AOMED Treatment",
+    "Corium Peel",
+    "Corium Treatment",
+    "Deep Pore",
+    "Deep Pore Plus",
+    "Derma-Planing",
+    "Jet Clear",
+    "Karis",
+    "MagPolar",
+    "Micro-Needling",
+    "Modalities Facial",
+    "Nano-Needling",
+    "O2DERM Oxygen",
+    "Tama",
+    "Tama Plus",
+    "VictoriaDeAnn"
+  ].sort((a, b) => a.localeCompare(b))
 ];
 const ELECTROLYSIS_TREATMENTS = [
   "15 minutes",
