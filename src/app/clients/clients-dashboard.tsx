@@ -3501,8 +3501,15 @@ export default function ClientsDashboard() {
   const handlePrescriptionStartDateChange = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const value = event.target.value;
+    const value = formatDateInput(event.target.value);
     setPrescriptionDraft((prev) => ({ ...prev, start_date: value }));
+  };
+
+  const handlePrescriptionStartDateBlur = () => {
+    setPrescriptionDraft((prev) => ({
+      ...prev,
+      start_date: normalizeDateInput(prev.start_date)
+    }));
   };
 
   const handlePrescriptionHeaderChange = (
@@ -3809,10 +3816,10 @@ export default function ClientsDashboard() {
       prescriptionColumnCount
     );
     const steps = draftToStepsDict(draft);
-    const startDate =
-      typeof steps.start_date === "string" && steps.start_date
-        ? steps.start_date
-        : getTodayDateString();
+    const rawStartDate =
+      typeof steps.start_date === "string" ? steps.start_date : "";
+    const normalizedStartDate = normalizeDateInput(rawStartDate);
+    const startDate = normalizedStartDate || getTodayDateString();
     steps.start_date = startDate;
 
     try {
@@ -7773,7 +7780,12 @@ export default function ClientsDashboard() {
                               className={styles.input}
                               placeholder="MM/DD/YYYY"
                               value={copyStartDate}
-                              onChange={(event) => setCopyStartDate(event.target.value)}
+                              onChange={(event) =>
+                                setCopyStartDate(formatDateInput(event.target.value))
+                              }
+                              onBlur={() =>
+                                setCopyStartDate((prev) => normalizeDateInput(prev))
+                              }
                             />
                             <Button
                               className={styles.copyActionButton}
@@ -7819,6 +7831,7 @@ export default function ClientsDashboard() {
                             placeholder="MM/DD/YYYY"
                             value={prescriptionDraft.start_date}
                             onChange={handlePrescriptionStartDateChange}
+                            onBlur={handlePrescriptionStartDateBlur}
                           />
                         </Field>
                         <Field label="Columns">
