@@ -30,6 +30,7 @@ export const PRODUCT_CATALOG: ProductCatalogItem[] = [
   { name: "Acne & Rosácea Calming Cream", size: "2oz", price: 90.0, brand: "Corium" },
   { name: "Acne & Rosácea Trial Size", size: ".25oz", price: 55.0, brand: "Corium" },
   { name: "Anti-Aging Trial Size", size: ".25oz", price: 55.0, brand: "Corium" },
+  { name: "Everything Oil", size: "4oz", price: 80.0, brand: "Corium" },
   { name: "Skin Recovery Gel", size: "4oz", price: 85.0, brand: "Corium" },
   { name: "Ultra Repair Cream", size: "2oz", price: 125.0, brand: "Corium" },
   { name: "Vitamin A Micropeeling Cream", size: "1oz", price: 100.0, brand: "Corium" },
