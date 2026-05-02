@@ -124,7 +124,6 @@ export default function DashboardMaintenance({
   const [loadingClients, setLoadingClients] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientSearchQuery, setClientSearchQuery] = useState("");
-  const [isClientSearchOpen, setIsClientSearchOpen] = useState(false);
   const [lastTalkedDate, setLastTalkedDate] = useState("");
   const [notes, setNotes] = useState("");
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
@@ -166,12 +165,11 @@ export default function DashboardMaintenance({
     }
     return clients
       .filter((client) => client.full_name.toLowerCase().includes(query))
-      .slice(0, 8);
+      .slice(0, 6);
   }, [clients, clientSearchQuery]);
 
   const hasClientSearchQuery = clientSearchQuery.trim().length > 0;
-  const canShowClientResults =
-    isClientSearchOpen && hasClientSearchQuery && !selectedClientId;
+  const canShowClientResults = hasClientSearchQuery && !selectedClientId;
   const {
     activeIndex: clientSearchActiveIndex,
     setActiveIndex: setClientSearchActiveIndex,
@@ -182,8 +180,6 @@ export default function DashboardMaintenance({
     onSelect: (client) => {
       setSelectedClientId(String(client.id));
       setClientSearchQuery(client.full_name);
-      setIsClientSearchOpen(false);
-      setClientSearchActiveIndex(-1);
     }
   });
 
@@ -240,7 +236,8 @@ export default function DashboardMaintenance({
   const loadClients = async () => {
     setLoadingClients(true);
     try {
-      const response = await fetch("/api/clients?limit=10000");
+      const params = new URLSearchParams({ limit: "10000" });
+      const response = await fetch(`/api/clients?${params.toString()}`);
       const data = (await response.json()) as ClientsResponse;
       if (!response.ok) {
         throw new Error(data.error ?? "Failed to load clients");
@@ -391,7 +388,6 @@ export default function DashboardMaintenance({
   const resetForm = () => {
     setSelectedClientId("");
     setClientSearchQuery("");
-    setIsClientSearchOpen(false);
     setClientSearchActiveIndex(-1);
     setLastTalkedDate("");
     setNotes("");
@@ -634,17 +630,8 @@ export default function DashboardMaintenance({
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck={false}
-                  onFocus={() => {
-                    if (!selectedClientId) {
-                      setIsClientSearchOpen(true);
-                    }
-                  }}
-                  onBlur={() => {
-                    window.setTimeout(() => setIsClientSearchOpen(false), 120);
-                  }}
                   onChange={(event) => {
                     setClientSearchQuery(event.target.value);
-                    setIsClientSearchOpen(true);
                     if (selectedClientId) {
                       setSelectedClientId("");
                     }
@@ -672,7 +659,6 @@ export default function DashboardMaintenance({
                     onSelect={(client) => {
                       setSelectedClientId(String(client.id));
                       setClientSearchQuery(client.full_name);
-                      setIsClientSearchOpen(false);
                       setClientSearchActiveIndex(-1);
                     }}
                     containerClassName={styles.referredByResults}
