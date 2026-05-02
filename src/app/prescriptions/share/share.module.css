@@ -1,24 +1,43 @@
 .page {
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 32px 16px;
+  padding: 18px 12px;
   background: #f7f2ea;
   color: #2c2620;
 }
 
 .card {
-  width: min(560px, 100%);
+  width: min(1120px, 100%);
   background: #fffaf2;
   border: 1px solid #eadcc7;
-  border-radius: 24px;
-  padding: 24px;
+  border-radius: 18px;
+  padding: 16px;
   box-shadow: 0 16px 40px rgba(35, 28, 18, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   text-align: center;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  text-align: left;
+}
+
+.headerText {
+  min-width: 0;
+  text-align: center;
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .title {
@@ -36,25 +55,27 @@
 
 .preview {
   width: 100%;
-  border-radius: 16px;
+  height: auto;
+  display: block;
+  border-radius: 12px;
   border: 1px solid #e0d2bf;
   background: #ffffff;
 }
 
-.downloadButton {
-  align-self: center;
-  padding: 12px 24px;
+.actionButton {
+  padding: 10px 16px;
   border-radius: 999px;
   border: 1px solid #1f1a14;
   background: #1f1a14;
   color: #fef8ef;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  white-space: nowrap;
 }
 
-.downloadButton:hover {
+.actionButton:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.16);
 }
@@ -62,4 +83,19 @@
 .errorText {
   font-size: 14px;
   color: #8b3d2a;
+}
+
+@media (max-width: 720px) {
+  .header {
+    grid-template-columns: 1fr;
+  }
+
+  .headerText {
+    text-align: center;
+  }
+
+  .headerActions {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
 }

@@ -7,6 +7,7 @@ import Button from "./ui/Button";
 import ButtonRow from "./ui/ButtonRow";
 import CloseButton from "./ui/CloseButton";
 import ConfirmDialog from "./ui/ConfirmDialog";
+import DateInput from "./ui/DateInput";
 import Field from "./ui/Field";
 import HighlightTextarea from "./ui/HighlightTextarea";
 import Notice from "./ui/Notice";
@@ -16,7 +17,7 @@ import UnsavedChangesPrompt from "./ui/UnsavedChangesPrompt";
 import useUnsavedChangesGuard from "./ui/useUnsavedChangesGuard";
 import { useUnsavedChangesRegistry } from "./ui/UnsavedChangesContext";
 import { toggleHighlightInRaw } from "@/lib/highlightText";
-import { formatDateInput, normalizeDateInput } from "@/lib/format";
+import { normalizeDateInput } from "@/lib/format";
 import { parseDateParts, parseMmddyyyy } from "@/lib/parse";
 import useKeyboardListNavigation from "../lib/hooks/useKeyboardListNavigation";
 
@@ -123,6 +124,7 @@ export default function DashboardMaintenance({
   const [loadingClients, setLoadingClients] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [isClientSearchOpen, setIsClientSearchOpen] = useState(false);
   const [lastTalkedDate, setLastTalkedDate] = useState("");
   const [notes, setNotes] = useState("");
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
@@ -164,11 +166,12 @@ export default function DashboardMaintenance({
     }
     return clients
       .filter((client) => client.full_name.toLowerCase().includes(query))
-      .slice(0, 6);
+      .slice(0, 8);
   }, [clients, clientSearchQuery]);
 
   const hasClientSearchQuery = clientSearchQuery.trim().length > 0;
-  const canShowClientResults = hasClientSearchQuery && !selectedClientId;
+  const canShowClientResults =
+    isClientSearchOpen && hasClientSearchQuery && !selectedClientId;
   const {
     activeIndex: clientSearchActiveIndex,
     setActiveIndex: setClientSearchActiveIndex,
@@ -179,6 +182,7 @@ export default function DashboardMaintenance({
     onSelect: (client) => {
       setSelectedClientId(String(client.id));
       setClientSearchQuery(client.full_name);
+      setIsClientSearchOpen(false);
       setClientSearchActiveIndex(-1);
     }
   });
@@ -236,7 +240,7 @@ export default function DashboardMaintenance({
   const loadClients = async () => {
     setLoadingClients(true);
     try {
-      const response = await fetch("/api/clients");
+      const response = await fetch("/api/clients?limit=10000");
       const data = (await response.json()) as ClientsResponse;
       if (!response.ok) {
         throw new Error(data.error ?? "Failed to load clients");
@@ -387,6 +391,7 @@ export default function DashboardMaintenance({
   const resetForm = () => {
     setSelectedClientId("");
     setClientSearchQuery("");
+    setIsClientSearchOpen(false);
     setClientSearchActiveIndex(-1);
     setLastTalkedDate("");
     setNotes("");
@@ -629,8 +634,17 @@ export default function DashboardMaintenance({
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck={false}
+                  onFocus={() => {
+                    if (!selectedClientId) {
+                      setIsClientSearchOpen(true);
+                    }
+                  }}
+                  onBlur={() => {
+                    window.setTimeout(() => setIsClientSearchOpen(false), 120);
+                  }}
                   onChange={(event) => {
                     setClientSearchQuery(event.target.value);
+                    setIsClientSearchOpen(true);
                     if (selectedClientId) {
                       setSelectedClientId("");
                     }
@@ -658,6 +672,7 @@ export default function DashboardMaintenance({
                     onSelect={(client) => {
                       setSelectedClientId(String(client.id));
                       setClientSearchQuery(client.full_name);
+                      setIsClientSearchOpen(false);
                       setClientSearchActiveIndex(-1);
                     }}
                     containerClassName={styles.referredByResults}
@@ -675,14 +690,10 @@ export default function DashboardMaintenance({
               </div>
             </Field>
             <Field label="Date last talked to">
-              <input
-                className={styles.input}
-                placeholder="MM/DD/YYYY"
-                inputMode="numeric"
+              <DateInput
+                aria-label="date last talked to"
                 value={lastTalkedDate}
-                onChange={(event) =>
-                  setLastTalkedDate(formatDateInput(event.target.value))
-                }
+                onChange={setLastTalkedDate}
                 disabled={!selectedClient}
               />
             </Field>
@@ -824,14 +835,10 @@ export default function DashboardMaintenance({
             <h3>Edit Maintenance</h3>
             <div className={styles.formGrid}>
               <Field label="Date last talked to">
-                <input
-                  className={styles.input}
-                  placeholder="MM/DD/YYYY"
-                  inputMode="numeric"
+                <DateInput
+                  aria-label="edit date last talked to"
                   value={editLastTalkedDate}
-                  onChange={(event) =>
-                    setEditLastTalkedDate(formatDateInput(event.target.value))
-                  }
+                  onChange={setEditLastTalkedDate}
                 />
               </Field>
               <Field label="Notes">

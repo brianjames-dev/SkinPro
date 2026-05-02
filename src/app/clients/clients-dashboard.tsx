@@ -33,8 +33,10 @@ import Button from "../ui/Button";
 import ButtonRow from "../ui/ButtonRow";
 import SelectMenu from "../ui/SelectMenu";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import DateInput from "../ui/DateInput";
 import Field from "../ui/Field";
 import HighlightTextarea from "../ui/HighlightTextarea";
+import IconButton from "../ui/IconButton";
 import CloseButton from "../ui/CloseButton";
 import List from "../ui/List";
 import ListRow from "../ui/ListRow";
@@ -328,6 +330,8 @@ const EMPTY_PRODUCT: ProductForm = {
   brand: ""
 };
 
+const MIN_PRESCRIPTION_COLUMNS = 2;
+const MAX_PRESCRIPTION_COLUMNS = 4;
 const MAX_PRESCRIPTION_ROWS = 10;
 const PRESCRIPTION_PRODUCT_MAX_LENGTH_BY_COLUMN: Record<number, number> = {
   2: 107,
@@ -369,6 +373,15 @@ const createPrescriptionDraft = (columnCount: number): PrescriptionDraft => {
     columns
   };
 };
+
+const createEmptyPrescriptionColumn = (rowCount: number): PrescriptionColumn => ({
+  header: "",
+  header2: "",
+  rows: Array.from({ length: Math.max(1, rowCount) }, () => ({
+    product: "",
+    directions: ""
+  }))
+});
 
 const normalizePrescriptionDraft = (
   draft: PrescriptionDraft,
@@ -3491,11 +3504,54 @@ export default function ClientsDashboard() {
     }
   };
 
-  const handlePrescriptionColumnCountChange = (value: number) => {
-    setPrescriptionColumnCount(value);
-    setPrescriptionDraft((prev) => normalizePrescriptionDraft(prev, value));
-    setSelectedPrescriptionId(null);
-    setPrescriptionPreviewUrl(null);
+  const handlePrescriptionInsertColumn = (insertIndex?: number) => {
+    setPrescriptionDraft((prev) => {
+      const currentCount = prescriptionColumnCount;
+      const nextCount = currentCount + 1;
+      if (currentCount >= MAX_PRESCRIPTION_COLUMNS) {
+        setNotice(`Maximum ${MAX_PRESCRIPTION_COLUMNS} columns reached.`, true);
+        return prev;
+      }
+      const next = normalizePrescriptionDraft(prev, currentCount);
+      const rowCount = Math.max(
+        1,
+        ...next.columns.map((column) => column.rows.length)
+      );
+      const targetIndex =
+        typeof insertIndex === "number"
+          ? Math.min(Math.max(insertIndex, 0), currentCount)
+          : currentCount;
+      const columns = [
+        ...next.columns.slice(0, targetIndex),
+        createEmptyPrescriptionColumn(rowCount),
+        ...next.columns.slice(targetIndex)
+      ];
+      setPrescriptionColumnCount(nextCount);
+      setSelectedPrescriptionId(null);
+      setPrescriptionPreviewUrl(null);
+      return normalizePrescriptionDraft({ ...next, columns }, nextCount);
+    });
+  };
+
+  const handlePrescriptionDeleteColumn = (colIndex?: number) => {
+    setPrescriptionDraft((prev) => {
+      const currentCount = prescriptionColumnCount;
+      const nextCount = currentCount - 1;
+      if (currentCount <= MIN_PRESCRIPTION_COLUMNS) {
+        setNotice(`Minimum ${MIN_PRESCRIPTION_COLUMNS} columns required.`, true);
+        return prev;
+      }
+      const next = normalizePrescriptionDraft(prev, currentCount);
+      const targetIndex =
+        typeof colIndex === "number"
+          ? Math.min(Math.max(colIndex, 0), currentCount - 1)
+          : currentCount - 1;
+      const columns = next.columns.filter((_, index) => index !== targetIndex);
+      setPrescriptionColumnCount(nextCount);
+      setSelectedPrescriptionId(null);
+      setPrescriptionPreviewUrl(null);
+      return normalizePrescriptionDraft({ ...next, columns }, nextCount);
+    });
   };
 
   const handlePrescriptionStartDateChange = (
@@ -3570,30 +3626,48 @@ export default function ClientsDashboard() {
     });
   };
 
-  const handlePrescriptionAddRow = () => {
+  const handlePrescriptionInsertRow = (insertIndex?: number) => {
     setPrescriptionDraft((prev) => {
       const next = normalizePrescriptionDraft(prev, prescriptionColumnCount);
       if (next.columns[0]?.rows.length >= MAX_PRESCRIPTION_ROWS) {
         setNotice(`Maximum ${MAX_PRESCRIPTION_ROWS} rows reached.`, true);
         return prev;
       }
+      const rowCount = next.columns[0]?.rows.length ?? 1;
+      const targetIndex =
+        typeof insertIndex === "number"
+          ? Math.min(Math.max(insertIndex, 0), rowCount)
+          : rowCount;
       const columns = next.columns.map((column) => ({
         ...column,
-        rows: [...column.rows, { product: "", directions: "" }]
+        rows: [
+          ...column.rows.slice(0, targetIndex),
+          { product: "", directions: "" },
+          ...column.rows.slice(targetIndex)
+        ]
       }));
       return { ...next, columns };
     });
   };
 
-  const handlePrescriptionRemoveRow = () => {
+  const handlePrescriptionAddRow = () => {
+    handlePrescriptionInsertRow();
+  };
+
+  const handlePrescriptionDeleteRow = (rowIndex?: number) => {
     setPrescriptionDraft((prev) => {
       const next = normalizePrescriptionDraft(prev, prescriptionColumnCount);
       if (next.columns[0]?.rows.length <= 1) {
         return prev;
       }
+      const rowCount = next.columns[0]?.rows.length ?? 1;
+      const targetIndex =
+        typeof rowIndex === "number"
+          ? Math.min(Math.max(rowIndex, 0), rowCount - 1)
+          : rowCount - 1;
       const columns = next.columns.map((column) => ({
         ...column,
-        rows: column.rows.slice(0, -1)
+        rows: column.rows.filter((_, index) => index !== targetIndex)
       }));
       return { ...next, columns };
     });
@@ -4272,6 +4346,14 @@ export default function ClientsDashboard() {
     setPrescriptionShareQrDataUrl(null);
     setPrescriptionShareUrl(null);
     setPrescriptionShareLoading(false);
+  };
+
+  const handlePrescriptionShareOpen = () => {
+    if (!prescriptionShareUrl) {
+      setNotice("Generate a prescription send link first.", true);
+      return;
+    }
+    window.open(prescriptionShareUrl, "_blank", "noopener,noreferrer");
   };
 
   const handlePrintFrameLoad = () => {
@@ -5576,13 +5658,16 @@ export default function ClientsDashboard() {
                               isBirthdayWindow ? styles.birthdayInputWrapActive : ""
                             }`}
                           >
-                            <input
-                              className={styles.input}
+                            <DateInput
                               name="birthdate"
-                              placeholder="MM/DD/YYYY"
-                              inputMode="numeric"
                               value={clientForm.birthdate}
-                              onChange={handleClientChange}
+                              onChange={(value) => {
+                                clientFormMutationIdRef.current += 1;
+                                setClientForm((prev) => ({
+                                  ...prev,
+                                  birthdate: value
+                                }));
+                              }}
                               disabled={loadingClientDetails}
                             />
                           </div>
@@ -6171,13 +6256,15 @@ export default function ClientsDashboard() {
                         title="Close"
                       />
                       <Field label="Date">
-                        <input
-                          className={styles.input}
+                        <DateInput
                           name="date"
-                          placeholder="MM/DD/YYYY"
-                          inputMode="numeric"
                           value={appointmentForm.date}
-                          onChange={handleAppointmentChange}
+                          onChange={(value) =>
+                            setAppointmentForm((prev) => ({
+                              ...prev,
+                              date: value
+                            }))
+                          }
                         />
                       </Field>
                       <Field label="Type">
@@ -6588,13 +6675,15 @@ export default function ClientsDashboard() {
                           title="Close"
                         />
                         <Field label="Date">
-                          <input
-                            className={styles.input}
+                          <DateInput
                             name="date"
-                            placeholder="MM/DD/YYYY"
-                            inputMode="numeric"
                             value={productForm.date}
-                            onChange={handleProductChange}
+                            onChange={(value) =>
+                              setProductForm((prev) => ({
+                                ...prev,
+                                date: value
+                              }))
+                            }
                           />
                         </Field>
                         <Field label="Brand">
@@ -7293,13 +7382,15 @@ export default function ClientsDashboard() {
                     />
                     <div className={styles.notesRow}>
                       <Field label="Date last seen">
-                        <input
-                          className={styles.input}
+                        <DateInput
                           name="date_seen"
-                          placeholder="MM/DD/YYYY"
-                          inputMode="numeric"
                           value={noteDraft.date_seen}
-                          onChange={handleNoteDraftChange}
+                          onChange={(value) =>
+                            setNoteDraft((prev) => ({
+                              ...prev,
+                              date_seen: value
+                            }))
+                          }
                         />
                       </Field>
                       <Field label="Notes">
@@ -7353,17 +7444,14 @@ export default function ClientsDashboard() {
                                 title="Cancel"
                               />
                               <Field label="Date last seen">
-                                <input
-                                  className={styles.input}
+                                <DateInput
                                   name="date_seen"
-                                  placeholder="MM/DD/YYYY"
-                                  inputMode="numeric"
                                   value={note.date_seen}
-                                  onChange={(event) =>
+                                  onChange={(value) =>
                                     handleNoteFieldChange(
                                       note.id,
                                       "date_seen",
-                                      event.target.value
+                                      value
                                     )
                                   }
                                 />
@@ -7776,13 +7864,10 @@ export default function ClientsDashboard() {
                         </div>
                         {copyTargetClientId && (
                           <>
-                            <input
-                              className={styles.input}
-                              placeholder="MM/DD/YYYY"
+                            <DateInput
+                              aria-label="copy prescription start date"
                               value={copyStartDate}
-                              onChange={(event) =>
-                                setCopyStartDate(formatDateInput(event.target.value))
-                              }
+                              onChange={setCopyStartDate}
                               onBlur={() =>
                                 setCopyStartDate((prev) => normalizeDateInput(prev))
                               }
@@ -7824,27 +7909,20 @@ export default function ClientsDashboard() {
                         title="Cancel"
                       />
                       <div className={styles.formGrid}>
-                        <Field label="Start Date">
-                          <input
-                            className={styles.input}
+                        <Field
+                          label="Start Date"
+                          className={styles.prescriptionStartDateField}
+                        >
+                          <DateInput
                             name="start_date"
-                            placeholder="MM/DD/YYYY"
                             value={prescriptionDraft.start_date}
-                            onChange={handlePrescriptionStartDateChange}
-                            onBlur={handlePrescriptionStartDateBlur}
-                          />
-                        </Field>
-                        <Field label="Columns">
-                          <SelectMenu
-                            value={String(prescriptionColumnCount)}
-                            options={[
-                              { value: "2", label: "2 Columns" },
-                              { value: "3", label: "3 Columns" },
-                              { value: "4", label: "4 Columns" }
-                            ]}
                             onChange={(value) =>
-                              handlePrescriptionColumnCountChange(Number(value))
+                              setPrescriptionDraft((prev) => ({
+                                ...prev,
+                                start_date: value
+                              }))
                             }
+                            onBlur={handlePrescriptionStartDateBlur}
                           />
                         </Field>
                       </div>
@@ -7860,9 +7938,12 @@ export default function ClientsDashboard() {
                       <Button
                         variant="secondary"
                         type="button"
-                        onClick={handlePrescriptionRemoveRow}
+                        onClick={() => handlePrescriptionInsertColumn()}
+                        disabled={
+                          prescriptionColumnCount >= MAX_PRESCRIPTION_COLUMNS
+                        }
                       >
-                        Remove Row
+                        Add Column
                       </Button>
                       <Button
                         variant="secondary"
@@ -7894,6 +7975,36 @@ export default function ClientsDashboard() {
                               className={styles.prescriptionFinalHeaderCell}
                               key={`header-${colIndex}`}
                             >
+                              <div className={styles.prescriptionColumnControls}>
+                                <IconButton
+                                  className={`${styles.prescriptionRowButton} ${styles.prescriptionColumnAddButton}`}
+                                  onClick={() =>
+                                    handlePrescriptionInsertColumn(colIndex)
+                                  }
+                                  title={`Insert column before column ${colIndex + 1}`}
+                                  aria-label={`Insert column before column ${colIndex + 1}`}
+                                  disabled={
+                                    prescriptionColumnCount >=
+                                    MAX_PRESCRIPTION_COLUMNS
+                                  }
+                                >
+                                  +
+                                </IconButton>
+                                <IconButton
+                                  className={`${styles.prescriptionRowButton} ${styles.prescriptionColumnDeleteButton}`}
+                                  onClick={() =>
+                                    handlePrescriptionDeleteColumn(colIndex)
+                                  }
+                                  title={`Delete column ${colIndex + 1}`}
+                                  aria-label={`Delete column ${colIndex + 1}`}
+                                  disabled={
+                                    prescriptionColumnCount <=
+                                    MIN_PRESCRIPTION_COLUMNS
+                                  }
+                                >
+                                  x
+                                </IconButton>
+                              </div>
                               <input
                                 className={styles.input}
                                 value={column.header}
@@ -7943,6 +8054,20 @@ export default function ClientsDashboard() {
                             }}
                           >
                             <div className={styles.prescriptionFinalStepLabel}>
+                              <IconButton
+                                className={`${styles.prescriptionRowButton} ${styles.prescriptionRowAddButton}`}
+                                onClick={() =>
+                                  handlePrescriptionInsertRow(rowIndex)
+                                }
+                                title={`Insert row above step ${rowIndex + 1}`}
+                                aria-label={`Insert row above step ${rowIndex + 1}`}
+                                disabled={
+                                  (prescriptionDraft.columns[0]?.rows.length ?? 1) >=
+                                  MAX_PRESCRIPTION_ROWS
+                                }
+                              >
+                                +
+                              </IconButton>
                               <span
                                 className={styles.prescriptionFinalStackedLabel}
                                 aria-label={`Step ${rowIndex + 1}`}
@@ -8010,6 +8135,19 @@ export default function ClientsDashboard() {
                                 </div>
                               );
                             })}
+                            <IconButton
+                              className={`${styles.prescriptionRowButton} ${styles.prescriptionRowDeleteButton}`}
+                              onClick={() =>
+                                handlePrescriptionDeleteRow(rowIndex)
+                              }
+                              title={`Delete step ${rowIndex + 1}`}
+                              aria-label={`Delete step ${rowIndex + 1}`}
+                              disabled={
+                                (prescriptionDraft.columns[0]?.rows.length ?? 1) <= 1
+                              }
+                            >
+                              x
+                            </IconButton>
                           </div>
                         ))}
                       </div>
@@ -8027,6 +8165,14 @@ export default function ClientsDashboard() {
                           className={styles.cancelButton}
                         >
                           Cancel
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          onClick={handlePrescriptionHighlight}
+                          className={styles.highlightButton}
+                        >
+                          Highlight
                         </Button>
                         {selectedPrescriptionId && (
                           <Button
@@ -8174,8 +8320,19 @@ export default function ClientsDashboard() {
                 )}
               </div>
               <Notice>
-                Link expires in 10 minutes and can only be used once.
+                Link expires in 10 minutes.
               </Notice>
+              {prescriptionShareUrl && (
+                <ButtonRow>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={handlePrescriptionShareOpen}
+                  >
+                    Open Send Page
+                  </Button>
+                </ButtonRow>
+              )}
             </div>
           )}
         </div>

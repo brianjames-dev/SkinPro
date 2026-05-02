@@ -62,7 +62,7 @@ function PrescriptionShareContent() {
     };
   }, [token]);
 
-  const handleDownload = async () => {
+  const handleShare = async () => {
     if (!imageBlob || !imageUrl) {
       return;
     }
@@ -78,15 +78,26 @@ function PrescriptionShareContent() {
 
     try {
       await navigator.share({
-        files: [file],
-        title: "Prescription",
-        text: "Prescription image"
+        files: [file]
       });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Unable to open share sheet.";
       setShareError(message);
     }
+  };
+
+  const handleDownload = () => {
+    if (!imageUrl) {
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = imageUrl;
+    link.download = "prescription.png";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   const infoText = useMemo(() => {
@@ -105,8 +116,30 @@ function PrescriptionShareContent() {
   return (
     <main className={styles.page}>
       <div className={styles.card}>
-        <h1 className={styles.title}>Prescription Download</h1>
-        <p className={styles.subtitle}>{infoText}</p>
+        <header className={styles.header}>
+          <div className={styles.headerText}>
+            <h1 className={styles.title}>Prescription Download</h1>
+            <p className={styles.subtitle}>{infoText}</p>
+          </div>
+          {status === "ready" && imageUrl && (
+            <div className={styles.headerActions}>
+              <button
+                className={styles.actionButton}
+                type="button"
+                onClick={handleShare}
+              >
+                Share
+              </button>
+              <button
+                className={styles.actionButton}
+                type="button"
+                onClick={handleDownload}
+              >
+                Download
+              </button>
+            </div>
+          )}
+        </header>
         {status === "ready" && imageUrl && (
           <>
             <img
@@ -114,13 +147,6 @@ function PrescriptionShareContent() {
               src={imageUrl}
               alt="Prescription preview"
             />
-            <button
-              className={styles.downloadButton}
-              type="button"
-              onClick={handleDownload}
-            >
-              Share
-            </button>
             {shareError && (
               <div className={styles.errorText}>{shareError}</div>
             )}

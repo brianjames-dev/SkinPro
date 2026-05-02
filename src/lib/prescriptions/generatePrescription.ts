@@ -32,7 +32,7 @@ type GenerateArgs = {
   outputPath?: string;
 };
 
-const DEFAULT_TITLE = "DAILY SKINCARE ROUTINE";
+const DEFAULT_TITLE = "DAILY CORRECTIVE SKINCARE ROUTINE";
 const DEBUG_PAGE_CUTOFF = false;
 const FOOTER_HEIGHT = 24;
 const PRODUCT_LINE_MAX_CHARS = 70;

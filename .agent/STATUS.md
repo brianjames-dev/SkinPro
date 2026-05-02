@@ -54,8 +54,14 @@ Current
 - Products: sorted catalog dropdown items alphabetically within brand
 - Guards: appointment/product selection and product tree toggles now respect unsaved-changes prompts
 - Products: updated Skin Recovery Gel price and added Corium trial sizes
+- Prescription editor rows can now be inserted after a specific step or deleted from a specific step.
+- Prescription editor columns can now be inserted before a specific column, appended at the end, or deleted from a specific column.
+- Maintenance client picker now loads the full client list and filters reliably while typing.
+- Prescription send modal now includes Open Send Page in addition to the QR code; share-page image loads no longer immediately expire the token.
+- Shared date input with embedded picker is now applied to app date fields while preserving MM/DD/YYYY storage.
+- Maintenance timeline display changes are intentionally paused for now.
+- Prescription PDF title changed to "Daily Corrective Skincare Routine".
+- Prescription editor now has a bottom Highlight button in addition to the top Highlight button.
 
 Next actions
-- Refactor/cleanup: modularize shared UI + hooks, reduce clients-dashboard.tsx size
- - Consolidate web-only files under `src/` and remove legacy shims when safe
-- Verify alerts + notes flows and PDF print behavior after refactor
+- Await user review of completed checklist items.

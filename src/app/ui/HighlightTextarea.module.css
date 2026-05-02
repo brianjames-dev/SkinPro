@@ -13,11 +13,10 @@
 .mirror {
   position: absolute;
   inset: 0;
-  width: calc(100% - 2px);
-  margin-right: 2px;
+  width: 100%;
   padding: 10px 14px 6px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: #ffffff;
   color: #1b1b1b;
   font-size: 14px;
@@ -43,8 +42,8 @@
   caret-color: #1b1b1b;
   border: 1px solid transparent;
   box-shadow: none;
-  width: calc(100% - 2px);
-  margin-right: 2px;
+  outline: none;
+  width: 100%;
   padding: 10px 14px 6px 12px;
   font-size: 14px;
   line-height: 1.4;
@@ -58,9 +57,11 @@
   overflow-wrap: break-word;
   word-break: break-word;
   resize: none;
+  border-radius: 12px;
 }
 
 .textarea:focus-visible {
+  outline: none;
   border-color: transparent;
   box-shadow: none;
 }
@@ -79,6 +80,7 @@
   top: 2px;
   right: 2px;
   transform: translate(50%, -50%);
+  z-index: 2;
   border: 1px solid var(--line);
   background: #ffffff;
   color: var(--ink-muted);

@@ -3,7 +3,11 @@ import os from "os";
 import path from "path";
 import { spawn } from "child_process";
 
-export const renderPdfToPng = async (pdfPath: string, scale = 3) => {
+export const renderPdfToPng = async (
+  pdfPath: string,
+  scale = 3,
+  options: { cropToContent?: boolean } = {}
+) => {
   const tempDir = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "skinpro-pdf-")
   );
@@ -18,7 +22,13 @@ export const renderPdfToPng = async (pdfPath: string, scale = 3) => {
     await new Promise<void>((resolve, reject) => {
       const child = spawn(
         process.execPath,
-        [scriptPath, pdfPath, `${scale}`, outputPath],
+        [
+          scriptPath,
+          pdfPath,
+          `${scale}`,
+          outputPath,
+          options.cropToContent ? "--crop-content" : ""
+        ].filter(Boolean),
         { stdio: ["ignore", "ignore", "pipe"] }
       );
       const errors: Buffer[] = [];

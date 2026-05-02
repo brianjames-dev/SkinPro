@@ -6,6 +6,7 @@ import Badge from "./ui/Badge";
 import Button from "./ui/Button";
 import ButtonRow from "./ui/ButtonRow";
 import ConfirmDialog from "./ui/ConfirmDialog";
+import DateInput from "./ui/DateInput";
 import Field from "./ui/Field";
 import HighlightTextarea from "./ui/HighlightTextarea";
 import Notice from "./ui/Notice";
@@ -16,7 +17,7 @@ import UnsavedChangesPrompt from "./ui/UnsavedChangesPrompt";
 import useUnsavedChangesGuard from "./ui/useUnsavedChangesGuard";
 import { useUnsavedChangesRegistry } from "./ui/UnsavedChangesContext";
 import { toggleHighlightInRaw } from "@/lib/highlightText";
-import { formatDateInput, normalizeDateInput } from "@/lib/format";
+import { normalizeDateInput } from "@/lib/format";
 import { parseDateParts, parseMmddyyyy } from "@/lib/parse";
 import useKeyboardListNavigation from "../lib/hooks/useKeyboardListNavigation";
 
@@ -657,14 +658,10 @@ export default function DashboardAlerts({
               </div>
             </Field>
             <Field label="Deadline">
-              <input
-                className={styles.input}
-                placeholder="MM/DD/YYYY"
-                inputMode="numeric"
+              <DateInput
+                aria-label="deadline"
                 value={alertDeadline}
-                onChange={(event) =>
-                  setAlertDeadline(formatDateInput(event.target.value))
-                }
+                onChange={setAlertDeadline}
                 disabled={!selectedClient}
               />
             </Field>
@@ -810,14 +807,10 @@ export default function DashboardAlerts({
             <h3>Edit Alert</h3>
             <div className={styles.formGrid}>
               <Field label="Deadline">
-                <input
-                  className={styles.input}
-                  placeholder="MM/DD/YYYY"
-                  inputMode="numeric"
+                <DateInput
+                  aria-label="edit deadline"
                   value={editAlertDeadline}
-                  onChange={(event) =>
-                    setEditAlertDeadline(formatDateInput(event.target.value))
-                  }
+                  onChange={setEditAlertDeadline}
                 />
               </Field>
               <Field label="Notes">

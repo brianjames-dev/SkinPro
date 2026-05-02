@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { loadSkinproPaths } from "@/lib/skinproPaths";
 import { isPathWithin } from "@/lib/fileUtils";
-import { getShareToken, markShareTokenUsed } from "@/lib/shareTokens";
+import { getShareToken } from "@/lib/shareTokens";
 import { renderPdfToPng } from "@/lib/renderPdfToPng";
 
 export const runtime = "nodejs";
@@ -66,8 +66,6 @@ export async function GET(request: Request) {
     if (!isPngBuffer(pngBuffer)) {
       throw new Error("Rendered output is not a PNG");
     }
-
-    markShareTokenUsed(token);
 
     return new NextResponse(pngBuffer, {
       headers: {
