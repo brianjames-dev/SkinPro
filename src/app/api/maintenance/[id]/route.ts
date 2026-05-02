@@ -30,6 +30,16 @@ const ensureMaintenanceTable = () => {
       "FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE" +
       ")"
   ).run();
+  const columns = db
+    .prepare("PRAGMA table_info(maintenance)")
+    .all() as { name: string }[];
+  const hasFollowUpDate = columns.some((column) => column.name === "follow_up_date");
+  if (!hasFollowUpDate) {
+    db.prepare("ALTER TABLE maintenance ADD COLUMN follow_up_date TEXT").run();
+    db.prepare(
+      "UPDATE maintenance SET follow_up_date = last_talked_date WHERE follow_up_date IS NULL OR follow_up_date = ''"
+    ).run();
+  }
   return db;
 };
 
@@ -45,13 +55,21 @@ export async function PATCH(
 
     const body = (await request.json()) as {
       last_talked_date?: string;
+      follow_up_date?: string;
       notes?: string;
     };
     const lastTalked = body.last_talked_date?.trim() ?? "";
+    const followUpDate = body.follow_up_date?.trim() ?? "";
 
     if (!lastTalked || !isValidDate(lastTalked)) {
       return NextResponse.json(
         { error: "last_talked_date must be in MM/DD/YYYY format" },
+        { status: 400 }
+      );
+    }
+    if (!followUpDate || !isValidDate(followUpDate)) {
+      return NextResponse.json(
+        { error: "follow_up_date must be in MM/DD/YYYY format" },
         { status: 400 }
       );
     }
@@ -61,9 +79,9 @@ export async function PATCH(
 
     const result = db
       .prepare(
-        "UPDATE maintenance SET last_talked_date = ?, notes = ? WHERE id = ?"
+        "UPDATE maintenance SET last_talked_date = ?, follow_up_date = ?, notes = ? WHERE id = ?"
       )
-      .run(lastTalked, notes, entryId);
+      .run(lastTalked, followUpDate, notes, entryId);
 
     if (result.changes === 0) {
       return NextResponse.json(
@@ -75,7 +93,7 @@ export async function PATCH(
     const entry = db
       .prepare(
         `SELECT m.id, m.client_id, c.full_name, c.primary_phone,
-                m.last_talked_date, m.notes
+                m.last_talked_date, m.follow_up_date, m.notes
          FROM maintenance m
          JOIN clients c ON m.client_id = c.id
          WHERE m.id = ?`

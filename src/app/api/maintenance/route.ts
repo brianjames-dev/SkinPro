@@ -30,6 +30,16 @@ const ensureMaintenanceTable = () => {
       "FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE" +
       ")"
   ).run();
+  const columns = db
+    .prepare("PRAGMA table_info(maintenance)")
+    .all() as { name: string }[];
+  const hasFollowUpDate = columns.some((column) => column.name === "follow_up_date");
+  if (!hasFollowUpDate) {
+    db.prepare("ALTER TABLE maintenance ADD COLUMN follow_up_date TEXT").run();
+    db.prepare(
+      "UPDATE maintenance SET follow_up_date = last_talked_date WHERE follow_up_date IS NULL OR follow_up_date = ''"
+    ).run();
+  }
   return db;
 };
 
@@ -61,11 +71,11 @@ export async function GET(request: Request) {
     const rows = db
       .prepare(
         `SELECT m.id, m.client_id, c.full_name, c.primary_phone,
-                m.last_talked_date, m.notes
+                m.last_talked_date, m.follow_up_date, m.notes
          FROM maintenance m
          JOIN clients c ON m.client_id = c.id
          ${whereClause}
-         ORDER BY m.last_talked_date ASC`
+         ORDER BY m.follow_up_date ASC`
       )
       .all(...values);
 
@@ -83,6 +93,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       client_id?: number;
       last_talked_date?: string;
+      follow_up_date?: string;
       notes?: string;
     };
 
@@ -98,6 +109,13 @@ export async function POST(request: Request) {
     if (!lastTalked || !isValidDate(lastTalked)) {
       return NextResponse.json(
         { error: "last_talked_date must be in MM/DD/YYYY format" },
+        { status: 400 }
+      );
+    }
+    const followUpDate = body.follow_up_date?.trim() ?? "";
+    if (!followUpDate || !isValidDate(followUpDate)) {
+      return NextResponse.json(
+        { error: "follow_up_date must be in MM/DD/YYYY format" },
         { status: 400 }
       );
     }
@@ -122,14 +140,14 @@ export async function POST(request: Request) {
 
     const result = db
       .prepare(
-        "INSERT INTO maintenance (client_id, last_talked_date, notes) VALUES (?, ?, ?)"
+        "INSERT INTO maintenance (client_id, last_talked_date, follow_up_date, notes) VALUES (?, ?, ?, ?)"
       )
-      .run(clientId, lastTalked, notes);
+      .run(clientId, lastTalked, followUpDate, notes);
 
     const entry = db
       .prepare(
         `SELECT m.id, m.client_id, c.full_name, c.primary_phone,
-                m.last_talked_date, m.notes
+                m.last_talked_date, m.follow_up_date, m.notes
          FROM maintenance m
          JOIN clients c ON m.client_id = c.id
          WHERE m.id = ?`

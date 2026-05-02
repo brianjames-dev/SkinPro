@@ -17,7 +17,7 @@ import UnsavedChangesPrompt from "./ui/UnsavedChangesPrompt";
 import useUnsavedChangesGuard from "./ui/useUnsavedChangesGuard";
 import { useUnsavedChangesRegistry } from "./ui/UnsavedChangesContext";
 import { toggleHighlightInRaw } from "@/lib/highlightText";
-import { normalizeDateInput } from "@/lib/format";
+import { getTodayDateString, normalizeDateInput } from "@/lib/format";
 import { parseDateParts, parseMmddyyyy } from "@/lib/parse";
 import useKeyboardListNavigation from "../lib/hooks/useKeyboardListNavigation";
 
@@ -27,6 +27,7 @@ type MaintenanceEntry = {
   full_name: string;
   primary_phone?: string | null;
   last_talked_date: string;
+  follow_up_date: string;
   notes?: string | null;
 };
 
@@ -125,9 +126,11 @@ export default function DashboardMaintenance({
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [lastTalkedDate, setLastTalkedDate] = useState("");
+  const [followUpDate, setFollowUpDate] = useState("");
   const [notes, setNotes] = useState("");
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editLastTalkedDate, setEditLastTalkedDate] = useState("");
+  const [editFollowUpDate, setEditFollowUpDate] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<MaintenanceEntry | null>(null);
@@ -186,7 +189,7 @@ export default function DashboardMaintenance({
   const sortedEntries = useMemo(() => {
     return [...entries].sort(
       (a, b) =>
-        parseMmddyyyy(a.last_talked_date) - parseMmddyyyy(b.last_talked_date)
+        parseMmddyyyy(a.follow_up_date) - parseMmddyyyy(b.follow_up_date)
     );
   }, [entries]);
 
@@ -262,9 +265,11 @@ export default function DashboardMaintenance({
         selectedClientId,
         clientSearchQuery,
         lastTalkedDate,
+        followUpDate,
         notes,
         editingEntryId,
         editLastTalkedDate,
+        editFollowUpDate,
         editNotes
       }),
     [
@@ -273,8 +278,10 @@ export default function DashboardMaintenance({
       selectedClientId,
       clientSearchQuery,
       lastTalkedDate,
+      followUpDate,
       notes,
       editLastTalkedDate,
+      editFollowUpDate,
       editNotes
     ]
   );
@@ -284,9 +291,14 @@ export default function DashboardMaintenance({
       setNotice("Select a client before logging maintenance.", true);
       return false;
     }
-    const date = normalizeDateInput(lastTalkedDate);
-    if (!date) {
-      setNotice("Date is required (MM/DD/YYYY).", true);
+    const initialDate = normalizeDateInput(lastTalkedDate);
+    if (!initialDate) {
+      setNotice("Initial date is required (MM/DD/YYYY).", true);
+      return false;
+    }
+    const followUp = normalizeDateInput(followUpDate);
+    if (!followUp) {
+      setNotice("Follow Up date is required (MM/DD/YYYY).", true);
       return false;
     }
 
@@ -296,7 +308,8 @@ export default function DashboardMaintenance({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           client_id: selectedClient.id,
-          last_talked_date: date,
+          last_talked_date: initialDate,
+          follow_up_date: followUp,
           notes
         })
       });
@@ -322,9 +335,14 @@ export default function DashboardMaintenance({
     if (!editingEntryId) {
       return false;
     }
-    const date = normalizeDateInput(editLastTalkedDate);
-    if (!date) {
-      setNotice("Date is required (MM/DD/YYYY).", true);
+    const initialDate = normalizeDateInput(editLastTalkedDate);
+    if (!initialDate) {
+      setNotice("Initial date is required (MM/DD/YYYY).", true);
+      return false;
+    }
+    const followUp = normalizeDateInput(editFollowUpDate);
+    if (!followUp) {
+      setNotice("Follow Up date is required (MM/DD/YYYY).", true);
       return false;
     }
 
@@ -333,7 +351,8 @@ export default function DashboardMaintenance({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          last_talked_date: date,
+          last_talked_date: initialDate,
+          follow_up_date: followUp,
           notes: editNotes
         })
       });
@@ -389,7 +408,8 @@ export default function DashboardMaintenance({
     setSelectedClientId("");
     setClientSearchQuery("");
     setClientSearchActiveIndex(-1);
-    setLastTalkedDate("");
+    setLastTalkedDate(getTodayDateString());
+    setFollowUpDate("");
     setNotes("");
     setHighlightTarget(null);
   };
@@ -436,6 +456,7 @@ export default function DashboardMaintenance({
     maintenanceGuard.requestExit(() => {
       setEditingEntryId(entry.id);
       setEditLastTalkedDate(entry.last_talked_date ?? "");
+      setEditFollowUpDate(entry.follow_up_date ?? entry.last_talked_date ?? "");
       setEditNotes(entry.notes ?? "");
     });
   };
@@ -485,6 +506,7 @@ export default function DashboardMaintenance({
   const handleEditCancel = () => {
     setEditingEntryId(null);
     setEditLastTalkedDate("");
+    setEditFollowUpDate("");
     setEditNotes("");
     setHighlightTarget(null);
   };
@@ -537,7 +559,7 @@ export default function DashboardMaintenance({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           client_id: entry.client_id,
-          deadline: entry.last_talked_date,
+          deadline: entry.follow_up_date,
           notes: entry.notes ?? ""
         })
       });
@@ -596,7 +618,10 @@ export default function DashboardMaintenance({
               <Button
                 type="button"
                 onClick={() =>
-                  maintenanceGuard.requestExit(() => setIsFormOpen(true))
+                  maintenanceGuard.requestExit(() => {
+                    setLastTalkedDate(getTodayDateString());
+                    setIsFormOpen(true);
+                  })
                 }
                 disabled={isMovingEntry}
               >
@@ -675,11 +700,19 @@ export default function DashboardMaintenance({
                 )}
               </div>
             </Field>
-            <Field label="Date last talked to">
+            <Field label="Initial">
               <DateInput
-                aria-label="date last talked to"
+                aria-label="initial date"
                 value={lastTalkedDate}
                 onChange={setLastTalkedDate}
+                disabled={!selectedClient}
+              />
+            </Field>
+            <Field label="Follow Up">
+              <DateInput
+                aria-label="follow up date"
+                value={followUpDate}
+                onChange={setFollowUpDate}
                 disabled={!selectedClient}
               />
             </Field>
@@ -734,12 +767,13 @@ export default function DashboardMaintenance({
         )}
         {!loadingEntries && sortedEntries.length > 0 && (
           <div className={styles.alertsTableWrap}>
-            <table className={styles.alertsTable}>
+            <table className={`${styles.alertsTable} ${styles.maintenanceTable}`}>
               <thead>
                 <tr>
                   <th>Name</th>
                   <th>Timeline</th>
-                  <th>Date Last Talked To</th>
+                  <th>Initial</th>
+                  <th>Follow Up</th>
                   <th>Phone</th>
                   <th>Notes</th>
                   <th>Actions</th>
@@ -747,7 +781,7 @@ export default function DashboardMaintenance({
               </thead>
               <tbody>
                 {sortedEntries.map((entry) => {
-                  const statusText = calculateAlertStatus(entry.last_talked_date);
+                  const statusText = calculateAlertStatus(entry.follow_up_date);
                   const isSelected = entry.id === selectedEntryId;
                   return (
                     <tr
@@ -768,6 +802,7 @@ export default function DashboardMaintenance({
                         </Badge>
                       </td>
                       <td>{entry.last_talked_date}</td>
+                      <td>{entry.follow_up_date}</td>
                       <td>{entry.primary_phone ?? ""}</td>
                       <td>
                         {renderHighlightedValue(
@@ -820,11 +855,18 @@ export default function DashboardMaintenance({
             />
             <h3>Edit Maintenance</h3>
             <div className={styles.formGrid}>
-              <Field label="Date last talked to">
+              <Field label="Initial">
                 <DateInput
-                  aria-label="edit date last talked to"
+                  aria-label="edit initial date"
                   value={editLastTalkedDate}
                   onChange={setEditLastTalkedDate}
+                />
+              </Field>
+              <Field label="Follow Up">
+                <DateInput
+                  aria-label="edit follow up date"
+                  value={editFollowUpDate}
+                  onChange={setEditFollowUpDate}
                 />
               </Field>
               <Field label="Notes">

@@ -59,7 +59,8 @@ Current
 - Maintenance client picker now loads the full client list and filters reliably while typing.
 - Prescription send modal now includes Open Send Page in addition to the QR code; share-page image loads no longer immediately expire the token.
 - Shared date input with embedded picker is now applied to app date fields while preserving MM/DD/YYYY storage.
-- Maintenance timeline display changes are intentionally paused for now.
+- Maintenance now has Initial and Follow Up dates; Initial auto-fills with today's date for new entries, and Timeline counts down from Follow Up.
+- Maintenance table now has its own column sizing so Phone can stay compact and Notes can remain the widest column.
 - Prescription PDF title changed to "Daily Corrective Skincare Routine".
 - Prescription editor now has a bottom Highlight button in addition to the top Highlight button.
 

@@ -19,3 +19,4 @@
 - Dev tunnel uses `npm_execpath` when available (spawn `node` + npm CLI) and falls back to `npm.cmd` on Windows.
 - Prescription share-page image loads no longer consume share tokens; tokens remain time-limited to avoid invalidating links through browser retries or React dev double-loads.
 - Date fields use a shared web `DateInput` component that preserves MM/DD/YYYY app data while exposing a native calendar picker in the input frame.
+- Maintenance entries now store `follow_up_date`; existing rows are backfilled from `last_talked_date`, which is now displayed as the Initial date while Timeline counts down from Follow Up.

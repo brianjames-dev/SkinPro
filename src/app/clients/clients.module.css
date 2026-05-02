@@ -3186,6 +3186,41 @@
   width: 160px;
 }
 
+.maintenanceTable th:nth-child(1),
+.maintenanceTable td:nth-child(1) {
+  width: 13%;
+}
+
+.maintenanceTable th:nth-child(2),
+.maintenanceTable td:nth-child(2) {
+  width: 14%;
+}
+
+.maintenanceTable th:nth-child(3),
+.maintenanceTable td:nth-child(3) {
+  width: 9%;
+}
+
+.maintenanceTable th:nth-child(4),
+.maintenanceTable td:nth-child(4) {
+  width: 10%;
+}
+
+.maintenanceTable th:nth-child(5),
+.maintenanceTable td:nth-child(5) {
+  width: 11%;
+}
+
+.maintenanceTable th:nth-child(6),
+.maintenanceTable td:nth-child(6) {
+  width: 28%;
+}
+
+.maintenanceTable th:nth-child(7),
+.maintenanceTable td:nth-child(7) {
+  width: 15%;
+}
+
 .alertActions {
   display: flex;
   gap: 6px;
