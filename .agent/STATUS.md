@@ -61,6 +61,8 @@ Current
 - Shared date input with embedded picker is now applied to app date fields while preserving MM/DD/YYYY storage.
 - Maintenance now has Initial and Follow Up dates; Initial auto-fills with today's date for new entries, and Timeline counts down from Follow Up.
 - Maintenance table now has its own column sizing so Phone can stay compact and Notes can remain the widest column.
+- TypeScript config no longer uses deprecated `baseUrl`; path aliases continue through `paths`.
+- TypeScript now has an explicit plain CSS module declaration for side-effect imports like `globals.css`.
 - Prescription PDF title changed to "Daily Corrective Skincare Routine".
 - Prescription editor now has a bottom Highlight button in addition to the top Highlight button.
 
