@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { ensureClientsStartDateColumn } from "@/lib/api/ensureTables";
 
 export const runtime = "nodejs";
+
+const toNullableText = (value: unknown) => {
+  if (typeof value !== "string") {
+    return value ?? null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
 
 export async function GET(request: Request) {
   try {
@@ -13,11 +22,12 @@ export async function GET(request: Request) {
     const query = url.searchParams.get("q")?.trim();
 
     const db = getDb();
+    ensureClientsStartDateColumn(db);
 
     const rows = query
       ? db
           .prepare(
-            "SELECT id, full_name, gender, birthdate, primary_phone, email, " +
+            "SELECT id, full_name, gender, birthdate, primary_phone, start_date, email, " +
               "address1, address2, city, state, zip, referred_by " +
               "FROM clients WHERE full_name LIKE ? " +
               "ORDER BY full_name LIMIT ?"
@@ -25,7 +35,7 @@ export async function GET(request: Request) {
           .all(`%${query}%`, limit)
       : db
           .prepare(
-            "SELECT id, full_name, gender, birthdate, primary_phone, email, " +
+            "SELECT id, full_name, gender, birthdate, primary_phone, start_date, email, " +
               "address1, address2, city, state, zip, referred_by " +
               "FROM clients ORDER BY full_name LIMIT ?"
           )
@@ -56,12 +66,14 @@ export async function POST(request: Request) {
     }
 
     const db = getDb();
+    ensureClientsStartDateColumn(db);
 
     const payload = {
       full_name: fullName,
       gender: body.gender ?? null,
       birthdate: body.birthdate ?? null,
       primary_phone: body.primary_phone ?? null,
+      start_date: toNullableText(body.start_date),
       secondary_phone: body.secondary_phone ?? null,
       email: body.email ?? null,
       address1: body.address1 ?? null,
@@ -75,10 +87,10 @@ export async function POST(request: Request) {
 
     const result = db
       .prepare(
-        "INSERT INTO clients (full_name, gender, birthdate, primary_phone, " +
+        "INSERT INTO clients (full_name, gender, birthdate, primary_phone, start_date, " +
           "secondary_phone, email, address1, address2, city, state, zip, " +
           "referred_by, profile_picture) " +
-          "VALUES (@full_name, @gender, @birthdate, @primary_phone, " +
+          "VALUES (@full_name, @gender, @birthdate, @primary_phone, @start_date, " +
           "@secondary_phone, @email, @address1, @address2, @city, @state, " +
           "@zip, @referred_by, @profile_picture)"
       )

@@ -62,6 +62,7 @@ type Client = {
   gender?: string | null;
   birthdate?: string | null;
   primary_phone?: string | null;
+  start_date?: string | null;
   secondary_phone?: string | null;
   email?: string | null;
   address1?: string | null;
@@ -207,6 +208,7 @@ type ClientForm = {
   gender: string;
   birthdate: string;
   primary_phone: string;
+  start_date: string;
   secondary_phone: string;
   email: string;
   address1: string;
@@ -291,6 +293,7 @@ const EMPTY_CLIENT: ClientForm = {
   gender: "",
   birthdate: "",
   primary_phone: "",
+  start_date: "",
   secondary_phone: "",
   email: "",
   address1: "",
@@ -1807,6 +1810,7 @@ export default function ClientsDashboard() {
         gender: client.gender ?? "",
         birthdate: formatDateInput(client.birthdate ?? ""),
         primary_phone: formatPhoneInput(client.primary_phone ?? ""),
+        start_date: formatDateInput(client.start_date ?? ""),
         secondary_phone: formatPhoneInput(client.secondary_phone ?? ""),
         email: client.email ?? "",
         address1: client.address1 ?? "",
@@ -2162,7 +2166,7 @@ export default function ClientsDashboard() {
     if (field === "primary_phone" || field === "secondary_phone") {
       nextValue = formatPhoneInput(value);
     }
-    if (field === "birthdate") {
+    if (field === "birthdate" || field === "start_date") {
       nextValue = formatDateInput(value);
     }
     clientFormMutationIdRef.current += 1;
@@ -5607,6 +5611,9 @@ export default function ClientsDashboard() {
                           <Field as="div" label="Referred By">
                             <CompactValue value={referredByDisplay} />
                           </Field>
+                          <Field as="div" label="Start Date">
+                            <CompactValue value={clientForm.start_date} />
+                          </Field>
                         </div>
                       )}
                     </>
@@ -5798,6 +5805,20 @@ export default function ClientsDashboard() {
                               metaElement="span"
                             />
                           </div>
+                        </Field>
+                        <Field label="Start Date">
+                          <DateInput
+                            name="start_date"
+                            value={clientForm.start_date}
+                            onChange={(value) => {
+                              clientFormMutationIdRef.current += 1;
+                              setClientForm((prev) => ({
+                                ...prev,
+                                start_date: value
+                              }));
+                            }}
+                            disabled={loadingClientDetails}
+                          />
                         </Field>
                       </div>
                       <ButtonRow>

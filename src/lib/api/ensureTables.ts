@@ -70,3 +70,16 @@ export const ensureCurrentPrescriptionColumn = (db: Database.Database) => {
     ).run();
   }
 };
+
+export const ensureClientsStartDateColumn = (
+  db: Database.Database = getDb()
+) => {
+  const columns = db
+    .prepare("PRAGMA table_info(clients)")
+    .all() as { name?: string }[];
+  const hasColumn = columns.some((column) => column.name === "start_date");
+
+  if (!hasColumn) {
+    db.prepare("ALTER TABLE clients ADD COLUMN start_date TEXT").run();
+  }
+};

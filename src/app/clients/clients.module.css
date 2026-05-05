@@ -113,6 +113,10 @@
 
 .overviewHeaderActionsCollapsed {
   width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  flex-wrap: nowrap;
 }
 
 .overviewHeaderMetaGroup {
@@ -122,6 +126,16 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   margin-left: auto;
+}
+
+.overviewHeaderActionsCollapsed .overviewHeaderMetaGroup {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  min-width: max-content;
+}
+
+.overviewHeaderActionsCollapsed .overviewMetaRow {
+  flex-wrap: nowrap;
 }
 
 .overviewTabs {
@@ -194,6 +208,8 @@
   padding: 0;
   border: none;
   background: transparent;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .overviewCollapsedAvatarButton {
@@ -230,13 +246,16 @@
 }
 
 .overviewCollapsedText {
-  display: flex;
-  align-items: baseline;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
   gap: 10px;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
 .overviewCollapsedName {
+  flex: 0 0 auto;
   font-weight: 600;
   line-height: 1.1;
   white-space: nowrap;
@@ -245,12 +264,22 @@
 }
 
 .overviewCollapsedHighlights {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 13px;
+  line-height: 1.35;
   color: var(--ink-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transform: translateY(-2px);
+}
+
+.overviewCollapsedHighlights:hover {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  align-self: start;
 }
 
 
@@ -783,7 +812,19 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
-  min-width: 900px;
+  min-width: 980px;
+}
+
+.clientsStartDateColumn {
+  width: 110px;
+}
+
+.clientsEmailColumn {
+  width: 18%;
+}
+
+.clientsAddressColumn {
+  width: 22%;
 }
 
 .clientsTable tbody tr {
@@ -796,6 +837,21 @@
   border-bottom: 1px solid var(--line);
   text-align: left;
   vertical-align: top;
+}
+
+.clientsAddressCell {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clientsTable td.clientsAddressCell:hover {
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+  white-space: normal;
+  background: inherit;
 }
 
 .clientsTable th {

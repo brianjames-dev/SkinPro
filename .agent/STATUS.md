@@ -65,6 +65,7 @@ Current
 - TypeScript now has an explicit plain CSS module declaration for side-effect imports like `globals.css`.
 - Prescription PDF title changed to "Daily Corrective Skincare Routine".
 - Prescription editor now has a bottom Highlight button in addition to the top Highlight button.
+- Clients now have nullable Start Date data, shown after Primary # in the Clients treeview and editable after Referred By in client Info.
 
 Next actions
 - Await user review of completed checklist items.

@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { deleteClientAssets } from "@/lib/clientAssets";
+import { ensureClientsStartDateColumn } from "@/lib/api/ensureTables";
 
 export const runtime = "nodejs";
+
+const toNullableText = (value: unknown) => {
+  if (typeof value !== "string") {
+    return value ?? null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
 
 export async function GET(
   _request: Request,
@@ -18,6 +27,7 @@ export async function GET(
 
   try {
     const db = getDb();
+    ensureClientsStartDateColumn(db);
     const client = db
       .prepare("SELECT * FROM clients WHERE id = ?")
       .get(clientId);
@@ -58,6 +68,7 @@ export async function PATCH(
       "gender",
       "birthdate",
       "primary_phone",
+      "start_date",
       "secondary_phone",
       "email",
       "address1",
@@ -75,7 +86,9 @@ export async function PATCH(
     for (const field of allowedFields) {
       if (Object.prototype.hasOwnProperty.call(body, field)) {
         updates.push(`${field} = ?`);
-        values.push(body[field] ?? null);
+        values.push(
+          field === "start_date" ? toNullableText(body[field]) : body[field] ?? null
+        );
       }
     }
 
@@ -87,6 +100,7 @@ export async function PATCH(
     }
 
     const db = getDb();
+    ensureClientsStartDateColumn(db);
     const result = db
       .prepare(`UPDATE clients SET ${updates.join(", ")} WHERE id = ?`)
       .run(...values, clientId);

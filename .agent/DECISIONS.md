@@ -4,7 +4,7 @@
 - better-sqlite3 for sync, single-user local DB access; Node 20 LTS pin.
 - Prescriptions: pdfkit output, templates in `SkinProData/prescriptions/templates.json`, unique file paths.
 - Uploads: QR via LAN IP with `SKINPRO_QR_HOST` override; EXIF normalization via `sharp`.
-- On-demand tables/columns: `client_products`, `client_notes`, `prescriptions.is_current`.
+- On-demand tables/columns: `client_products`, `client_notes`, `prescriptions.is_current`, `clients.start_date`.
 - Tab routing uses query params to preserve `clientId` and allow back/forward.
 - Prescriptions: header supports optional second line (`ColX_Header2`); steps use a single product field.
 - Highlighted text uses `[h]` tokens with a shared `HighlightTextarea` overlay component across edit surfaces.

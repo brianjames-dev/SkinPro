@@ -15,6 +15,7 @@ type Client = {
   gender?: string | null;
   birthdate?: string | null;
   primary_phone?: string | null;
+  start_date?: string | null;
   email?: string | null;
   address1?: string | null;
   address2?: string | null;
@@ -190,7 +191,7 @@ export default function DashboardClients({
     if (loading) {
       return (
         <tr>
-          <td className={styles.tableEmpty} colSpan={6}>
+          <td className={styles.tableEmpty} colSpan={7}>
             Loading clients...
           </td>
         </tr>
@@ -200,7 +201,7 @@ export default function DashboardClients({
     if (error) {
       return (
         <tr>
-          <td className={styles.tableEmpty} colSpan={6}>
+          <td className={styles.tableEmpty} colSpan={7}>
             API error: {error}
           </td>
         </tr>
@@ -210,7 +211,7 @@ export default function DashboardClients({
     if (filteredClients.length === 0) {
       return (
         <tr>
-          <td className={styles.tableEmpty} colSpan={6}>
+          <td className={styles.tableEmpty} colSpan={7}>
             No clients found.
           </td>
         </tr>
@@ -235,8 +236,11 @@ export default function DashboardClients({
         <td>{client.gender || "-"}</td>
         <td>{client.birthdate || "-"}</td>
         <td>{client.primary_phone || "-"}</td>
+        <td>{client.start_date || "-"}</td>
         <td>{client.email || "-"}</td>
-        <td>{formatAddress(client) || "-"}</td>
+        <td className={styles.clientsAddressCell}>
+          {formatAddress(client) || "-"}
+        </td>
       </tr>
     ));
   };
@@ -341,14 +345,24 @@ export default function DashboardClients({
           }}
         >
           <table className={styles.clientsTable}>
+            <colgroup>
+              <col />
+              <col />
+              <col />
+              <col />
+              <col className={styles.clientsStartDateColumn} />
+              <col className={styles.clientsEmailColumn} />
+              <col className={styles.clientsAddressColumn} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Name</th>
                 <th>Gender</th>
                 <th>Birthdate</th>
                 <th>Primary #</th>
+                <th>Start Date</th>
                 <th>Email</th>
-                <th>Address</th>
+                <th className={styles.clientsAddressCell}>Address</th>
               </tr>
             </thead>
             <tbody>{renderRows()}</tbody>
