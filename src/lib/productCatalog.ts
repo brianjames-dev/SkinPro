@@ -45,6 +45,8 @@ export const PRODUCT_CATALOG: ProductCatalogItem[] = [
   { name: "Body Exfoliating Serum", size: "8oz", price: 64.0, brand: "Corium" },
   { name: "Hands & Feet Renewal Cream", size: "5oz", price: 49.5, brand: "Corium" },
   { name: "Enhancer", size: "2oz", price: 135.0, brand: "Corium" },
+  { name: "Power Peptides", size: "1oz", price: 110.0, brand: "Corium" },
+  { name: "Reveal Exfoliating Mask", size: "4oz", price: 95.0, brand: "Corium" },
   { name: "Antiseptic Cleanser", size: "8oz", price: 60.0, brand: "Laskin" },
   { name: "AQ1 Cleanser (Deep Pore Cleanser)", size: "4oz", price: 60.0, brand: "Laskin" },
   { name: "4N1", size: "1.5oz", price: 250.0, brand: "Laskin" },
@@ -63,5 +65,7 @@ export const PRODUCT_CATALOG: ProductCatalogItem[] = [
   },
   { name: "Z Cream", size: "1.5oz", price: 140.0, brand: "Laskin" },
   { name: "Rejuvenating Cream  (1% vitamin A)", size: "1oz", price: 100.0, brand: "Laskin" },
-  { name: "Soothing Zinc Gel Mask", size: "10oz", price: 160.0, brand: "Laskin" }
+  { name: "Soothing Zinc Gel Mask", size: "10oz", price: 160.0, brand: "Laskin" },
+  { name: "Growth Factor Serum", size: "1.5oz", price: 165.0, brand: "Laskin" },
+  { name: "Hydra Cream", size: "1.5oz", price: 96.0, brand: "Laskin" }
 ];
