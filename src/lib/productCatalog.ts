@@ -53,6 +53,7 @@ export const PRODUCT_CATALOG: ProductCatalogItem[] = [
   { name: "C B P Cream", size: "1oz", price: 90.0, brand: "Laskin" },
   { name: "Coleman Cream", size: "2oz", price: 95.0, brand: "Laskin" },
   { name: "Correcting Cream Medium", size: "1oz", price: 85.0, brand: "Laskin" },
+  { name: "Growth Factor Serum", size: "1.5oz", price: 165.0, brand: "Laskin" },
   { name: "Growth Factor Serum", size: "2oz", price: 220.0, brand: "Laskin" },
   { name: "Hydra-Cool Gel", size: "2oz", price: 120.0, brand: "Laskin" },
   { name: "Post Soothe", size: "1oz", price: 66.0, brand: "Laskin" },
@@ -66,6 +67,5 @@ export const PRODUCT_CATALOG: ProductCatalogItem[] = [
   { name: "Z Cream", size: "1.5oz", price: 140.0, brand: "Laskin" },
   { name: "Rejuvenating Cream  (1% vitamin A)", size: "1oz", price: 100.0, brand: "Laskin" },
   { name: "Soothing Zinc Gel Mask", size: "10oz", price: 160.0, brand: "Laskin" },
-  { name: "Growth Factor Serum", size: "1.5oz", price: 165.0, brand: "Laskin" },
   { name: "Hydra Cream", size: "1.5oz", price: 96.0, brand: "Laskin" }
 ];
