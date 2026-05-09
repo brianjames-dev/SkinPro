@@ -68,7 +68,7 @@ const PRODUCT_UNDERLINE_WIDTH = 0.5;
 const HEADER_GRADIENT_TOP_OPACITY = 0.08;
 const HEADER_GRADIENT_FADE = 1;
 const DATE_VALUE_GAP = 3;
-const HEADER_TABLE_GAP = 2;
+const HEADER_TABLE_GAP = -4;
 const TABLE_TOP_LINE_GAP = 0;
 const HEADER_ROW_GAP = 10;
 const MIN_CELL_LINES = 4;
@@ -80,11 +80,13 @@ const DISCLAIMER =
 
 const LOGO_PATHS = [
   process.env.SKINPRO_LOGO_PATH,
+  path.resolve(process.cwd(), "flower_logo_text.png"),
   path.resolve(process.cwd(), "SkincareByAmelia.png")
 ].filter(Boolean) as string[];
 
 const WATERMARK_LOGO_PATHS = [
   process.env.SKINPRO_WATERMARK_LOGO_PATH,
+  path.resolve(process.cwd(), "flower_icon_bg.png"),
   path.resolve(process.cwd(), "SkincareLogo.png")
 ].filter(Boolean) as string[];
 
@@ -532,10 +534,10 @@ function drawHeader(
 
   const leftMargin = 24;
   const headerTop = 24;
-  const logoOffsetY = -5;
-  const logoWidth = 96;
-  const logoHeight = 75;
-  const logoX = leftMargin;
+  const logoOffsetY = -10;
+  const logoWidth = 94;
+  const logoHeight = 94;
+  const logoX = leftMargin + 4;
   const logoY = headerTop + logoOffsetY;
 
   const logoPath = resolveLogoPath();
@@ -589,12 +591,12 @@ function drawWatermark(doc: PDFKit.PDFDocument) {
   const pageHeight = doc.page.height;
 
   const watermarkWidth = 500;
-  const watermarkHeight = watermarkWidth / (1200 / 930);
+  const watermarkHeight = 500;
   const watermarkX = (pageWidth - watermarkWidth) / 2;
   const watermarkY = pageHeight - watermarkHeight - 110;
 
   doc.save();
-  doc.opacity(0.05);
+  doc.opacity(0.08);
   doc.image(logoPath, watermarkX, watermarkY, {
     width: watermarkWidth,
     height: watermarkHeight
