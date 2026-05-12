@@ -67,6 +67,8 @@ Current
 - Prescription editor now has a bottom Highlight button in addition to the top Highlight button.
 - Clients now have nullable Start Date data, shown after Primary # in the Clients treeview and editable after Referred By in client Info.
 - Prescription PDFs now use `flower_logo_text.png` for the header logo and `flower_icon_bg.png` for the low-opacity background image.
+- Prescription editor supports inserting and deleting individual cells within a column while keeping prescription rows rectangular.
+- Prescription editor trims unneeded fully-empty trailing rows after single-cell insert/delete operations.
 
 Next actions
 - Await user review of completed checklist items.

@@ -2648,14 +2648,33 @@
 }
 
 .prescriptionFinalCell {
+  position: relative;
   background: #ffffff;
   border: 1px solid var(--line);
   border-left: 4px solid #c9b897;
   border-radius: 12px;
-  padding: 12px;
+  padding: 34px 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.prescriptionCellControls {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 6px;
+}
+
+.prescriptionCellAddButton {
+  color: #2f5141;
+  border-color: rgba(47, 81, 65, 0.35);
+}
+
+.prescriptionCellDeleteButton {
+  color: var(--danger);
+  border-color: rgba(164, 50, 50, 0.35);
 }
 
 .prescriptionProductTextarea {

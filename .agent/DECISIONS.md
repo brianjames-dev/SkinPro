@@ -22,3 +22,5 @@
 - Maintenance entries now store `follow_up_date`; existing rows are backfilled from `last_talked_date`, which is now displayed as the Initial date while Timeline counts down from Follow Up.
 - TypeScript path aliases are configured with `paths` only; deprecated `baseUrl` was removed to stay compatible with TypeScript 7.0.
 - Plain CSS side-effect imports are declared in `src/css.d.ts`; CSS Modules remain covered by Next's generated types.
+- Prescription editor data remains rectangular for UI and PDF output; single-cell insert/delete shifts one column's cells while padding rows as needed.
+- Fully-empty trailing prescription rows created by single-cell shifts are trimmed immediately; explicit Add Row remains the way to keep a new blank row.

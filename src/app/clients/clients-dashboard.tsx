@@ -416,6 +416,38 @@ const normalizePrescriptionDraft = (
   };
 };
 
+const isPrescriptionStepEmpty = (step?: PrescriptionStep) =>
+  !step?.product.trim() && !step?.directions.trim();
+
+const trimPrescriptionTrailingEmptyRows = (
+  draft: PrescriptionDraft
+): PrescriptionDraft => {
+  const rowCount = Math.max(
+    1,
+    ...draft.columns.map((column) => column.rows.length)
+  );
+  let keepCount = rowCount;
+
+  while (keepCount > 1) {
+    const rowIndex = keepCount - 1;
+    const isEmptyRow = draft.columns.every((column) =>
+      isPrescriptionStepEmpty(column.rows[rowIndex])
+    );
+    if (!isEmptyRow) {
+      break;
+    }
+    keepCount -= 1;
+  }
+
+  return {
+    ...draft,
+    columns: draft.columns.map((column) => ({
+      ...column,
+      rows: column.rows.slice(0, keepCount)
+    }))
+  };
+};
+
 const draftToStepsDict = (draft: PrescriptionDraft) => {
   const steps: Record<string, unknown> = {};
   draft.columns.forEach((column, index) => {
@@ -3633,11 +3665,11 @@ export default function ClientsDashboard() {
   const handlePrescriptionInsertRow = (insertIndex?: number) => {
     setPrescriptionDraft((prev) => {
       const next = normalizePrescriptionDraft(prev, prescriptionColumnCount);
-      if (next.columns[0]?.rows.length >= MAX_PRESCRIPTION_ROWS) {
+      const rowCount = next.columns[0]?.rows.length ?? 1;
+      if (rowCount >= MAX_PRESCRIPTION_ROWS) {
         setNotice(`Maximum ${MAX_PRESCRIPTION_ROWS} rows reached.`, true);
         return prev;
       }
-      const rowCount = next.columns[0]?.rows.length ?? 1;
       const targetIndex =
         typeof insertIndex === "number"
           ? Math.min(Math.max(insertIndex, 0), rowCount)
@@ -3661,10 +3693,10 @@ export default function ClientsDashboard() {
   const handlePrescriptionDeleteRow = (rowIndex?: number) => {
     setPrescriptionDraft((prev) => {
       const next = normalizePrescriptionDraft(prev, prescriptionColumnCount);
-      if (next.columns[0]?.rows.length <= 1) {
+      const rowCount = next.columns[0]?.rows.length ?? 1;
+      if (rowCount <= 1) {
         return prev;
       }
-      const rowCount = next.columns[0]?.rows.length ?? 1;
       const targetIndex =
         typeof rowIndex === "number"
           ? Math.min(Math.max(rowIndex, 0), rowCount - 1)
@@ -3674,6 +3706,69 @@ export default function ClientsDashboard() {
         rows: column.rows.filter((_, index) => index !== targetIndex)
       }));
       return { ...next, columns };
+    });
+  };
+
+  const handlePrescriptionInsertCell = (
+    colIndex: number,
+    insertIndex?: number
+  ) => {
+    setPrescriptionDraft((prev) => {
+      const next = normalizePrescriptionDraft(prev, prescriptionColumnCount);
+      const column = next.columns[colIndex];
+      if (!column) {
+        return prev;
+      }
+      const rowCount = column.rows.length;
+      if (rowCount >= MAX_PRESCRIPTION_ROWS) {
+        setNotice(`Maximum ${MAX_PRESCRIPTION_ROWS} rows reached.`, true);
+        return prev;
+      }
+      const targetIndex =
+        typeof insertIndex === "number"
+          ? Math.min(Math.max(insertIndex, 0), rowCount)
+          : rowCount;
+      const columns = next.columns.map((item, index) => {
+        const emptyCell = { product: "", directions: "" };
+        if (index === colIndex) {
+          return {
+            ...item,
+            rows: [
+              ...item.rows.slice(0, targetIndex),
+              emptyCell,
+              ...item.rows.slice(targetIndex)
+            ]
+          };
+        }
+        return {
+          ...item,
+          rows: [...item.rows, emptyCell]
+        };
+      });
+      return trimPrescriptionTrailingEmptyRows({ ...next, columns });
+    });
+  };
+
+  const handlePrescriptionDeleteCell = (colIndex: number, rowIndex: number) => {
+    setPrescriptionDraft((prev) => {
+      const next = normalizePrescriptionDraft(prev, prescriptionColumnCount);
+      const column = next.columns[colIndex];
+      const rowCount = column?.rows.length ?? 1;
+      if (!column || rowCount <= 1) {
+        return prev;
+      }
+      const columns = next.columns.map((item, index) =>
+        index === colIndex
+          ? {
+              ...item,
+              rows: [
+                ...item.rows.filter((_, itemIndex) => itemIndex !== rowIndex),
+                { product: "", directions: "" }
+              ]
+            }
+          : item
+      );
+      return trimPrescriptionTrailingEmptyRows({ ...next, columns });
     });
   };
 
@@ -8106,6 +8201,39 @@ export default function ClientsDashboard() {
                                   className={styles.prescriptionFinalCell}
                                   key={`cell-${colIndex}-${rowIndex}`}
                                 >
+                                  <div className={styles.prescriptionCellControls}>
+                                    <IconButton
+                                      className={`${styles.prescriptionRowButton} ${styles.prescriptionCellAddButton}`}
+                                      onClick={() =>
+                                        handlePrescriptionInsertCell(
+                                          colIndex,
+                                          rowIndex
+                                        )
+                                      }
+                                      title={`Insert cell above column ${colIndex + 1}, step ${rowIndex + 1}`}
+                                      aria-label={`Insert cell above column ${colIndex + 1}, step ${rowIndex + 1}`}
+                                      disabled={
+                                        column.rows.length >=
+                                        MAX_PRESCRIPTION_ROWS
+                                      }
+                                    >
+                                      +
+                                    </IconButton>
+                                    <IconButton
+                                      className={`${styles.prescriptionRowButton} ${styles.prescriptionCellDeleteButton}`}
+                                      onClick={() =>
+                                        handlePrescriptionDeleteCell(
+                                          colIndex,
+                                          rowIndex
+                                        )
+                                      }
+                                      title={`Delete cell from column ${colIndex + 1}, step ${rowIndex + 1}`}
+                                      aria-label={`Delete cell from column ${colIndex + 1}, step ${rowIndex + 1}`}
+                                      disabled={column.rows.length <= 1}
+                                    >
+                                      x
+                                    </IconButton>
+                                  </div>
                                   <textarea
                                     className={`${styles.textarea} ${styles.prescriptionProductTextarea}`}
                                     data-prescription-row="product"
