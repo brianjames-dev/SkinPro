@@ -1,10 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import styles from "./share.module.css";
 
 type ShareStatus = "idle" | "loading" | "ready" | "error";
+
+/** In-memory cache so React Strict Mode remounts do not re-hit the single-use API. */
+const shareBlobCache = new Map<string, Blob>();
 
 function PrescriptionShareContent() {
   const searchParams = useSearchParams();
@@ -14,6 +17,7 @@ function PrescriptionShareContent() {
   const [shareError, setShareError] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -23,28 +27,55 @@ function PrescriptionShareContent() {
     }
 
     let isMounted = true;
+    const applyBlob = (blob: Blob) => {
+      if (!isMounted) {
+        return;
+      }
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+      const url = URL.createObjectURL(blob);
+      objectUrlRef.current = url;
+      setImageBlob(blob);
+      setImageUrl(url);
+      setStatus("ready");
+    };
+
     const loadImage = async () => {
       setStatus("loading");
       setError(null);
       setShareError(null);
       try {
+        const cached = shareBlobCache.get(token);
+        if (cached) {
+          applyBlob(cached);
+          return;
+        }
         const response = await fetch(
           `/api/prescriptions/share-image?token=${encodeURIComponent(token)}`
         );
         if (!response.ok) {
+          // Another in-flight request may have already consumed + cached.
+          const raced = shareBlobCache.get(token);
+          if (raced) {
+            applyBlob(raced);
+            return;
+          }
           const data = (await response.json()) as { error?: string };
           throw new Error(data.error ?? "Failed to load image");
         }
         const blob = await response.blob();
+        // Cache even if unmounted so Strict Mode remount can reuse without re-fetch.
+        shareBlobCache.set(token, blob);
+        applyBlob(blob);
+      } catch (err) {
         if (!isMounted) {
           return;
         }
-        const url = URL.createObjectURL(blob);
-        setImageBlob(blob);
-        setImageUrl(url);
-        setStatus("ready");
-      } catch (err) {
-        if (!isMounted) {
+        const raced = shareBlobCache.get(token);
+        if (raced) {
+          applyBlob(raced);
           return;
         }
         setStatus("error");
@@ -56,8 +87,10 @@ function PrescriptionShareContent() {
 
     return () => {
       isMounted = false;
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl);
+      // Revoke object URL for this mount only; keep blob cache for Strict Mode remount.
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
       }
     };
   }, [token]);

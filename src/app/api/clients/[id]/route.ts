@@ -76,8 +76,8 @@ export async function PATCH(
       "city",
       "state",
       "zip",
-      "referred_by",
-      "profile_picture"
+      "referred_by"
+      // profile_picture is only set via dedicated upload routes (not client JSON).
     ] as const;
 
     const updates: string[] = [];

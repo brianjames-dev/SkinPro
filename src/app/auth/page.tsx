@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "../clients/clients.module.css";
 import Button from "../ui/Button";
@@ -8,10 +8,33 @@ import Field from "../ui/Field";
 import Notice from "../ui/Notice";
 import StatusMessage from "../ui/StatusMessage";
 
+/** Client-side mirror of sanitizeNextPath — only same-origin relative paths. */
+function safeNextPath(raw: string | null): string {
+  if (!raw) {
+    return "/";
+  }
+  const value = raw.trim();
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+    return "/";
+  }
+  try {
+    const decoded = decodeURIComponent(value);
+    if (!decoded.startsWith("/") || decoded.startsWith("//")) {
+      return "/";
+    }
+  } catch {
+    return "/";
+  }
+  return value;
+}
+
 function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextTarget = searchParams.get("next") || "/";
+  const nextTarget = useMemo(
+    () => safeNextPath(searchParams.get("next")),
+    [searchParams]
+  );
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);

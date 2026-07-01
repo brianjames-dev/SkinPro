@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
 import { loadSkinproPaths } from "@/lib/skinproPaths";
 import { safeClientName } from "@/lib/clientAssets";
 import { normalizeImageOrientation } from "@/lib/imageProcessing";
-import { getUploadToken, markUploadTokenUsed } from "@/lib/qrTokens";
+import { getUploadToken, consumeUploadToken } from "@/lib/qrTokens";
 import { PHOTO_UPLOAD_LIMITS, validateImageFiles } from "@/lib/uploadValidation";
 import {
   ensureDir,
@@ -675,6 +675,20 @@ export async function POST(request: Request) {
       );
     }
 
+    // Claim single-use before writing so concurrent POSTs cannot both succeed.
+    const consumed = consumeUploadToken(token);
+    if (!consumed) {
+      return new NextResponse(
+        renderUploadPage({
+          title: "Upload Photos",
+          subtitle: "Upload link expired.",
+          error: "Please generate a new QR code to continue.",
+          showForm: false
+        }),
+        { headers: { "Content-Type": "text/html; charset=utf-8" }, status: 410 }
+      );
+    }
+
     const paths = loadSkinproPaths();
     const safeName = safeClientName(client.full_name);
     const formattedDate = appointment.date.replace(/\//g, "-");
@@ -725,8 +739,9 @@ export async function POST(request: Request) {
         renderUploadPage({
           title: "Upload Photos",
           subtitle: "No supported files were detected.",
-          error: "Please choose at least one image file.",
-          token
+          error:
+            "Please choose at least one image file and generate a new QR code to retry.",
+          showForm: false
         }),
         { headers: { "Content-Type": "text/html; charset=utf-8" }, status: 400 }
       );
@@ -737,8 +752,6 @@ export async function POST(request: Request) {
         appointmentId
       );
     }
-
-    markUploadTokenUsed(token);
 
     return new NextResponse(
       renderSuccessPage({

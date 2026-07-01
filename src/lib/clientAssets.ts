@@ -1,10 +1,12 @@
 import fs from "fs";
 import path from "path";
+import { isPathWithin } from "./fileUtils";
 import { loadSkinproPaths } from "./skinproPaths";
 
 type DeleteResult = {
   deleted: string[];
   missing: string[];
+  skipped: string[];
 };
 
 export function safeClientName(fullName: string): string {
@@ -21,7 +23,7 @@ export function deleteClientAssets(args: {
   profilePicturePath?: string | null;
 }): DeleteResult {
   const { clientId, fullName, profilePicturePath } = args;
-  const result: DeleteResult = { deleted: [], missing: [] };
+  const result: DeleteResult = { deleted: [], missing: [], skipped: [] };
 
   if (!fullName || !clientId) {
     return result;
@@ -36,7 +38,23 @@ export function deleteClientAssets(args: {
     `${safeName}_${clientId}`
   );
 
-  const deletePath = (target: string) => {
+  const deletePath = (target: string, label: string) => {
+    let resolved = target;
+    try {
+      if (fs.existsSync(target)) {
+        resolved = fs.realpathSync(target);
+      }
+    } catch {
+      result.skipped.push(target);
+      return;
+    }
+
+    if (!isPathWithin(paths.dataDir, resolved) && !isPathWithin(paths.dataDir, target)) {
+      console.warn(`[clientAssets] refused to delete path outside data dir (${label}):`, target);
+      result.skipped.push(target);
+      return;
+    }
+
     if (fs.existsSync(target)) {
       fs.rmSync(target, { recursive: true, force: true });
       result.deleted.push(target);
@@ -46,11 +64,11 @@ export function deleteClientAssets(args: {
   };
 
   if (profilePicturePath) {
-    deletePath(profilePicturePath);
+    deletePath(profilePicturePath, "profile_picture");
   }
 
-  deletePath(imageFolder);
-  deletePath(prescriptionsFolder);
+  deletePath(imageFolder, "photos");
+  deletePath(prescriptionsFolder, "prescriptions");
 
   return result;
 }

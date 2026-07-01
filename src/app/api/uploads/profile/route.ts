@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
 import { loadSkinproPaths } from "@/lib/skinproPaths";
 import { safeClientName } from "@/lib/clientAssets";
 import { normalizeImageOrientation } from "@/lib/imageProcessing";
-import { getUploadToken, markUploadTokenUsed } from "@/lib/qrTokens";
+import { getUploadToken, consumeUploadToken } from "@/lib/qrTokens";
 import { PROFILE_UPLOAD_LIMITS, validateImageFiles } from "@/lib/uploadValidation";
 import {
   ensureDir,
@@ -545,14 +545,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const paths = loadSkinproPaths();
-    ensureDir(paths.profilePicturesDir);
-
-    const ext = guessExtension(file.name, file.type);
-    const safeName = sanitizeFileName(safeClientName(client.full_name));
-    const baseName = `${safeName}_id_${clientId}`;
-    const targetPath = path.join(paths.profilePicturesDir, `${baseName}${ext}`);
-
     const buffer = Buffer.from(await file.arrayBuffer());
     let rotated: Buffer;
     try {
@@ -568,6 +560,29 @@ export async function POST(request: Request) {
         { headers: { "Content-Type": "text/html; charset=utf-8" }, status: 400 }
       );
     }
+
+    // Claim single-use after image validates, before filesystem/DB writes.
+    const consumed = consumeUploadToken(token);
+    if (!consumed) {
+      return new NextResponse(
+        renderUploadPage({
+          title: "Upload Profile Picture",
+          subtitle: "Upload link expired.",
+          error: "Please generate a new QR code to continue.",
+          showForm: false
+        }),
+        { headers: { "Content-Type": "text/html; charset=utf-8" }, status: 410 }
+      );
+    }
+
+    const paths = loadSkinproPaths();
+    ensureDir(paths.profilePicturesDir);
+
+    const ext = guessExtension(file.name, file.type);
+    const safeName = sanitizeFileName(safeClientName(client.full_name));
+    const baseName = `${safeName}_id_${clientId}`;
+    const targetPath = path.join(paths.profilePicturesDir, `${baseName}${ext}`);
+
     await fs.promises.writeFile(targetPath, rotated);
 
     if (
@@ -584,8 +599,6 @@ export async function POST(request: Request) {
       targetPath,
       clientId
     );
-
-    markUploadTokenUsed(token);
 
     return new NextResponse(
       renderSuccessPage({ subtitle: client.full_name }),

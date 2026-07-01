@@ -82,7 +82,8 @@ export async function POST(request: Request) {
       state: body.state ?? null,
       zip: body.zip ?? null,
       referred_by: body.referred_by ?? null,
-      profile_picture: body.profile_picture ?? null
+      // Never accept client-supplied filesystem paths; profile pics use upload APIs.
+      profile_picture: null
     };
 
     const result = db

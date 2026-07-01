@@ -21,6 +21,13 @@ export async function GET(request: Request) {
     const clientIdParam = url.searchParams.get("client_id");
     const appointmentIdParam = url.searchParams.get("appointment_id");
 
+    if (!clientIdParam && !appointmentIdParam) {
+      return NextResponse.json(
+        { error: "client_id or appointment_id is required" },
+        { status: 400 }
+      );
+    }
+
     const db = getDb();
 
     const conditions: string[] = [];
@@ -50,18 +57,22 @@ export async function GET(request: Request) {
       values.push(appointmentId);
     }
 
-    const whereClause = conditions.length
-      ? `WHERE ${conditions.join(" AND ")}`
-      : "";
+    const limitParam = Number(url.searchParams.get("limit") ?? "500");
+    const limit = Number.isFinite(limitParam)
+      ? Math.min(Math.max(Math.trunc(limitParam), 1), 1000)
+      : 500;
+
+    const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
     const rows = (
       db
         .prepare(
           `SELECT id, client_id, appointment_id, appt_date, file_path, type, description
            FROM photos ${whereClause}
-           ORDER BY appt_date DESC, id DESC`
+           ORDER BY appt_date DESC, id DESC
+           LIMIT ?`
         )
-        .all(...values) as Record<string, unknown>[]
+        .all(...values, limit) as Record<string, unknown>[]
     ).map((row) => ({
       ...row,
       file_url: `/api/photos/${row.id as number}/file`

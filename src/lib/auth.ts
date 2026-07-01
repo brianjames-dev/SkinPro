@@ -35,24 +35,129 @@ const timingSafeEqual = (a: string, b: string) => {
   return diff === 0;
 };
 
+/**
+ * Compare PINs in constant time for equal lengths.
+ * Different lengths return false after a fixed dummy compare to reduce timing leaks.
+ */
+export const verifyPin = (provided: string, expected: string) => {
+  if (!expected) {
+    return false;
+  }
+  const a = encoder.encode(provided);
+  const b = encoder.encode(expected);
+  if (a.length !== b.length) {
+    // Touch both buffers so length mismatch isn't a pure fast-path.
+    let dummy = 0;
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i += 1) {
+      dummy |= (a[i] ?? 0) ^ (b[i % b.length] ?? 0);
+    }
+    void dummy;
+    return false;
+  }
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a[i] ^ b[i];
+  }
+  return diff === 0;
+};
+
 const getAuthSecret = () => {
   const secret = process.env.SKINPRO_AUTH_SECRET?.trim();
   if (secret) {
     return secret;
   }
-  return process.env.SKINPRO_PIN?.trim() ?? "";
+  const pin = process.env.SKINPRO_PIN?.trim() ?? "";
+  if (pin && process.env.NODE_ENV !== "test") {
+    console.warn(
+      "[auth] SKINPRO_AUTH_SECRET is not set; falling back to PIN as HMAC secret. " +
+        "Set a long random SKINPRO_AUTH_SECRET in production."
+    );
+  }
+  return pin;
 };
 
 export const getAuthPin = () => process.env.SKINPRO_PIN?.trim() ?? "";
 
+/**
+ * Auth gate:
+ * - Explicit disable only via SKINPRO_AUTH_DISABLED=1 (ignored in production; fail closed).
+ * - Missing PIN: open in non-production (with warning); fail closed in production.
+ */
 export const isAuthEnabled = () => {
-  if (process.env.SKINPRO_AUTH_DISABLED === "1") {
+  const disabled = process.env.SKINPRO_AUTH_DISABLED === "1";
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (disabled) {
+    if (isProd) {
+      console.error(
+        "[auth] SKINPRO_AUTH_DISABLED=1 is ignored in production (fail closed)."
+      );
+    } else {
+      console.warn("[auth] Auth disabled via SKINPRO_AUTH_DISABLED=1 (dev only).");
+      return false;
+    }
+  }
+
+  const pin = getAuthPin();
+  if (!pin) {
+    if (isProd) {
+      console.error(
+        "[auth] SKINPRO_PIN is not set — failing closed (all routes require auth)."
+      );
+      return true;
+    }
+    console.warn(
+      "[auth] SKINPRO_PIN is not set — auth disabled. Set SKINPRO_PIN before LAN use."
+    );
     return false;
   }
-  return Boolean(getAuthPin());
+
+  return true;
 };
 
 export const getAuthCookieName = () => AUTH_COOKIE_NAME;
+
+/** Prefer Secure cookies on HTTPS; set SKINPRO_COOKIE_SECURE=1 to force. */
+export const shouldUseSecureCookies = (request?: Request) => {
+  if (["1", "true", "yes"].includes((process.env.SKINPRO_COOKIE_SECURE ?? "").toLowerCase())) {
+    return true;
+  }
+  if (["0", "false", "no"].includes((process.env.SKINPRO_COOKIE_SECURE ?? "").toLowerCase())) {
+    return false;
+  }
+  if (request) {
+    try {
+      return new URL(request.url).protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
+  return false;
+};
+
+/**
+ * Only allow same-origin relative paths after login (blocks open redirects).
+ */
+export const sanitizeNextPath = (raw: string | null | undefined): string => {
+  if (!raw) {
+    return "/";
+  }
+  const value = raw.trim();
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+    return "/";
+  }
+  // Block protocol-relative and scheme-looking values after decode.
+  try {
+    const decoded = decodeURIComponent(value);
+    if (!decoded.startsWith("/") || decoded.startsWith("//")) {
+      return "/";
+    }
+  } catch {
+    return "/";
+  }
+  return value;
+};
 
 const signPayload = async (payload: string) => {
   const secret = getAuthSecret();
@@ -98,6 +203,10 @@ export const verifyAuthCookie = async (cookieValue: string) => {
   if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) {
     return false;
   }
-  const expected = await signPayload(payload);
-  return timingSafeEqual(signature, expected);
+  try {
+    const expected = await signPayload(payload);
+    return timingSafeEqual(signature, expected);
+  } catch {
+    return false;
+  }
 };
