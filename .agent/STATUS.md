@@ -1,6 +1,7 @@
 # Status
 
 Current
+- Security review fixes (branch fix/security-review-findings): auth boundaries for QR mint vs share, atomic single-use tokens, path containment on deletes, login rate limit + timing-safe PIN, open-redirect guard, secure cookies, photos list scoping, QR host lockdown
 - Core web UI is functional: clients, alerts, appointments, photos, prescriptions, products, notes
 - Clients: added mock client seed script + seeded DB from `images/client_tab.jpg`
 - Prescriptions: PDF generation, templates, copy, preview/edit, current marker; header second line + edit-mode dividers

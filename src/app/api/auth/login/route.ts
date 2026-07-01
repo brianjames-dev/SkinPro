@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import {
   getAuthCookieName,
   getAuthPin,
-  issueAuthCookie
+  issueAuthCookie,
+  shouldUseSecureCookies,
+  verifyPin
 } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -20,7 +22,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!pin || pin !== expected) {
+    if (!pin || !verifyPin(pin, expected)) {
       return NextResponse.json({ error: "Invalid PIN." }, { status: 401 });
     }
 
@@ -29,6 +31,7 @@ export async function POST(request: Request) {
     response.cookies.set(getAuthCookieName(), authCookie.value, {
       httpOnly: true,
       sameSite: "lax",
+      secure: shouldUseSecureCookies(request),
       path: "/",
       maxAge: authCookie.maxAgeSeconds
     });

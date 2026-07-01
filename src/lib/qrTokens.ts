@@ -4,6 +4,14 @@ import { ensureUploadTokensTable } from "@/lib/api/ensureTables";
 
 export type UploadTokenMode = "photo" | "profile";
 
+export type UploadTokenInfo = {
+  token: string;
+  mode: UploadTokenMode;
+  clientId: number;
+  appointmentId: number | null;
+  expiresAt: number;
+};
+
 type UploadTokenRow = {
   token: string;
   mode: string;
@@ -20,6 +28,14 @@ const TTL_MINUTES = (() => {
 })();
 
 const generateToken = () => crypto.randomBytes(32).toString("base64url");
+
+const rowToInfo = (row: UploadTokenRow): UploadTokenInfo => ({
+  token: row.token,
+  mode: row.mode as UploadTokenMode,
+  clientId: row.client_id,
+  appointmentId: row.appointment_id,
+  expiresAt: row.expires_at
+});
 
 export const issueUploadToken = (
   mode: UploadTokenMode,
@@ -40,7 +56,8 @@ export const issueUploadToken = (
   return { token, expiresAt, ttlMinutes: TTL_MINUTES };
 };
 
-export const getUploadToken = (token: string) => {
+/** Non-consuming peek for GET form display. */
+export const getUploadToken = (token: string): UploadTokenInfo | null => {
   ensureUploadTokensTable();
   const db = getDb();
   const row = db
@@ -60,20 +77,53 @@ export const getUploadToken = (token: string) => {
     return null;
   }
 
-  return {
-    token: row.token,
-    mode: row.mode as UploadTokenMode,
-    clientId: row.client_id,
-    appointmentId: row.appointment_id,
-    expiresAt: row.expires_at
-  };
+  return rowToInfo(row);
 };
 
+/**
+ * Atomically mark token used and return its payload if this caller won.
+ * Use on successful upload completion to enforce single-use under concurrency.
+ */
+export const consumeUploadToken = (token: string): UploadTokenInfo | null => {
+  ensureUploadTokensTable();
+  const db = getDb();
+  const now = Date.now();
+
+  const consume = db.transaction(() => {
+    const row = db
+      .prepare(
+        "SELECT token, mode, client_id, appointment_id, expires_at, used_at " +
+          "FROM upload_tokens WHERE token = ?"
+      )
+      .get(token) as UploadTokenRow | undefined;
+
+    if (!row || row.used_at || row.expires_at <= now) {
+      return null;
+    }
+
+    const result = db
+      .prepare(
+        "UPDATE upload_tokens SET used_at = ? " +
+          "WHERE token = ? AND used_at IS NULL AND expires_at > ?"
+      )
+      .run(now, token, now);
+
+    if (result.changes !== 1) {
+      return null;
+    }
+
+    return rowToInfo(row);
+  });
+
+  return consume();
+};
+
+/** @deprecated Prefer consumeUploadToken for single-use enforcement. */
 export const markUploadTokenUsed = (token: string) => {
   ensureUploadTokensTable();
   const db = getDb();
-  db.prepare("UPDATE upload_tokens SET used_at = ? WHERE token = ?").run(
-    Date.now(),
-    token
-  );
+  db.prepare(
+    "UPDATE upload_tokens SET used_at = ? " +
+      "WHERE token = ? AND used_at IS NULL"
+  ).run(Date.now(), token);
 };

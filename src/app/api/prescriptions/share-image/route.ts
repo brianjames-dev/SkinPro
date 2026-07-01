@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { loadSkinproPaths } from "@/lib/skinproPaths";
 import { isPathWithin } from "@/lib/fileUtils";
-import { getShareToken } from "@/lib/shareTokens";
+import { getShareToken, consumeShareToken } from "@/lib/shareTokens";
 import { renderPdfToPng } from "@/lib/renderPdfToPng";
 
 export const runtime = "nodejs";
@@ -29,6 +29,7 @@ export async function GET(request: Request) {
 
   try {
     console.log("[share-image] request", { token: token.slice(0, 6) });
+    // Peek first so a render failure does not burn the token.
     const shareToken = getShareToken(token);
     if (!shareToken) {
       console.warn("[share-image] invalid or expired token");
@@ -65,6 +66,16 @@ export async function GET(request: Request) {
     const pngBuffer = await renderPdfToPng(row.file_path, 2);
     if (!isPngBuffer(pngBuffer)) {
       throw new Error("Rendered output is not a PNG");
+    }
+
+    // Atomic single-use: only the winning request returns the image.
+    const consumed = consumeShareToken(token);
+    if (!consumed) {
+      console.warn("[share-image] token already used (race or prior consume)");
+      return NextResponse.json(
+        { error: "Share link is invalid or expired" },
+        { status: 404 }
+      );
     }
 
     return new NextResponse(pngBuffer, {

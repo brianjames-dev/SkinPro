@@ -46,6 +46,47 @@ export type ImageValidationResult =
   | { ok: true; totalBytes: number }
   | { ok: false; error: string };
 
+/** Best-effort magic-byte sniff for common image formats (incl. HEIC ftyp). */
+export const hasImageMagicBytes = (buffer: Buffer): boolean => {
+  if (buffer.length < 12) {
+    return false;
+  }
+  // JPEG
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return true;
+  }
+  // PNG
+  if (
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return true;
+  }
+  // WebP: RIFF....WEBP
+  if (
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return true;
+  }
+  // HEIC/HEIF: ....ftyp....
+  if (buffer.toString("ascii", 4, 8) === "ftyp") {
+    const brand = buffer.toString("ascii", 8, 12);
+    if (
+      brand.startsWith("heic") ||
+      brand.startsWith("heif") ||
+      brand.startsWith("mif1") ||
+      brand.startsWith("msf1") ||
+      brand.startsWith("avif")
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
+
 export const validateImageFiles = (
   files: File[],
   limits: UploadLimits
@@ -83,12 +124,6 @@ export const validateImageFiles = (
 
     const mimeType = (file.type || "").toLowerCase();
     const nameExt = path.extname(file.name || "").toLowerCase();
-    if (!mimeType && !nameExt) {
-      return {
-        ok: false,
-        error: `"${file.name || "File"}" has an unknown file type.`
-      };
-    }
 
     if (mimeType && !ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) {
       return {
@@ -97,8 +132,9 @@ export const validateImageFiles = (
       };
     }
 
-    const ext = nameExt || guessExtension(file.name, mimeType);
-    if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+    // Require a concrete allowed extension (from name or MIME), never empty-type alone.
+    const ext = nameExt || (mimeType ? guessExtension(file.name, mimeType) : "");
+    if (!ext || !ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
       return {
         ok: false,
         error: `"${file.name || "File"}" has an unsupported file extension.`

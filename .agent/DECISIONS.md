@@ -24,3 +24,10 @@
 - Plain CSS side-effect imports are declared in `src/css.d.ts`; CSS Modules remain covered by Next's generated types.
 - Prescription editor data remains rectangular for UI and PDF output; single-cell insert/delete shifts one column's cells while padding rows as needed.
 - Fully-empty trailing prescription rows created by single-cell shifts are trimmed immediately; explicit Add Row remains the way to keep a new blank row.
+
+## 2026-07-01 — Public surface for phone token flows
+
+- **Decision**: Only exact public paths for token-bearing phone UX: `/api/uploads/qr`, `/api/uploads/profile`, `/prescriptions/share`, `/api/prescriptions/share-image`, `/api/prescriptions/share`. QR minting (`/api/uploads/qr-code`) and share-token issuance require an authenticated staff session.
+- **Rationale**: Prior `startsWith("/api/uploads/qr")` treated `/api/uploads/qr-code` as public, allowing unauthenticated token minting. Share pages must remain PIN-free for patients while staff actions stay gated.
+- **Trade-off**: Share tokens are single-use on first successful image render (reload needs a new QR); preferred over multi-use within TTL for PHI.
+

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import fs from "fs";
 import path from "path";
+import { isPathWithin } from "@/lib/fileUtils";
+import { loadSkinproPaths } from "@/lib/skinproPaths";
 
 export const runtime = "nodejs";
 
@@ -139,16 +141,27 @@ export async function DELETE(
       .prepare("SELECT file_path FROM photos WHERE appointment_id = ?")
       .all(appointmentId) as { file_path: string }[];
 
+    const paths = loadSkinproPaths();
     const foldersToCheck = new Set<string>();
     for (const row of photoRows) {
       if (!row.file_path) {
         continue;
       }
 
+      if (!isPathWithin(paths.dataDir, row.file_path)) {
+        console.warn(
+          `Refused to delete photo outside data dir: ${row.file_path}`
+        );
+        continue;
+      }
+
       if (fs.existsSync(row.file_path)) {
         try {
           fs.rmSync(row.file_path, { force: true });
-          foldersToCheck.add(path.dirname(row.file_path));
+          const parent = path.dirname(row.file_path);
+          if (isPathWithin(paths.dataDir, parent)) {
+            foldersToCheck.add(parent);
+          }
         } catch (err) {
           console.warn(`Failed to delete photo: ${row.file_path}`, err);
         }
@@ -157,7 +170,11 @@ export async function DELETE(
 
     for (const folder of foldersToCheck) {
       try {
-        if (fs.existsSync(folder) && fs.readdirSync(folder).length === 0) {
+        if (
+          isPathWithin(paths.dataDir, folder) &&
+          fs.existsSync(folder) &&
+          fs.readdirSync(folder).length === 0
+        ) {
           fs.rmdirSync(folder);
         }
       } catch (err) {

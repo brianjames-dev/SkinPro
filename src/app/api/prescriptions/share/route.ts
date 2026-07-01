@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { loadSkinproPaths } from "@/lib/skinproPaths";
 import { isPathWithin } from "@/lib/fileUtils";
-import { getShareToken, markShareTokenUsed } from "@/lib/shareTokens";
+import { getShareToken, consumeShareToken } from "@/lib/shareTokens";
 import { renderPdfToPng } from "@/lib/renderPdfToPng";
 
 export const runtime = "nodejs";
@@ -80,7 +80,14 @@ export async function GET(request: Request) {
       throw new Error("Rendered output is not a PNG");
     }
 
-    markShareTokenUsed(token);
+    const consumed = consumeShareToken(token);
+    if (!consumed) {
+      console.warn("[share] token already used (race or prior consume)");
+      return NextResponse.json(
+        { error: "Share link is invalid or expired" },
+        { status: 404 }
+      );
+    }
     console.log("[share] rendered png", { bytes: pngBuffer.length });
 
     return new NextResponse(pngBuffer, {
