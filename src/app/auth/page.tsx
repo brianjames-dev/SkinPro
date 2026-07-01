@@ -2,7 +2,7 @@
 
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import styles from "../clients/clients.module.css";
+import styles from "./auth.module.css";
 import Button from "../ui/Button";
 import Field from "../ui/Field";
 import Notice from "../ui/Notice";
@@ -62,26 +62,32 @@ function AuthContent() {
   };
 
   return (
-    <div className={styles.page}>
-      <section className={styles.panel}>
-        <h1 className={styles.sectionTitle}>Unlock SkinPro</h1>
+    <div className={styles.shell}>
+      <section className={styles.modal} aria-labelledby="auth-title">
+        <h1 id="auth-title" className={styles.title}>
+          Unlock SkinPro
+        </h1>
         <Notice>Enter your access PIN to continue.</Notice>
         {error && <StatusMessage>{error}</StatusMessage>}
-        <form onSubmit={handleSubmit}>
+        <form className={styles.form} onSubmit={handleSubmit}>
           <Field label="Access PIN">
             <input
               className={styles.input}
               type="password"
               inputMode="numeric"
               name="pin"
+              autoComplete="current-password"
               value={pin}
               onChange={(event) => setPin(event.target.value)}
               placeholder="••••"
+              autoFocus
             />
           </Field>
-          <Button type="submit" disabled={loading || !pin.trim()}>
-            {loading ? "Unlocking..." : "Unlock"}
-          </Button>
+          <div className={styles.actions}>
+            <Button type="submit" disabled={loading || !pin.trim()}>
+              {loading ? "Unlocking..." : "Unlock"}
+            </Button>
+          </div>
         </form>
       </section>
     </div>
@@ -90,7 +96,7 @@ function AuthContent() {
 
 export default function AuthPage() {
   return (
-    <Suspense fallback={<div className={styles.page} />}>
+    <Suspense fallback={<div className={styles.shell} aria-hidden />}>
       <AuthContent />
     </Suspense>
   );

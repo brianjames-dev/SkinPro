@@ -1,0 +1,90 @@
+.shell {
+  --ink: #1f1b16;
+  --ink-muted: #5f5649;
+  --accent: #2d6b5d;
+  --surface: #fffdf7;
+  --line: #e2d7c6;
+  --shadow: 0 18px 40px rgba(32, 26, 18, 0.16);
+
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  color: var(--ink);
+  background:
+    radial-gradient(900px 400px at 10% -10%, rgba(248, 226, 190, 0.85), transparent 60%),
+    radial-gradient(700px 380px at 95% 10%, rgba(197, 228, 216, 0.55), transparent 60%),
+    #f4efe4;
+}
+
+.shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0)
+  );
+  pointer-events: none;
+}
+
+.modal {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 380px);
+  display: grid;
+  gap: 14px;
+  padding: 28px 24px 24px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-align: center;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.05rem;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
+.input:focus {
+  outline: 2px solid rgba(45, 107, 93, 0.35);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.actions {
+  display: flex;
+  justify-content: stretch;
+}
+
+.actions > * {
+  width: 100%;
+}
