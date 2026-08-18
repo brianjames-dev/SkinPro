@@ -55,7 +55,7 @@ export const PRODUCT_CATALOG: ProductCatalogItem[] = [
   { name: "AQ1 Cleanser (Deep Pore Cleanser)",   size: "4oz",   price: 60.0,  brand: "Laskin" },
   { name: "4N1",                                 size: "1.5oz", price: 250.0, brand: "Laskin" },
   { name: "C B P Cream",                         size: "1oz",   price: 90.0,  brand: "Laskin" },
-  { name: "Coleman Cream",                       size: "2oz",   price: 95.0,  brand: "Laskin" },
+  { name: "Coleman Cream",                       size: "2oz",   price: 105.0, brand: "Laskin" },
   { name: "Correcting Cream Medium",             size: "1oz",   price: 85.0,  brand: "Laskin" },
   { name: "Growth Factor Serum",                 size: "1.5oz", price: 165.0, brand: "Laskin" },
   { name: "Growth Factor Serum",                 size: "2oz",   price: 220.0, brand: "Laskin" },
